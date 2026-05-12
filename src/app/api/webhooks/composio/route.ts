@@ -173,29 +173,90 @@ function verifyComposioSignature(req: NextRequest, raw: string): boolean {
     return true;
   }
 
-  const candidates = [
-    req.headers.get("x-composio-signature"),
-    req.headers.get("composio-signature"),
-    req.headers.get("x-signature"),
-  ].filter(Boolean) as string[];
+  // Collect every header that could carry a signature or signing context.
+  // Composio's exact scheme drifts between versions, and standard-webhooks
+  // (Svix) is also common — we try multiple shapes and log everything on
+  // failure so a single rejected delivery tells us exactly what to support.
+  const headerNames = [
+    "x-composio-signature",
+    "composio-signature",
+    "x-signature",
+    "webhook-signature",
+    "webhook-id",
+    "webhook-timestamp",
+  ];
+  const headers: Record<string, string> = {};
+  for (const name of headerNames) {
+    const v = req.headers.get(name);
+    if (v) headers[name] = v;
+  }
 
-  if (candidates.length === 0) return false;
+  // Compute candidate HMACs against several payload representations.
+  const bodyOnly = raw;
+  const webhookId = headers["webhook-id"];
+  const webhookTs = headers["webhook-timestamp"];
+  const svixPayload =
+    webhookId && webhookTs ? `${webhookId}.${webhookTs}.${raw}` : null;
 
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(raw)
-    .digest("hex");
+  function hmacAll(payload: string) {
+    const h = crypto.createHmac("sha256", secret!).update(payload);
+    return { hex: h.digest("hex"), b64: crypto.createHmac("sha256", secret!).update(payload).digest("base64") };
+  }
+  const expectBody = hmacAll(bodyOnly);
+  const expectSvix = svixPayload ? hmacAll(svixPayload) : null;
 
-  return candidates.some((s) => {
-    const cleaned = s.replace(/^sha256=/, "").trim();
-    if (cleaned.length !== expected.length) return false;
+  // Pull out every signature value (some headers carry multiple comma-separated v1,<sig>).
+  const sigStrings: string[] = [];
+  for (const name of [
+    "x-composio-signature",
+    "composio-signature",
+    "x-signature",
+    "webhook-signature",
+  ]) {
+    const v = headers[name];
+    if (!v) continue;
+    for (const part of v.split(/[\s,]+/)) {
+      const cleaned = part.replace(/^(sha256=|v1=|v1,)/i, "").trim();
+      if (cleaned) sigStrings.push(cleaned);
+    }
+  }
+
+  function safeEqual(a: string, b: string) {
+    if (a.length !== b.length) return false;
     try {
-      return crypto.timingSafeEqual(
-        Buffer.from(cleaned, "hex"),
-        Buffer.from(expected, "hex"),
-      );
+      return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
     } catch {
       return false;
     }
-  });
+  }
+
+  const candidates: Array<{ scheme: string; expected: string }> = [
+    { scheme: "body/hex", expected: expectBody.hex },
+    { scheme: "body/base64", expected: expectBody.b64 },
+  ];
+  if (expectSvix) {
+    candidates.push({ scheme: "svix/hex", expected: expectSvix.hex });
+    candidates.push({ scheme: "svix/base64", expected: expectSvix.b64 });
+  }
+
+  for (const sig of sigStrings) {
+    for (const c of candidates) {
+      if (safeEqual(sig, c.expected)) {
+        console.log(`[composio webhook] signature OK via ${c.scheme}`);
+        return true;
+      }
+    }
+  }
+
+  // Failure — emit a single diagnostic line we can grep in Vercel logs.
+  console.error(
+    "[composio webhook] signature rejected",
+    JSON.stringify({
+      receivedHeaders: headers,
+      sigsTried: sigStrings.length,
+      expectedSchemes: candidates.map((c) => c.scheme),
+      bodyBytes: raw.length,
+    }),
+  );
+  return false;
 }
