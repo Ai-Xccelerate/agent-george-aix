@@ -74,9 +74,15 @@ export async function processAgentEvent(
   }
   const event = claim.data as EventRow;
 
-  // 2) Resolve framing. Only OUTLOOK_NEW_MESSAGE today; everything else
+  // 2) Resolve framing. Outlook "new mail" triggers today; everything else
   //    gets marked 'skipped' so we don't leave rows hanging.
-  if (event.event_type !== "OUTLOOK_NEW_MESSAGE") {
+  //    OUTLOOK_MESSAGE_TRIGGER is the current Composio slug; OUTLOOK_NEW_MESSAGE
+  //    is kept as a legacy alias.
+  const OUTLOOK_NEW_MAIL_SLUGS = new Set([
+    "OUTLOOK_MESSAGE_TRIGGER",
+    "OUTLOOK_NEW_MESSAGE",
+  ]);
+  if (!OUTLOOK_NEW_MAIL_SLUGS.has(event.event_type)) {
     await admin
       .from("agent_events")
       .update({
