@@ -17,6 +17,8 @@ Cross-walk: this list is reconciled against `docs/00-high-level-requirements.md`
 
 **Where:** `src/app/api/webhooks/composio/route.ts` (currently observation-only — writes to `audit_log` then 200s). The `query()` invocation pattern is in `src/app/api/chat/route.ts`.
 
+**Vercel primitive:** Fluid Compute Function for the webhook (returns 200 fast). `after()` for kicking off `processAgentEvent()`. If any single reply needs to run > 5 min (e.g., transcript-based deep analysis), migrate that path to a `"use workflow"` function — see `docs/01-vercel-deployment.md`.
+
 **Status:** **Internal infra shipped (v1, 2026-05-12).** End-to-end gated on configuring the Composio trigger and verifying real-payload field paths.
 
 What's in place:
@@ -70,13 +72,19 @@ Verification gates remaining before this can fire end-to-end:
 ## Knowledge + memory
 
 ### 5. Real embeddings for `search_knowledge`
-**What:** Replace JS-side multi-word ilike scoring with proper vector similarity. Populate `knowledge_chunks.embedding` (1536-dim) at sync time using OpenAI `text-embedding-3-small` (or Voyage-3-small w/ schema bump). Swap `search_knowledge` to a SQL function that does `embedding <=> query_embedding` cosine distance.
+**What:** Replace JS-side multi-word ilike scoring with proper vector similarity. Populate `knowledge_chunks.embedding` (1536-dim) at sync time using OpenAI `text-embedding-3-small`. Swap `search_knowledge` to a SQL function that does `embedding <=> query_embedding` cosine distance.
 
-**Why deferred:** Needs an embedding-provider API key (OpenAI or Voyage). Ilike works fine for ~13 chunks today.
+**Why deferred:** Needed an embedding-provider API key.
 
 **Where:** `scripts/sync-knowledge.ts` (populate embedding), `src/lib/agent/tools.ts` `searchKnowledge` (replace ilike with SQL function), pgvector index already in `supabase/migrations/20260512090000_init.sql`.
 
-**Status:** Pending — add `OPENAI_API_KEY` to env when ready.
+**Status:** Shipped 2026-05-12. `OPENAI_API_KEY` provisioned. New helper `src/lib/knowledge/embeddings.ts` exposes `embedText` / `embedBatch` / `hasEmbeddingProvider` (text-embedding-3-small, 1536-dim, batched ≤128). `pnpm sync:knowledge` now embeds new chunks on insert and runs a backfill pass over any pre-existing NULL embeddings (43 chunks embedded on first run). Settings → Knowledge editor (`src/app/(app)/settings/knowledge/actions.ts`) also embeds on save so UI-created docs are immediately searchable. Migration `20260515000800_knowledge_vector_search.sql` adds `match_knowledge_chunks(p_org_id, p_query, p_limit)` — a `SECURITY DEFINER` SQL function that does the cosine-distance lookup and joins the parent doc. `search_knowledge` now embeds the query, calls the RPC, and reports `mode: "vector"`. If the OpenAI call fails or the key is unset, it transparently falls back to ilike (`mode: "ilike"`) so the tool never hard-fails mid-conversation.
+
+**Hybrid RAG policy (Option A, locked in 2026-05-12):** Core docs (`knowledge_docs.is_core=true`) are intentionally excluded from vector search. They carry George's role / scope / lifecycle / process / rules where chunked snippets would be lossy. Two retrieval contracts:
+- **Core** → fetch whole via `read_knowledge_doc(path)` only. Verbatim, no chunking.
+- **Supplemental** → vector-search via `search_knowledge(query)`; can still be fetched whole with `read_knowledge_doc(path)` for full context.
+
+Enforcement is server-side: migration `20260515000900_knowledge_vector_search_skip_core.sql` adds `and d.is_core = false` to `match_knowledge_chunks`; the ilike fallback applies `eq("knowledge_docs.is_core", false)` for parity. System prompt manifest (`src/lib/agent/system-prompt.ts`) groups core docs first under "fetch whole via `read_knowledge_doc(path)`" and supplemental under "searchable via `search_knowledge(query)`", and spells out: "If you're unsure whether a question is core or supplemental, treat it as core." Tool descriptions for both `search_knowledge` and `read_knowledge_doc` carry the same contract so the agent sees it from either entry point.
 
 ---
 
@@ -129,6 +137,8 @@ Verification gates remaining before this can fire end-to-end:
 
 **Where:** `src/app/api/chat/route.ts` `builtinAllow` array (currently `["WebFetch", "WebSearch", "AskUserQuestion"]`).
 
+**Vercel primitive:** **Don't enable the SDK's `Task` tool on the chat path.** Sub-agents that need to run > 5 min or in parallel belong in **Vercel Workflow** with `DurableAgent` from `@workflow/ai`. Parent workflow fans out via `start()` wrapped in a step (see `docs/01-vercel-deployment.md` for the sketch).
+
 **Status:** Idea — add when a clear use case appears.
 
 ---
@@ -144,6 +154,8 @@ Verification gates remaining before this can fire end-to-end:
 
 ### 12. Production deploy + webhook URLs
 **What:** Deploy to Vercel. Set `NEXT_PUBLIC_APP_URL` to the prod domain. Update Supabase Auth → URL Configuration with the prod URL in Site URL + Redirect URLs. Configure Composio trigger webhook URL.
+
+**Vercel primitive:** Pro tier minimum for prod (unlocks hourly cron + consistent 300s timeout). Codebase deploys without code changes — see `docs/01-vercel-deployment.md` for the full mapping of every existing surface to its Vercel runtime.
 
 **Status:** Pending until enough is built that prod testing makes sense.
 
@@ -222,11 +234,13 @@ keeping `full_name` and parsing on display.
 ---
 
 ### 17. Cloud-managed long-running agents
-**What:** Migrate jobs that exceed one chat turn (multi-hour analyses, monitoring loops, bulk parsing) to Claude Managed Agents. Today everything goes through the in-process Agent SDK.
+**What:** Migrate jobs that exceed one chat turn (multi-hour analyses, monitoring loops, bulk parsing) to a long-running runtime. Today everything goes through the in-process Agent SDK with a 240s budget.
 
-**Why:** Vercel Function timeouts max at 300s; multi-hour work needs an external runner. HLR §5.1 calls this out explicitly.
+**Why:** Vercel Function timeouts max at 300s; multi-hour work needs a durable runtime. HLR §5.1 calls this out explicitly.
 
-**Where:** Coordinate with #16. Likely a separate `src/lib/agent/managed/` module that submits and tracks managed agent runs, with results streamed back into `agent_job_runs`.
+**Where:** Coordinate with #16. New module `src/lib/agent/workflows/` containing `"use workflow"` functions. `run-job.ts` keeps handling the short-bounded path; long-job route uses Workflow + `DurableAgent`.
+
+**Vercel primitive:** **Vercel Workflow DevKit** (`workflow` + `@workflow/ai` + `@workflow/next`). `"use workflow"` orchestration + `"use step"` units. `DurableAgent` from `@workflow/ai` for the agent loop — same shape as Anthropic's Managed Agents but Vercel-side with full access to our MCP tools and DB. The two are complementary: Workflow for tightly-integrated work, Anthropic Managed Agents for compute-heavy work we don't want occupying our runtime (a Vercel Workflow can submit a Managed Agent job and `createHook()` on completion). Full migration sketch in `docs/01-vercel-deployment.md`.
 
 **Status:** Pending. Blocked by #16 scaffolding.
 

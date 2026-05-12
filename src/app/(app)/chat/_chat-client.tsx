@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowUp,
   Check,
@@ -70,10 +71,16 @@ export type InitialMessage = {
 export function ChatClient({
   sessionId,
   initialMessages,
+  embedded = false,
 }: {
   sessionId: string;
   initialMessages: InitialMessage[];
+  /** True when rendered inside the floating bubble: smaller empty state,
+   *  trimmed suggestion list, narrower hero. The streaming/tool/input
+   *  machinery is identical. */
+  embedded?: boolean;
 }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<Msg[]>(initialMessages);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -113,6 +120,30 @@ export function ChatClient({
   useEffect(() => {
     setPopoverIndex(0);
   }, [trigger?.kind, trigger?.query, mentionItems.length]);
+
+  // External-insert hook: the floating chat bubble dispatches
+  // `george-bubble-insert` to inject text (e.g. an @-mention chip from
+  // the page-context banner) directly into the input. Appends to the
+  // current draft so the user's typing isn't lost, and focuses the
+  // textarea afterwards.
+  useEffect(() => {
+    function onInsert(e: Event) {
+      const detail = (e as CustomEvent<{ text?: string }>).detail;
+      const text = detail?.text;
+      if (!text) return;
+      setInput((prev) => {
+        const sep = prev.length === 0 || /\s$/.test(prev) ? "" : " ";
+        return prev + sep + text;
+      });
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }
+    window.addEventListener("george-bubble-insert", onInsert as EventListener);
+    return () =>
+      window.removeEventListener(
+        "george-bubble-insert",
+        onInsert as EventListener,
+      );
+  }, []);
 
   // Fetch customer matches when the @-mention query changes.
   useEffect(() => {
@@ -303,7 +334,16 @@ export function ChatClient({
                 m.id === assistantId ? { ...m, streaming: false } : m,
               ),
             );
+            // Refresh the history rail (server-rendered layout) so the
+            // interim title written by the chat route lands in the UI.
+            // The LLM-summarised title arrives a moment later as a
+            // separate `title` event below.
+            router.refresh();
             void data;
+          } else if (event === "title") {
+            // Title upgrade — the route generated a Haiku summary after
+            // the stream completed. Refresh again so the rail picks it up.
+            router.refresh();
           } else if (event === "system") {
             // sessionId is fixed by the URL — nothing to update here.
             void data;
@@ -378,7 +418,7 @@ export function ChatClient({
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8">
         <div className="mx-auto max-w-[760px]">
           {messages.length === 0 ? (
-            <EmptyChat onPick={(p) => setInput(p)} />
+            <EmptyChat onPick={(p) => setInput(p)} embedded={embedded} />
           ) : (
             <div className="space-y-6">
               {messages.map((m) => (
@@ -708,31 +748,67 @@ function ToolRow({ tool }: { tool: ToolEvent }) {
   );
 }
 
-function EmptyChat({ onPick }: { onPick: (s: string) => void }) {
-  const prompts = [
-    "I just signed a new customer — here’s the contract.",
-    "Give me the health snapshot across all active customers.",
-    "Draft a kickoff meeting agenda for the new account.",
-    "What did the Onyx onboarding meeting from yesterday cover?",
-  ];
+function EmptyChat({
+  onPick,
+  embedded = false,
+}: {
+  onPick: (s: string) => void;
+  embedded?: boolean;
+}) {
+  // Full-page empty state shows four diverse openers; bubble shows one
+  // generic one so the suggestion grid doesn't dominate the small panel.
+  const prompts = embedded
+    ? ["Give me the health snapshot across all active customers."]
+    : [
+        "I just signed a new customer — here’s the contract.",
+        "Give me the health snapshot across all active customers.",
+        "Draft a kickoff meeting agenda for the new account.",
+        "What did the Onyx onboarding meeting from yesterday cover?",
+      ];
   return (
-    <div className="flex h-full flex-col items-center justify-center text-center">
-      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl brand-gradient text-white shadow-[var(--shadow-cta)]">
-        <Sparkles size={24} />
+    <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+      <div
+        className={cn(
+          "flex items-center justify-center rounded-2xl brand-gradient text-white shadow-[var(--shadow-cta)]",
+          embedded ? "mb-3 h-10 w-10" : "mb-5 h-14 w-14",
+        )}
+      >
+        <Sparkles size={embedded ? 18 : 24} />
       </div>
-      <h1 className="text-[22px] font-bold text-[var(--color-fg)]">
+      <h1
+        className={cn(
+          "font-bold text-[var(--color-fg)]",
+          embedded ? "text-[15px]" : "text-[22px]",
+        )}
+      >
         How can I help, today?
       </h1>
-      <p className="mt-1 max-w-[480px] text-sm text-[var(--color-fg-secondary)]">
-        I’m George — your customer success teammate. Drop a contract, forward an
-        email, or ask me anything about your customers.
+      <p
+        className={cn(
+          "mt-1 max-w-[480px] text-[var(--color-fg-secondary)]",
+          embedded ? "text-[12px]" : "text-sm",
+        )}
+      >
+        {embedded
+          ? "Ask me anything about your customers."
+          : "I’m George — your customer success teammate. Drop a contract, forward an email, or ask me anything about your customers."}
       </p>
-      <div className="mt-7 grid w-full max-w-[640px] grid-cols-2 gap-2">
+      <div
+        className={cn(
+          "w-full",
+          embedded
+            ? "mt-4 flex max-w-[360px] flex-col gap-2"
+            : "mt-7 grid max-w-[640px] grid-cols-2 gap-2",
+        )}
+      >
         {prompts.map((p) => (
           <button
             key={p}
             onClick={() => onPick(p)}
-            className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-4 py-3 text-left text-[13px] text-[var(--color-fg)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-light)]"
+            className={cn(
+              "rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] text-left text-[var(--color-fg)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-light)]",
+              embedded ? "px-3 py-2 text-[12px]" : "px-4 py-3 text-[13px]",
+            )}
           >
             {p}
           </button>

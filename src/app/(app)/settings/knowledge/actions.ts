@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { chunkMarkdown, extractTitle } from "@/lib/knowledge/chunk";
+import { embedBatch, hasEmbeddingProvider } from "@/lib/knowledge/embeddings";
+
+function toVectorLiteral(v: number[]): string {
+  return `[${v.join(",")}]`;
+}
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
@@ -37,12 +42,17 @@ async function rechunk(
   const chunks = chunkMarkdown(args.content);
   if (chunks.length === 0) return;
 
+  // Embed when the provider is configured; otherwise insert with NULL
+  // embeddings and rely on `pnpm sync:knowledge`'s backfill pass later.
+  const embeddings = hasEmbeddingProvider() ? await embedBatch(chunks) : [];
+
   const rows = chunks.map((c, i) => ({
     doc_id: args.docId,
     org_id: args.orgId,
     ordinal: i,
     content: c,
     metadata: { source_path: args.path, title: args.title },
+    embedding: embeddings[i] ? toVectorLiteral(embeddings[i]) : null,
   }));
   const ins = await admin.from("knowledge_chunks").insert(rows);
   if (ins.error) throw ins.error;

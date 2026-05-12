@@ -13,9 +13,10 @@ This file is the source of truth for orientation. Read top to bottom on a fresh 
 ## Start here, in this order
 
 1. **`docs/00-high-level-requirements.md`** — full product brief (vision, scope, architecture, data model, open questions). Authoritative.
-2. **`docs/BACKLOG.md`** — every item deliberately deferred, grouped by area, with what / why / where / status. Authoritative for "what's next?". Cross-walked against the HLR — items tagged `[HLR]` come from the HLR audit.
-3. **`design/design-system.md`** — AIX Core + Onyx purple theme. Token names, gradients, layout patterns. §0 has explicit "apply this theme" instructions.
-4. **`knowledge/core/*.md`** — the actual organizational playbook George ships with. **Listed in the manifest** prepended to George's system prompt every session; fetched in full on demand via the `read_knowledge_doc(path)` tool (see Knowledge Pipeline below).
+2. **`docs/01-vercel-deployment.md`** — **runtime + deployment reference.** Which Vercel primitive to use for which kind of work (Function vs Workflow vs DurableAgent vs Sandbox), hard rules, and the migration path for long-running tracks. Read before adding any new server route, scheduled job, or agent surface.
+3. **`docs/BACKLOG.md`** — every item deliberately deferred, grouped by area, with what / why / where / status. Authoritative for "what's next?". Cross-walked against the HLR — items tagged `[HLR]` come from the HLR audit.
+4. **`design/design-system.md`** — AIX Core + Onyx purple theme. Token names, gradients, layout patterns. §0 has explicit "apply this theme" instructions.
+5. **`knowledge/core/*.md`** — the actual organizational playbook George ships with. **Listed in the manifest** prepended to George's system prompt every session; fetched in full on demand via the `read_knowledge_doc(path)` tool (see Knowledge Pipeline below).
 
 ## Tech stack — locked in
 
@@ -107,6 +108,23 @@ These are decided; **don't redo them without saying so**.
 - **Email policy.** George must `draft_email` / `draft_email_reply`, surface preview, wait for explicit user confirm, then `send_email_draft`. Never auto-send. Calendar events go direct (less sensitive). Enforced in the system prompt; deviations would be a regression.
 - **Knowledge pipeline (manifest + on-demand).** The system prompt prepends a **manifest** — every knowledge doc's path + title, with `is_core=true` entries grouped at the top as the "core playbook." No `content_md` in the prompt. George fetches docs in full with `mcp__george__read_knowledge_doc(path)` when it knows which doc has the answer, or `mcp__george__search_knowledge(query)` (chunks span the full KB, core + supplemental) when it doesn't. Pattern is deliberate — CLAUDE.md-style: tiny preamble, deep content read lazily. Don't reintroduce eager full-load of core; it doesn't scale and the manifest gives the agent enough to pick the right doc. Customer-specific data still goes through the Supabase MCP tools, not the knowledge path.
 - **Theme.** Dark-first. Onyx purple palette (`#6D45F5` primary). Server-side cookie (`george-theme`) sets the `dark` class on `<html>` — no FOUC. Toggle in topbar.
+- **Vercel as the host.** Deployed on Vercel Fluid Compute (Node 24, 300s default). Long-running and agentic work belongs in **Vercel Workflow DevKit** (`"use workflow"` orchestration + `"use step"` units), not in plain Functions. See `docs/01-vercel-deployment.md` for the decision table and migration sketches. Supabase stays where it is; **never** migrate Postgres / Auth / Storage to Vercel-side primitives.
+
+## Runtime — when to use what
+
+Quick decision table; the full version is in `docs/01-vercel-deployment.md`.
+
+| Work shape | Use | Notes |
+|---|---|---|
+| HTTP route, SSE chat, webhooks ≤ ~4 min | Fluid Compute Function | Default. 300s ceiling. |
+| Background processing right after a 200 | `after()` inside a Function | Native; we use it in `/api/webhooks/composio`. |
+| Recurring ≤ ~4 min | Vercel Cron | Already wired in `vercel.json`. Hourly. |
+| **Anything > 5 min, multi-step, retries, sleeps, waits on events** | **Vercel Workflow** | `"use workflow"` + `"use step"`. Backlog #17 lives here. |
+| **LLM agent loop > 5 min OR needs durability** | **`DurableAgent`** from `@workflow/ai` | Sub-agents (backlog #10) live here. |
+| Untrusted code, browser automation | **Vercel Sandbox** | Firecracker microVM. Pre-build a snapshot. |
+| Provider-agnostic LLM routing | Vercel AI Gateway | String model ids like `"anthropic/claude-sonnet-4-5"`. |
+
+Hard rules: **no Edge Functions** (deprecated), **don't exceed 300s in a Function** (migrate to Workflow), **don't poll long external work from a Function** (use `createHook()`), **don't run untrusted code in-process** (use Sandbox), **don't put background work in the chat SSE handler** (trigger a workflow instead).
 
 ## Commands cheat sheet
 

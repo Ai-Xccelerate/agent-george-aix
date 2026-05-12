@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { getCurrentUser } from "@/lib/supabase/current-user";
+import { FloatingChatBubble } from "./_bubble/floating-chat-bubble";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -20,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Topbar />
         <main className="flex-1 overflow-auto bg-[var(--color-surface-2)]">{children}</main>
       </div>
+      <FloatingChatBubble />
     </div>
   );
 }

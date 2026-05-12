@@ -17,6 +17,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildComposioTools } from "./composio-tools";
+import { embedText, hasEmbeddingProvider } from "@/lib/knowledge/embeddings";
 
 export type GeorgeToolCtx = {
   orgId: string;
@@ -551,29 +552,81 @@ export function buildGeorgeMcpServer(
   // ---- search_knowledge -------------------------------------------
   const searchKnowledge = tool(
     "search_knowledge",
-    "Semantic search across the org's full knowledge base (core + supplemental). Returns the most relevant ~800-char chunks with their source path. Use when you don't know which doc has the answer. If a hit is from a core playbook and you need the surrounding context, follow up with `read_knowledge_doc(path)` to fetch the full doc.",
+    "Semantic search across the org's **supplemental** knowledge base only. Returns the most relevant ~800-char chunks with their source path. CORE PLAYBOOKS ARE INTENTIONALLY EXCLUDED — chunked snippets are lossy, and the core docs hold your role, scope, lifecycle, and process rules where accuracy must be exact. For anything touching role / scope / process / lifecycle / rules, do NOT use this tool — call `read_knowledge_doc(path)` against the relevant core doc listed in your system prompt's manifest. Use `search_knowledge` only for niche / reference / supplemental questions, or as a last resort when no core doc obviously applies.",
     {
       query: z.string().min(1),
       limit: z.number().int().min(1).max(10).default(5).optional(),
     },
     async ({ query, limit }) => {
+      const k = limit ?? 5;
+
+      // Preferred path: pgvector cosine similarity via the
+      // `match_knowledge_chunks` RPC. Requires OPENAI_API_KEY +
+      // embedded chunks (sync-knowledge handles both).
+      if (hasEmbeddingProvider()) {
+        try {
+          const queryEmbedding = await embedText(query);
+          const { data, error } = await db.rpc("match_knowledge_chunks", {
+            p_org_id: orgId,
+            p_query: `[${queryEmbedding.join(",")}]`,
+            p_limit: k,
+          });
+          if (error) return fail(error.message);
+          const hits = (data ?? []).map(
+            (r: {
+              path: string | null;
+              title: string | null;
+              is_core: boolean | null;
+              ordinal: number;
+              content: string;
+              similarity: number;
+            }) => ({
+              score: Number(r.similarity?.toFixed(4) ?? 0),
+              path: r.path,
+              title: r.title,
+              is_core: r.is_core ?? false,
+              ordinal: r.ordinal,
+              snippet: r.content,
+            }),
+          );
+          return ok({
+            hits,
+            mode: "vector",
+            note:
+              hits.length === 0
+                ? "No matches in supplemental knowledge. Core playbooks are not searched — if the question touches role / scope / process / lifecycle, fetch the relevant core doc from the manifest with `read_knowledge_doc(path)` instead."
+                : undefined,
+          });
+        } catch (err) {
+          // Fall through to ilike if the embedding call fails — better
+          // a degraded result than a tool error mid-conversation.
+          console.warn("[search_knowledge] vector path failed, falling back to ilike:", err);
+        }
+      }
+
+      // Fallback: multi-word ilike scoring. Active when OPENAI_API_KEY
+      // is unset or the embedding call errored.
       const words = query
         .toLowerCase()
         .split(/\s+/)
         .filter((w) => w.length > 2);
 
       if (words.length === 0) {
-        return ok({ hits: [] });
+        return ok({ hits: [], mode: "ilike" });
       }
 
       const orFilter = words.map((w) => `content.ilike.%${w}%`).join(",");
 
+      // Policy parity with the vector path: core docs are excluded.
+      // Inner join + `is_core.eq.false` on the joined table enforces it
+      // server-side (so a returned row is guaranteed supplemental).
       const { data, error } = await db
         .from("knowledge_chunks")
         .select(
           "content, ordinal, metadata, knowledge_docs!inner(path, title, org_id, is_core)",
         )
         .eq("org_id", orgId)
+        .eq("knowledge_docs.is_core", false)
         .or(orFilter)
         .limit(50);
       if (error) return fail(error.message);
@@ -602,13 +655,14 @@ export function buildGeorgeMcpServer(
         })
         .filter((h) => h.score > 0)
         .sort((a, b) => b.score - a.score)
-        .slice(0, limit ?? 5);
+        .slice(0, k);
 
       return ok({
         hits: scored,
+        mode: "ilike",
         note:
           scored.length === 0
-            ? "No matches. Check the knowledge manifest in your system prompt — you can fetch any listed doc in full with `read_knowledge_doc(path)`."
+            ? "No matches in supplemental knowledge. Core playbooks are not searched — if the question touches role / scope / process / lifecycle, fetch the relevant core doc from the manifest with `read_knowledge_doc(path)` instead."
             : undefined,
       });
     },
@@ -617,7 +671,7 @@ export function buildGeorgeMcpServer(
   // ---- read_knowledge_doc -----------------------------------------
   const readKnowledgeDoc = tool(
     "read_knowledge_doc",
-    "Fetch the full markdown of one knowledge doc by its `path` (the values shown in the knowledge manifest in your system prompt). Use when you know which doc has the answer — e.g. process / role / lifecycle questions point at the core playbooks. Returns content_md, title, version. Errors if the path doesn't exist for this org.",
+    "Fetch the full, verbatim markdown of one knowledge doc by its `path` (values shown in the knowledge manifest in your system prompt). This is the ONLY way to read core playbooks — they are intentionally excluded from `search_knowledge` because chunked snippets are lossy and core docs hold your role / scope / lifecycle / process rules. ALWAYS use this tool for any question about role, scope, rules, lifecycle, or process — read the relevant core doc whole, then quote it directly rather than paraphrasing. Returns content_md, title, version. Errors if the path doesn't exist for this org.",
     {
       path: z.string().min(1),
     },

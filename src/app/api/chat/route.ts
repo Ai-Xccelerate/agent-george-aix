@@ -3,6 +3,7 @@ import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { buildGeorgeMcpServer } from "@/lib/agent/tools";
 import { georgeCanUseTool } from "@/lib/agent/permissions";
 import { buildGeorgeSystemPrompt } from "@/lib/agent/system-prompt";
+import { generateSessionTitle } from "@/lib/agent/title";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     ? (
         await admin
           .from("agent_sessions")
-          .select("id, sdk_session_id")
+          .select("id, sdk_session_id, title")
           .eq("id", sessionId)
           .eq("org_id", user.orgId)
           .maybeSingle()
@@ -45,11 +46,31 @@ export async function POST(req: NextRequest) {
         org_id: user.orgId,
         user_id: user.id,
         channel: "chat",
+        // Seed with a slice of the first user message so the history rail
+        // shows something meaningful immediately. We'll upgrade this to an
+        // LLM-summarised title after the assistant's first reply (see the
+        // `after()` block below).
         title: lastUser.content.slice(0, 80),
       })
-      .select("id, sdk_session_id")
+      .select("id, sdk_session_id, title")
       .single();
     dbSession = data;
+  }
+
+  // True only on the first turn of a session created without a title
+  // (i.e. the user clicked "New chat" → `newChatAction` inserted a
+  // row with `title: null`, then sent a message). We upgrade that row
+  // to a real summary after the assistant replies.
+  const needsTitle = !dbSession!.title;
+  if (needsTitle) {
+    // Interim title so the history rail shows something on the next
+    // render, even before the LLM-summarised title replaces it.
+    const interim = lastUser.content.slice(0, 80);
+    await admin
+      .from("agent_sessions")
+      .update({ title: interim })
+      .eq("id", dbSession!.id);
+    dbSession!.title = interim;
   }
 
   await admin.from("agent_messages").insert({
@@ -237,6 +258,28 @@ export async function POST(req: NextRequest) {
             .from("agent_sessions")
             .update({ sdk_session_id: sdkSessionId })
             .eq("id", dbSession!.id);
+        }
+        // Upgrade the interim title to an LLM-summarised one. We run
+        // this inline (before close) — the `done` event has already
+        // streamed, so the user sees the assistant's reply complete
+        // immediately; this adds ~1s of held-open SSE during which we
+        // emit a `title` event so the client can refresh the rail. If
+        // the Haiku call fails the interim slice stays as-is.
+        if (needsTitle && assistantText) {
+          try {
+            const title = await generateSessionTitle({
+              userMessage: lastUser.content,
+              assistantReply: assistantText,
+              fallback: lastUser.content,
+            });
+            await admin
+              .from("agent_sessions")
+              .update({ title })
+              .eq("id", dbSession!.id);
+            send("title", { sessionId: dbSession!.id, title });
+          } catch (err) {
+            console.warn("[chat] title generation failed:", err);
+          }
         }
         controller.close();
       }

@@ -136,7 +136,7 @@ export function HistoryRail({ sessions }: { sessions: HistoryItem[] }) {
                   {!collapsed && (
                     <span className="min-w-0 flex-1 truncate">
                       {s.title?.trim() ||
-                        (s.channel === "email" ? "Inbound email" : "New chat")}
+                        (s.channel === "email" ? "Inbound email" : "Untitled chat")}
                     </span>
                   )}
                   {!collapsed && (
@@ -180,7 +180,7 @@ export function HistoryRail({ sessions }: { sessions: HistoryItem[] }) {
         title="Delete this conversation?"
         description={
           deleting
-            ? `"${deleting.title?.trim() || (deleting.channel === "email" ? "Inbound email" : "New chat")}" will be permanently removed, along with all its messages.`
+            ? `"${deleting.title?.trim() || (deleting.channel === "email" ? "Inbound email" : "Untitled chat")}" will be permanently removed, along with all its messages.`
             : undefined
         }
         footer={

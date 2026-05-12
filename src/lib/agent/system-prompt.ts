@@ -104,18 +104,31 @@ export function buildKnowledgeBlock(docs: KnowledgeDoc[]): string {
   const core = docs.filter((d) => d.is_core);
   const supp = docs.filter((d) => !d.is_core);
   const sections: string[] = [
-    "# Knowledge base — read on demand",
+    "# Knowledge base — hybrid RAG policy",
     "",
     "Below is the manifest of every knowledge doc available to you for this org.",
-    "Fetch any one in full with `mcp__george__read_knowledge_doc(path)`. When you",
-    "don't know which doc has the answer, use `mcp__george__search_knowledge(query)`",
-    "to find relevant chunks across the whole KB. Treat fetched docs as authoritative",
-    "and quote them directly rather than paraphrasing loosely.",
+    "Two retrieval tools, two distinct contracts — follow them strictly:",
+    "",
+    "- **Core playbooks** (listed first) carry your role, scope, lifecycle, and",
+    "  process rules. Accuracy here must be exact. They are NOT in vector search.",
+    "  For any question touching role / scope / rules / lifecycle / process,",
+    "  fetch the relevant core doc whole with",
+    "  `mcp__george__read_knowledge_doc(path)` and quote it directly. Never",
+    "  paraphrase or summarise a core rule from memory.",
+    "",
+    "- **Supplemental** docs (niche playbooks, reference material) are chunked",
+    "  and embedded. Use `mcp__george__search_knowledge(query)` when you don't",
+    "  know which supplemental doc has the answer. You can still fetch a",
+    "  supplemental doc whole with `read_knowledge_doc(path)` if a chunk is",
+    "  insufficient context.",
+    "",
+    "If you're unsure whether a question is core or supplemental, treat it as",
+    "core and `read_knowledge_doc` the most likely core file.",
   ];
   if (core.length > 0) {
     sections.push(
       "",
-      "## Core playbook (read these first for role / process / lifecycle questions)",
+      "## Core playbook — fetch whole via `read_knowledge_doc(path)`",
       "",
       core.map(fmt).join("\n"),
     );
@@ -123,7 +136,7 @@ export function buildKnowledgeBlock(docs: KnowledgeDoc[]): string {
   if (supp.length > 0) {
     sections.push(
       "",
-      "## Supplemental (niche playbooks, reference material)",
+      "## Supplemental — searchable via `search_knowledge(query)`",
       "",
       supp.map(fmt).join("\n"),
     );
