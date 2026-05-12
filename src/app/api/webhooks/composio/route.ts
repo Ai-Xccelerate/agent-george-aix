@@ -44,11 +44,17 @@ export async function POST(req: NextRequest) {
     return new Response("invalid json", { status: 400 });
   }
 
-  // Composio v3 puts the trigger context under `data`, with the envelope `type`
-  // being `composio.trigger.message`. The actual trigger slug + connected
-  // account live in body.data. Tolerate older shapes too.
+  // Composio v3 envelope:
+  //   { id, timestamp, type: "composio.trigger.message",
+  //     metadata: { user_id, trigger_name, connected_account_id, ... },
+  //     data: { event_type, ...toolkit-specific payload... } }
+  // Tolerate older shapes too.
   const data = (body.data as Record<string, unknown> | undefined) ?? {};
+  const metadata =
+    (body.metadata as Record<string, unknown> | undefined) ?? {};
   const userId =
+    (metadata.user_id as string | undefined) ??
+    (metadata.userId as string | undefined) ??
     (body.userId as string | undefined) ??
     (body.user_id as string | undefined) ??
     (data.user_id as string | undefined) ??
@@ -56,9 +62,13 @@ export async function POST(req: NextRequest) {
     (body.payload?.userId as string | undefined) ??
     null;
   const orgId = parseOrgIdFromUser(userId);
-  // The trigger slug we route on. Envelope `type` (e.g. composio.trigger.message)
-  // is the *delivery* type; the trigger slug we care about is in data.trigger_name.
+  // Trigger slug we route on (e.g. OUTLOOK_MESSAGE_TRIGGER). The envelope
+  // `type` is the delivery wrapper (composio.trigger.message), not what we
+  // dispatch on.
   const triggerSlug =
+    (metadata.trigger_name as string | undefined) ??
+    (metadata.triggerName as string | undefined) ??
+    (metadata.trigger_slug as string | undefined) ??
     (data.trigger_name as string | undefined) ??
     (data.triggerName as string | undefined) ??
     (body.payload?.type as string | undefined) ??
@@ -71,6 +81,7 @@ export async function POST(req: NextRequest) {
     (body.event_id as string | undefined) ??
     (data.id as string | undefined) ??
     (data.delivery_id as string | undefined) ??
+    (metadata.id as string | undefined) ??
     (body.payload?.id as string | undefined) ??
     null;
 
@@ -91,20 +102,24 @@ export async function POST(req: NextRequest) {
   } else {
     // Log the envelope shape so we can see what to extract — top-level keys
     // and the data sub-object's keys are usually enough to spot the path.
+    const previewScalars = (obj: Record<string, unknown>) =>
+      Object.fromEntries(
+        Object.entries(obj).map(([k, v]) => [
+          k,
+          typeof v === "string" || typeof v === "number" || typeof v === "boolean"
+            ? v
+            : `<${typeof v}>`,
+        ]),
+      );
     console.warn("[composio webhook] could not derive orgId", {
       userId,
       envelopeType,
       triggerSlug,
       topLevelKeys: Object.keys(body ?? {}),
       dataKeys: Object.keys(data ?? {}),
-      dataPreview: Object.fromEntries(
-        Object.entries(data ?? {}).map(([k, v]) => [
-          k,
-          typeof v === "string" || typeof v === "number" || typeof v === "boolean"
-            ? v
-            : `<${typeof v}>`,
-        ]),
-      ),
+      dataPreview: previewScalars(data ?? {}),
+      metadataKeys: Object.keys(metadata ?? {}),
+      metadataPreview: previewScalars(metadata ?? {}),
     });
     return new Response("ok", { status: 200 });
   }
@@ -172,6 +187,7 @@ type ComposioWebhookEnvelope = {
   delivery_id?: string;
   event_id?: string;
   data?: unknown;
+  metadata?: unknown;
   payload?: {
     userId?: string;
     toolkit?: string;
