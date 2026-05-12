@@ -44,13 +44,33 @@ export async function POST(req: NextRequest) {
     return new Response("invalid json", { status: 400 });
   }
 
-  const userId = body.userId ?? body.user_id ?? body.payload?.userId ?? null;
+  // Composio v3 puts the trigger context under `data`, with the envelope `type`
+  // being `composio.trigger.message`. The actual trigger slug + connected
+  // account live in body.data. Tolerate older shapes too.
+  const data = (body.data as Record<string, unknown> | undefined) ?? {};
+  const userId =
+    (body.userId as string | undefined) ??
+    (body.user_id as string | undefined) ??
+    (data.user_id as string | undefined) ??
+    (data.userId as string | undefined) ??
+    (body.payload?.userId as string | undefined) ??
+    null;
   const orgId = parseOrgIdFromUser(userId);
-  const eventType = (body.type ?? body.payload?.type ?? "unknown") as string;
+  // The trigger slug we route on. Envelope `type` (e.g. composio.trigger.message)
+  // is the *delivery* type; the trigger slug we care about is in data.trigger_name.
+  const triggerSlug =
+    (data.trigger_name as string | undefined) ??
+    (data.triggerName as string | undefined) ??
+    (body.payload?.type as string | undefined) ??
+    null;
+  const envelopeType = (body.type as string | undefined) ?? "unknown";
+  const eventType = triggerSlug ?? envelopeType;
   const deliveryId =
     (body.id as string | undefined) ??
     (body.delivery_id as string | undefined) ??
     (body.event_id as string | undefined) ??
+    (data.id as string | undefined) ??
+    (data.delivery_id as string | undefined) ??
     (body.payload?.id as string | undefined) ??
     null;
 
@@ -69,17 +89,34 @@ export async function POST(req: NextRequest) {
       },
     });
   } else {
+    // Log the envelope shape so we can see what to extract — top-level keys
+    // and the data sub-object's keys are usually enough to spot the path.
     console.warn("[composio webhook] could not derive orgId", {
       userId,
-      type: eventType,
+      envelopeType,
+      triggerSlug,
+      topLevelKeys: Object.keys(body ?? {}),
+      dataKeys: Object.keys(data ?? {}),
+      dataPreview: Object.fromEntries(
+        Object.entries(data ?? {}).map(([k, v]) => [
+          k,
+          typeof v === "string" || typeof v === "number" || typeof v === "boolean"
+            ? v
+            : `<${typeof v}>`,
+        ]),
+      ),
     });
     return new Response("ok", { status: 200 });
   }
 
   // Triggers we actually process today. Anything else lands in audit_log
   // for inspection but doesn't create an event row.
-  const PROCESSABLE = new Set(["OUTLOOK_NEW_MESSAGE"]);
+  const PROCESSABLE = new Set([
+    "OUTLOOK_MESSAGE_TRIGGER", // current slug for "new Outlook message"
+    "OUTLOOK_NEW_MESSAGE",     // legacy alias, harmless to keep
+  ]);
   if (!PROCESSABLE.has(eventType)) {
+    console.log("[composio webhook] non-processable event", { eventType });
     return new Response("ok", { status: 200 });
   }
 
