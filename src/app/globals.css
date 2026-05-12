@@ -1,26 +1,150 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Class-based dark mode: align Tailwind's `dark:` variant with the
+   `.dark` class we set on <html> from the server-side theme cookie.
+   Without this, `dark:` defaults to `prefers-color-scheme` and disagrees
+   with the cookie-driven surface tokens — causing components that use
+   `dark:hidden` / `dark:inline-flex` to flip when the OS theme differs
+   from the user's in-app toggle. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Accent (Onyx purple family) */
+  --color-accent: #6D45F5;
+  --color-accent-hover: #5A36E0;
+  --color-accent-secondary: #B87EFF;
+  --color-accent-magenta: #D946EF;
+  --color-accent-deep: #4C1FCF;
+  /* Pushed darker so active tabs / accent badges read as visibly lavender
+     against the cool-white page surface. */
+  --color-accent-light: #E1D2FC;
+
+  /* Foreground — cooled slightly off the warm grays to match the new surface palette */
+  --color-fg: #14111F;
+  --color-fg-secondary: #55526A;
+  --color-fg-muted: #9E99B5;
+  --color-fg-inverse: #FBFAFE;
+  --color-fg-inverse-secondary: #9C9AB0;
+
+  /* Surface — cool off-white shell, pure white cards, very faint lavender for
+     raised UI. surface-3 is a step darker for elements that need to read as
+     "raised" against surface-2 (table headers, segment controls). */
+  --color-surface: #FBFAFE;
+  --color-surface-2: #F5F2FC;
+  --color-surface-3: #ECE5F7;
+  --color-surface-card: #FFFFFF;
+  --color-surface-card-dark: #1E1E1C;
+  --color-surface-inverse: #0A0612;
+  --color-surface-elevated: #14102A;
+
+  /* Border — soft purple-gray, well below any cream */
+  --color-border: #E9E4F6;
+  --color-border-subtle: #F0EBF8;
+  --color-border-dark: #2A2A28;
+
+  /* Semantic */
+  --color-success: #788C5D;
+  --color-success-light: #EFF2EA;
+  --color-error: #C75050;
+  --color-warning: #D9A033;
+  --color-info: #6A9BCC;
+
+  --color-badge-active-bg: #DCFCE7;
+  --color-badge-active-fg: #16A34A;
+  --color-badge-training-bg: #FEF3C7;
+  --color-badge-training-fg: #D97706;
+
+  /* Agent avatars */
+  --color-agent-george: #6D45F5;
+  --color-agent-jules: #3B82F6;
+  --color-agent-pepper: #10B981;
+  --color-agent-sam: #0EA5E9;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadow */
+  --shadow-cta: 0 4px 12px rgba(109, 69, 245, 0.25);
+  --shadow-cta-strong: 0 4px 12px rgba(109, 69, 245, 0.32);
+  --shadow-brand-glow: 0 0 80px rgba(109, 69, 245, 0.35);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: light;
+    /* Mirror of the @theme surface/border/accent tokens so dev-mode HMR picks
+       up changes without a full server restart. */
+    --color-surface: #FBFAFE;
+    --color-surface-2: #F5F2FC;
+    --color-surface-3: #ECE5F7;
+    --color-border: #E9E4F6;
+    --color-border-subtle: #F0EBF8;
+    --color-accent-light: #E1D2FC;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --color-surface: #0A0612;
+    --color-surface-2: #14102A;
+    /* surface-3 lifts visibly above cards — used for table headers, segment
+       controls. */
+    --color-surface-3: #251C52;
+    /* Cards lift one step above the page surface-2 so their edges read
+       clearly in dark mode. */
+    --color-surface-card: #1A1438;
+    --color-fg: #FAF9F5;
+    --color-fg-secondary: #B8B0C8;
+    --color-fg-muted: #6B5D85;
+    /* Borders pushed up so card outlines and row separators don't melt
+       into the surfaces underneath. */
+    --color-border: #3A2D66;
+    --color-border-subtle: #2A2150;
+    /* Active-tab / accent-tinted chips read as clearly purple against the
+       dark page background. */
+    --color-accent-light: #2E1E5E;
+  }
+
+  html, body {
+    background: var(--color-surface);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-fg-inverse);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Brand panel: deep vertical gradient for auth left pane */
+  .brand-gradient-vertical {
+    background-image: linear-gradient(180deg, #6D45F5 0%, #4C1FCF 100%);
+  }
+  /* Welcome / hero card: horizontal indigo → lavender */
+  .brand-gradient {
+    background-image: linear-gradient(90deg, #6D45F5 0%, #B87EFF 100%);
+  }
+  /* Headline sweep: signature Onyx purple → magenta */
+  .brand-text-gradient {
+    background-image: linear-gradient(90deg, #9B6BFF 0%, #D946EF 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* Brand glow halo (dark surfaces) */
+  .brand-glow {
+    box-shadow: var(--shadow-brand-glow);
+  }
+  .glass {
+    background-color: rgba(255, 255, 255, 0.13);
+  }
 }
