@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Clock } from "lucide-react";
 
-export const dynamic = "force-static";
-
 export default function StandingJobsHelpPage() {
   return (
     <article className="space-y-8 pb-12">

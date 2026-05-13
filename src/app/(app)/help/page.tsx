@@ -7,8 +7,6 @@ import {
   Sparkles,
 } from "lucide-react";
 
-export const dynamic = "force-static";
-
 type Topic = {
   href: string;
   title: string;
