@@ -6,10 +6,11 @@ const nextConfig: NextConfig = {
   // native `claude` binary at runtime — if Next inlines them, the
   // on-disk node_modules layout is gone and resolution fails with
   // "Native CLI binary for linux-x64 not found".
-  serverExternalPackages: [
-    "@anthropic-ai/claude-agent-sdk",
-    "@anthropic-ai/claude-agent-sdk-linux-x64",
-  ],
+  // Only the native-binary package needs to stay external — it ships a
+  // raw `claude` executable, not JS, so bundling it makes no sense and
+  // would break the on-disk path our resolver hands the SDK. Letting
+  // Next bundle the main SDK keeps the function under the 250MB cap.
+  serverExternalPackages: ["@anthropic-ai/claude-agent-sdk-linux-x64"],
   // The Claude Agent SDK spawns a native `claude` binary that lives in
   // @anthropic-ai/claude-agent-sdk-linux-x64/claude. Vercel's serverless
   // bundler can't follow that path (it's invoked via child_process at
