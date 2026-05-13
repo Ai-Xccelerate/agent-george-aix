@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { Webhook, WebhookVerificationError } from "svix";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { processAgentEvent } from "@/lib/agent/process-event";
+import { isSenderAllowed } from "@/lib/agent/sender-allowlist";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -99,6 +100,19 @@ export async function POST(req: NextRequest) {
 
   const PROCESSABLE = new Set(["message.received"]);
   if (!PROCESSABLE.has(eventType)) {
+    return new Response("ok", { status: 200 });
+  }
+
+  // Sender allowlist — drop spam at the door, keep the audit_log paper trail.
+  const fromRaw = body.message?.from_;
+  const fromAddress = Array.isArray(fromRaw) ? fromRaw[0] : fromRaw ?? null;
+  const decision = await isSenderAllowed(orgId, fromAddress);
+  if (!decision.allowed) {
+    console.log("[agentmail webhook] dropped (allowlist)", {
+      from: fromAddress,
+      reason: decision.reason,
+      subject: body.message?.subject,
+    });
     return new Response("ok", { status: 200 });
   }
 

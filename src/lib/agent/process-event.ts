@@ -21,6 +21,7 @@
 import { runGeorgeAutonomous } from "./run-autonomous";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
+import { isSenderAllowed } from "./sender-allowlist";
 
 type EventRow = {
   id: string;
@@ -131,6 +132,21 @@ export async function processAgentEvent(
   const email = extractOutlookMessage(
     fetchedMessage ? { ...event.payload, fetched: fetchedMessage } : event.payload,
   );
+
+  // Sender allowlist gate. Drop firehose/spam without creating a session.
+  const senderDecision = await isSenderAllowed(event.org_id, email.from?.address ?? null);
+  if (!senderDecision.allowed) {
+    await admin
+      .from("agent_events")
+      .update({
+        status: "skipped",
+        error: `allowlist: ${senderDecision.reason}`,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", event.id);
+    return { skipped: true, reason: "unsupported_type" };
+  }
+
   const framing = buildOutlookFramingPrompt(email);
   const sessionTitle = `Email: ${email.subject ?? "(no subject)"}`.slice(0, 120);
   const seedContent = renderInboundForChat(email);
