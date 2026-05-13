@@ -20,6 +20,7 @@
  */
 import { runGeorgeAutonomous } from "./run-autonomous";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { callAction } from "@/lib/composio/client";
 
 type EventRow = {
   id: string;
@@ -74,8 +75,15 @@ export async function processAgentEvent(
   }
   const event = claim.data as EventRow;
 
-  // 2) Resolve framing. Outlook "new mail" triggers today; everything else
-  //    gets marked 'skipped' so we don't leave rows hanging.
+  // 2a) Agentmail branch — inbound email lands in /inbox only. No autonomous
+  //     George run for this slice; that's wired up later. We have the full
+  //     body in the webhook payload, so no fetch step is needed.
+  if (event.source === "agentmail") {
+    return await processAgentmailEvent(event, admin);
+  }
+
+  // 2b) Resolve framing for Composio-sourced events. Outlook "new mail" triggers
+  //    today; everything else gets marked 'skipped' so we don't leave rows hanging.
   //    OUTLOOK_MESSAGE_TRIGGER is the current Composio slug; OUTLOOK_NEW_MESSAGE
   //    is kept as a legacy alias.
   const OUTLOOK_NEW_MAIL_SLUGS = new Set([
@@ -94,7 +102,35 @@ export async function processAgentEvent(
     return { skipped: true, reason: "unsupported_type" };
   }
 
-  const email = extractOutlookMessage(event.payload);
+  // Composio's OUTLOOK_MESSAGE_TRIGGER notifies us with just { event_type, id }
+  // — the actual mail body/sender/subject must be fetched separately via the
+  // Graph API. We do that here using the same connected account.
+  const triggerData =
+    ((event.payload as Record<string, unknown> | null)?.data as
+      | Record<string, unknown>
+      | undefined) ?? {};
+  const messageId = (triggerData.id as string | undefined) ?? null;
+  let fetchedMessage: Record<string, unknown> | null = null;
+  if (messageId) {
+    const fetched = await callAction<Record<string, unknown>>(
+      "OUTLOOK_GET_MESSAGE",
+      event.org_id,
+      { messageId },
+    );
+    if (fetched.ok) {
+      fetchedMessage = fetched.data;
+    } else {
+      console.warn("[process-event] OUTLOOK_GET_MESSAGE failed", {
+        messageId,
+        error: fetched.error,
+      });
+    }
+  }
+  // Pass both the original envelope (for fallback paths) and the fetched
+  // full message. The parser tries the fetched one first.
+  const email = extractOutlookMessage(
+    fetchedMessage ? { ...event.payload, fetched: fetchedMessage } : event.payload,
+  );
   const framing = buildOutlookFramingPrompt(email);
   const sessionTitle = `Email: ${email.subject ?? "(no subject)"}`.slice(0, 120);
   const seedContent = renderInboundForChat(email);
@@ -224,6 +260,14 @@ export function extractOutlookMessage(
   const push = (v: unknown) => {
     if (v && typeof v === "object") candidates.push(v as Record<string, unknown>);
   };
+  // Prefer the explicitly-fetched full message (Composio OUTLOOK_GET_MESSAGE
+  // returns a Microsoft Graph message object under `data` per callAction).
+  const fetched = p.fetched as Record<string, unknown> | undefined;
+  if (fetched) {
+    push(fetched);
+    push(fetched.data);
+    push(fetched.response_data);
+  }
   push(p);
   push(p.data);
   const inner = p.payload as Record<string, unknown> | undefined;
@@ -392,4 +436,105 @@ function renderInboundForChat(email: OutlookMessageFields): string {
   parts.push("");
   parts.push(email.body_text ?? email.body_preview ?? "_(no body captured)_");
   return parts.join("\n");
+}
+
+// ----- Agentmail handling ----------------------------------------------------
+// Agentmail delivers the full message body in the webhook envelope, so we
+// don't need a fetch step. For this slice, the user explicitly wants inbox
+// visibility only — no autonomous George run. That makes this branch a thin
+// "create session + seed inbound message + mark processed" path.
+
+type AgentmailMessagePayload = {
+  message_id?: string;
+  thread_id?: string;
+  from_?: string | string[];
+  to?: string[];
+  subject?: string;
+  text?: string;
+  html?: string;
+  preview?: string;
+  timestamp?: string;
+};
+
+function extractAgentmailMessage(
+  payload: Record<string, unknown> | null | undefined,
+): OutlookMessageFields {
+  const msg = ((payload ?? {}) as { message?: AgentmailMessagePayload }).message ?? {};
+  const fromRaw = msg.from_;
+  const fromAddress = Array.isArray(fromRaw) ? fromRaw[0] : fromRaw ?? null;
+  return {
+    message_id: msg.message_id ?? null,
+    conversation_id: msg.thread_id ?? null,
+    subject: msg.subject ?? null,
+    from: fromAddress ? { name: null, address: fromAddress } : null,
+    to: Array.isArray(msg.to) ? msg.to : [],
+    body_text: msg.text ?? null,
+    body_preview: msg.preview ?? null,
+    received_at: msg.timestamp ?? null,
+  };
+}
+
+async function processAgentmailEvent(
+  event: EventRow,
+  admin: ReturnType<typeof createSupabaseAdmin>,
+): Promise<ProcessEventResult> {
+  const PROCESSABLE = new Set(["message.received"]);
+  if (!PROCESSABLE.has(event.event_type)) {
+    await admin
+      .from("agent_events")
+      .update({
+        status: "skipped",
+        error: `unsupported event_type: ${event.event_type}`,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", event.id);
+    return { skipped: true, reason: "unsupported_type" };
+  }
+
+  const email = extractAgentmailMessage(event.payload);
+  const sessionTitle = `Email: ${email.subject ?? "(no subject)"}`.slice(0, 120);
+  const seedContent = renderInboundForChat(email);
+
+  const sessionInsert = await admin
+    .from("agent_sessions")
+    .insert({
+      org_id: event.org_id,
+      user_id: null,
+      channel: "email",
+      title: sessionTitle,
+    })
+    .select("id")
+    .single();
+
+  if (sessionInsert.error || !sessionInsert.data) {
+    const errMsg =
+      sessionInsert.error?.message ?? "could not create agent_sessions row";
+    await admin
+      .from("agent_events")
+      .update({
+        status: "failed",
+        error: errMsg,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", event.id);
+    return { skipped: false, sessionId: null, status: "failed", error: errMsg };
+  }
+  const sessionId = sessionInsert.data.id as string;
+
+  await admin.from("agent_messages").insert({
+    session_id: sessionId,
+    role: "user",
+    content: seedContent,
+  });
+
+  await admin
+    .from("agent_events")
+    .update({
+      status: "processed",
+      session_id: sessionId,
+      processed_at: new Date().toISOString(),
+    })
+    .eq("id", event.id);
+
+  return { skipped: false, sessionId, status: "processed", error: null };
 }
