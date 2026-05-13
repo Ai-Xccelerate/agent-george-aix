@@ -6,6 +6,7 @@ import { buildGeorgeSystemPrompt } from "@/lib/agent/system-prompt";
 import { generateSessionTitle } from "@/lib/agent/title";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { resolveClaudeCodeExecutable } from "@/lib/agent/sdk-binary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -139,6 +140,7 @@ export async function POST(req: NextRequest) {
             mcpServers: { george: georgeServer },
             allowedTools: [...builtinAllow, ...toolNames],
             canUseTool: georgeCanUseTool,
+            pathToClaudeCodeExecutable: resolveClaudeCodeExecutable(),
             resume: resumeId,
             cwd: process.cwd(),
             env: {

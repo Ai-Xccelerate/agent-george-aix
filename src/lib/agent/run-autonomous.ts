@@ -13,6 +13,7 @@
  *     summary that callers can persist as a run record.
  */
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { resolveClaudeCodeExecutable } from "./sdk-binary";
 import { buildGeorgeMcpServer } from "./tools";
 import { georgeCanUseTool } from "./permissions";
 import { buildGeorgeSystemPrompt } from "./system-prompt";
@@ -89,6 +90,7 @@ export async function runGeorgeAutonomous(
         mcpServers: { george: georgeServer },
         allowedTools: [...builtinAllow, ...allowedMcpTools],
         canUseTool: georgeCanUseTool,
+        pathToClaudeCodeExecutable: resolveClaudeCodeExecutable(),
         resume: input.resumeSdkSessionId ?? undefined,
         cwd: process.cwd(),
         env: {
