@@ -9,14 +9,13 @@ export default async function ChatLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createSupabaseServer();
-  // Surface both human-initiated chats and inbound-event sessions (channel
-  // 'email' today; 'transcript' / others later) in the same rail. The rail
-  // marks non-chat sessions with a channel-specific icon so the reviewer
-  // can spot autonomous George runs that need their attention.
+  // Agent George rail shows human-initiated chats only. Email-channel
+  // sessions live in /inbox — surfacing them here too is noisy and
+  // contradicts the "inbox is the triage surface" model.
   const { data } = await supabase
     .from("agent_sessions")
     .select("id, title, updated_at, channel")
-    .in("channel", ["chat", "email"])
+    .eq("channel", "chat")
     .order("updated_at", { ascending: false })
     .limit(100);
   const sessions = (data ?? []) as HistoryItem[];

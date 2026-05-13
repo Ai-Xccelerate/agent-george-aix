@@ -11,6 +11,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.139
         version: 0.2.139(zod@4.4.3)
+      '@anthropic-ai/claude-agent-sdk-linux-x64':
+        specifier: 0.2.139
+        version: 0.2.139
       '@anthropic-ai/sdk':
         specifier: ^0.95.2
         version: 0.95.2(zod@4.4.3)
@@ -135,7 +138,6 @@ packages:
     resolution: {integrity: sha512-2Gqy5hV/MyObbwSyNhj5ha2cY5EZnUfDLvpEwR1eeOaU1yqnxzsdNzXWgHIyWQGKGNE2ICwgLYtt6AtOJGWpPg==}
     cpu: [x64]
     os: [linux]
-    libc: [glibc]
 
   '@anthropic-ai/claude-agent-sdk-win32-arm64@0.2.139':
     resolution: {integrity: sha512-HusAU/gSQ0G0AHU+Hj/ps0Tl5JaUF2nxkp+G42tU6hpnwLMOQMdLx/yqvSQnz4WSxggxiDFmYvMDLYAmuE9Qdg==}
@@ -2949,8 +2951,7 @@ snapshots:
   '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.2.139':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.2.139':
-    optional: true
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.2.139': {}
 
   '@anthropic-ai/claude-agent-sdk-win32-arm64@0.2.139':
     optional: true
