@@ -33,7 +33,8 @@ FROM node:24-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-# Railway sets PORT; Next picks it up via `next start -p $PORT`.
+ENV HOSTNAME=0.0.0.0
+# Default to 3000 for local `docker run`; Railway will override via $PORT.
 ENV PORT=3000
 
 # Non-root user for the runtime.
@@ -49,5 +50,6 @@ COPY --from=build --chown=nextjs:nodejs /app/next.config.ts ./next.config.ts
 USER nextjs
 EXPOSE 3000
 
-# Use npx so we don't need pnpm at runtime.
-CMD ["npx", "--no-install", "next", "start", "-p", "3000"]
+# Shell-form CMD so $PORT and $HOSTNAME expand at container start. Railway
+# injects PORT; locally we fall back to the ENV defaults above.
+CMD npx --no-install next start -H "$HOSTNAME" -p "$PORT"
