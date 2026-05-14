@@ -31,7 +31,23 @@ export function getComposio(): Composio {
       "COMPOSIO_API_KEY is not set. Add it to .env.local and reload.",
     );
   }
-  cached = new Composio({ apiKey });
+  // `allowAutoUploadDownloadFiles: true` unlocks Composio actions whose
+  // schemas declare a file field (e.g. OUTLOOK_CREATE_DRAFT's attachments).
+  // We never actually upload a file from George today — the flag just lets
+  // the SDK proceed when the schema mentions one. `fileUploadDirs: []`
+  // keeps the on-disk read allowlist empty, so even if a model tried to
+  // sneak a path through, the SDK would have no directory to read from.
+  cached = new Composio({
+    apiKey,
+    // Unlocks Composio actions whose schemas declare a file field (e.g.
+    // OUTLOOK_CREATE_DRAFT's attachments). George never actually uploads
+    // a file from disk today — this just lets the SDK proceed when the
+    // schema *mentions* one. `fileUploadDirs: false` disables the local
+    // file-read allowlist entirely, so even if a path slipped into args
+    // the SDK has nowhere on disk it's allowed to read from.
+    dangerouslyAllowAutoUploadDownloadFiles: true,
+    fileUploadDirs: false,
+  });
   return cached;
 }
 
