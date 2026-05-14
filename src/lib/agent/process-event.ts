@@ -201,6 +201,7 @@ export async function processAgentEvent(
     userPrompt: framing,
     timeBudgetMs: PROCESS_TIME_BUDGET_MS,
     clientAppTag: "agent-george-event/0.1",
+    sessionId,
   });
 
   // Persist George's summary as an assistant message so the reviewer can

@@ -15,7 +15,17 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callAction } from "@/lib/composio/client";
 
-type Ctx = { orgId: string; userId: string | null; db: SupabaseClient };
+type Ctx = {
+  orgId: string;
+  userId: string | null;
+  /**
+   * The chat session this tool call is running inside. Forwarded into
+   * audit_log so /inbox can link an outbound draft/send row back to its
+   * originating chat conversation.
+   */
+  sessionId: string | null;
+  db: SupabaseClient;
+};
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -36,6 +46,7 @@ async function audit(
     actor: "george",
     action,
     customer_id: customerId ?? null,
+    session_id: ctx.sessionId ?? null,
     payload,
   });
 }

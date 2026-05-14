@@ -32,6 +32,9 @@ export type RunAutonomousInput = {
   /** Resume an existing SDK session. Used when an inbound event extends an
    *  in-progress thread. */
   resumeSdkSessionId?: string | null;
+  /** Our agent_sessions.id for this run, if one exists. Forwarded into
+   *  audit_log so the Inbox UI can link outbound rows back to the chat. */
+  sessionId?: string | null;
 };
 
 export type RunAutonomousResult = {
@@ -57,6 +60,7 @@ export async function runGeorgeAutonomous(
   const { server: georgeServer, toolNames } = buildGeorgeMcpServer({
     orgId: input.orgId,
     userId: input.userId ?? null,
+    sessionId: input.sessionId ?? null,
   });
 
   // Autonomous mode allowlist:

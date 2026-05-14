@@ -27,6 +27,12 @@ export type GeorgeToolCtx = {
    * `customers.owner_user_id`) become null in that case.
    */
   userId: string | null;
+  /**
+   * The agent_sessions.id this run is associated with, when one exists.
+   * Forwarded into `audit_log.session_id` so the Inbox UI can link an
+   * outbound draft/send back to the chat conversation it came from.
+   */
+  sessionId?: string | null;
   /** Optional override (tests). Defaults to the admin client. */
   db?: SupabaseClient;
 };
@@ -861,6 +867,7 @@ export function buildGeorgeMcpServer(
   const composioTools = buildComposioTools({
     orgId,
     userId: ctx.userId,
+    sessionId: ctx.sessionId ?? null,
     db,
   });
 

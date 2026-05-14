@@ -34,6 +34,7 @@ type Item =
   | {
       kind: "inbound";
       key: string;
+      eventId: string;
       created_at: string;
       from: string | null;
       subject: string | null;
@@ -104,6 +105,7 @@ export default async function InboxPage({
       return {
         kind: "inbound",
         key: `e:${e.id}`,
+        eventId: e.id,
         created_at: e.created_at,
         from: email.fromLabel,
         subject: email.subject,
@@ -198,17 +200,14 @@ export default async function InboxPage({
 }
 
 function InboundRow({ item }: { item: Extract<Item, { kind: "inbound" }> }) {
-  const Wrapper: React.ElementType = item.sessionId ? Link : "div";
-  const wrapperProps = item.sessionId
-    ? { href: `/chat/${item.sessionId}` }
-    : {};
+  // Inbound always links to the dedicated email viewer at /inbox/[id].
+  // Opening it in /chat/[sessionId] was wrong — the chat path renders the
+  // raw HTML as plain text and frames it like a conversation, not mail.
   return (
     <li>
-      <Wrapper
-        {...wrapperProps}
-        className={`flex items-start gap-3 px-4 py-3 text-[13px] ${
-          item.sessionId ? "hover:bg-[var(--color-surface-3)]" : ""
-        }`}
+      <Link
+        href={`/inbox/${item.eventId}`}
+        className="flex items-start gap-3 px-4 py-3 text-[13px] hover:bg-[var(--color-surface-3)]"
       >
         <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-accent-light)] text-[var(--color-accent)]">
           <ArrowDownLeft size={13} />
@@ -234,11 +233,11 @@ function InboundRow({ item }: { item: Extract<Item, { kind: "inbound" }> }) {
           {item.sessionId && (
             <span className="inline-flex items-center gap-1 text-[var(--color-accent)]">
               <MessageSquare size={10} />
-              Review
+              Reviewed
             </span>
           )}
         </div>
-      </Wrapper>
+      </Link>
     </li>
   );
 }

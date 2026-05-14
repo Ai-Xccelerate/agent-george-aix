@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
       const { server: georgeServer, toolNames } = buildGeorgeMcpServer({
         orgId: user.orgId,
         userId: user.id,
+        sessionId: dbSession!.id,
       });
 
       const fullSystemPrompt = await buildGeorgeSystemPrompt(admin, {
