@@ -65,12 +65,28 @@ export async function callAction<T = Record<string, unknown>>(
       arguments: args,
     });
     if (!result.successful) {
+      // Surface the full failure envelope to logs so we can tell apart
+      // missing-connection vs missing-scope vs bad-args without guessing.
+      // Composio sometimes returns the meaningful detail inside `data` or
+      // nested error fields rather than just the top-level `error` string.
+      console.error("[composio] action failed", {
+        slug,
+        userId: composioOrgIdentity(orgId),
+        error: result.error,
+        data: result.data,
+      });
       return { ok: false, error: result.error ?? "Composio reported failure" };
     }
     return { ok: true, data: result.data as T, logId: result.logId };
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Unknown Composio failure";
+    console.error("[composio] action threw", {
+      slug,
+      userId: composioOrgIdentity(orgId),
+      message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return { ok: false, error: message };
   }
 }
