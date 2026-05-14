@@ -79,6 +79,12 @@ export async function callAction<T = Record<string, unknown>>(
     const result = await composio.tools.execute(slug, {
       userId: composioOrgIdentity(orgId),
       arguments: args,
+      // Composio 0.9.x refuses execution unless a toolkit version is pinned
+      // OR this flag is set. We accept "latest" — pinning per-toolkit means
+      // we'd have to track Outlook / Fireflies / OneDrive version dates and
+      // update them as Composio publishes new ones. Skip the gate, take the
+      // risk of an upstream schema tweak, fix it forward if it bites.
+      dangerouslySkipVersionCheck: true,
     });
     if (!result.successful) {
       // Surface the full failure envelope to logs so we can tell apart
