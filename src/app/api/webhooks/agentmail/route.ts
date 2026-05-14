@@ -24,6 +24,17 @@ export const maxDuration = 300;
 export async function POST(req: NextRequest) {
   const raw = await req.text();
 
+  // Pause switch — when AGENTMAIL_ENABLED is not "true", swallow the
+  // delivery with a 200 so Agentmail/Svix doesn't retry. We keep the route
+  // wired and code intact so flipping the env var brings the integration
+  // back without a redeploy. Outlook is the active inbound path now.
+  if ((process.env.AGENTMAIL_ENABLED ?? "false").toLowerCase() !== "true") {
+    console.log("[agentmail webhook] paused — dropping delivery", {
+      bytes: raw.length,
+    });
+    return new Response("ok (paused)", { status: 200 });
+  }
+
   const secret = process.env.AGENTMAIL_WEBHOOK_SECRET;
   if (!secret) {
     if (process.env.NODE_ENV === "production") {

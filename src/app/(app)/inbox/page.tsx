@@ -76,7 +76,10 @@ export default async function InboxPage({
     .from("agent_events")
     .select("id, event_type, status, payload, session_id, created_at")
     .eq("org_id", user.orgId)
-    .in("event_type", ["OUTLOOK_NEW_MESSAGE"])
+    // OUTLOOK_MESSAGE_TRIGGER is the current Composio slug; OUTLOOK_NEW_MESSAGE
+    // is kept as the legacy alias used by older trigger registrations. The
+    // webhook + processor accept both, so the inbox surfaces both too.
+    .in("event_type", ["OUTLOOK_MESSAGE_TRIGGER", "OUTLOOK_NEW_MESSAGE"])
     .order("created_at", { ascending: false })
     .limit(200);
   if (eventsRes.error) {

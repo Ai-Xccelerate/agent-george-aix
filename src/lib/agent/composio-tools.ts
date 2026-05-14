@@ -56,13 +56,18 @@ export function buildComposioTools(ctx: Ctx) {
         .describe("HTML body. Use simple inline tags only (<p>, <br>, <ul>, <a>)."),
     },
     async (input) => {
+      // Composio's Outlook actions follow Microsoft Graph's shape: the
+      // body has to be `{ contentType, content }`, not a top-level string
+      // with a sibling `contentType`. With the wrong shape the action
+      // silently sent the raw HTML as plain text — recipients saw <p> tags
+      // in the email. Same nesting is already used by the calendar event
+      // call below; keep them consistent.
       const res = await callAction("OUTLOOK_CREATE_DRAFT", ctx.orgId, {
         toRecipients: input.to,
         ccRecipients: input.cc ?? [],
         bccRecipients: input.bcc ?? [],
         subject: input.subject,
-        body: input.body_html,
-        contentType: "HTML",
+        body: { contentType: "HTML", content: input.body_html },
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
       const data = res.data as { id?: string; message?: { id?: string } };
