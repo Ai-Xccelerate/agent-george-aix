@@ -86,6 +86,10 @@ export function ChatClient({
   const [streaming, setStreaming] = useState(false);
   const [uploading, startUpload] = useTransition();
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Files chosen by the user but not yet sent. They stage in the composer
+  // as chips; on send() we upload them, then fire the chat turn with the
+  // resulting attachment metadata so prompt + files travel together.
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -234,11 +238,12 @@ export function ChatClient({
 
   async function send() {
     const text = input.trim();
-    if (!text || streaming) return;
+    // Allow sending with files only (no prompt text). Bail only if both are empty.
+    if ((!text && stagedFiles.length === 0) || streaming || uploading) return;
 
     // Handle bare slash commands (no popover selection) — typing "/clear"
     // and hitting Enter should fire the command, not send to George.
-    if (text.startsWith("/")) {
+    if (text && text.startsWith("/") && stagedFiles.length === 0) {
       const cmd = SLASH_COMMANDS.find((c) => c.name === text);
       if (cmd) {
         handleSlashCommand(cmd.id);
@@ -246,10 +251,38 @@ export function ChatClient({
       }
     }
 
+    // Upload any staged files first so prompt + attachments travel
+    // together in a single user turn.
+    let attachments: AttachmentMeta[] = [];
+    if (stagedFiles.length > 0) {
+      const fd = new FormData();
+      fd.set("session_id", sessionId);
+      for (const f of stagedFiles) fd.append("files", f);
+      setUploadError(null);
+      const uploadResult = await new Promise<
+        Awaited<ReturnType<typeof uploadFilesAction>>
+      >((resolve) => {
+        startUpload(async () => {
+          resolve(await uploadFilesAction(fd));
+        });
+      });
+      if (!uploadResult.ok) {
+        setUploadError(uploadResult.error);
+        return;
+      }
+      attachments = uploadResult.attachments;
+    }
+
     setInput("");
+    setStagedFiles([]);
     dismissPopover();
 
-    const userMsg: Msg = { id: crypto.randomUUID(), role: "user", content: text };
+    const userMsg: Msg = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+      attachments: attachments.length > 0 ? attachments : undefined,
+    };
     const assistantId = crypto.randomUUID();
     const baseMessages = [...messages, userMsg];
 
@@ -269,6 +302,7 @@ export function ChatClient({
         body: JSON.stringify({
           messages: baseMessages.map(({ role, content }) => ({ role, content })),
           sessionId,
+          attachments,
         }),
         signal: controller.signal,
       });
@@ -385,32 +419,22 @@ export function ChatClient({
   }
 
   function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const picked = Array.from(e.target.files ?? []);
     e.target.value = ""; // reset so the same file can be re-picked
-    if (!file) return;
-
-    const fd = new FormData();
-    fd.set("session_id", sessionId);
-    fd.set("file", file);
-
-    startUpload(async () => {
-      const res = await uploadAttachmentAction(fd);
-      if (!res.ok) {
-        setUploadError(res.error);
-        return;
-      }
-      // Show the upload in the chat as a user message with the attachment
-      // chip — same shape the server-rendered initial messages use.
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: res.attachment.message_id,
-          role: "user",
-          content: `[Attached file: ${res.attachment.original_name}]`,
-          attachments: [res.attachment],
-        },
-      ]);
+    if (picked.length === 0) return;
+    setStagedFiles((prev) => {
+      // Dedupe by name+size — accidental double-click on the picker is
+      // the main offender. New picks come after existing chips.
+      const seen = new Set(prev.map((f) => `${f.name}:${f.size}`));
+      const additions = picked.filter(
+        (f) => !seen.has(`${f.name}:${f.size}`),
+      );
+      return [...prev, ...additions];
     });
+  }
+
+  function removeStagedFile(index: number) {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   return (
@@ -451,12 +475,39 @@ export function ChatClient({
               </button>
             </div>
           )}
+          {stagedFiles.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {stagedFiles.map((f, i) => (
+                <div
+                  key={`${f.name}:${f.size}:${i}`}
+                  className="inline-flex max-w-[280px] items-center gap-2 rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-1 pl-2 pr-1 text-[12px]"
+                >
+                  <FileText size={12} className="shrink-0 text-[var(--color-fg-muted)]" />
+                  <span className="truncate text-[var(--color-fg)]" title={f.name}>
+                    {f.name}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">
+                    {prettyBytesClient(f.size)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeStagedFile(i)}
+                    aria-label={`Remove ${f.name}`}
+                    className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2 rounded-[12px] border border-[var(--color-border)] bg-[var(--color-surface-card)] p-2 pl-3 shadow-sm focus-within:border-[var(--color-accent)]">
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               className="hidden"
-              accept="application/pdf,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,text/markdown"
+              accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.csv,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,text/markdown"
               onChange={onFilePicked}
             />
             <button
@@ -533,7 +584,7 @@ export function ChatClient({
                   }
                 }}
                 rows={1}
-                placeholder="Drop a contract, type / for commands, or @ a customer…"
+                placeholder="Attach PDFs/DOCX/PPTX/XLSX/MD/TXT, type / for commands, or @ a customer…"
                 className="block max-h-[180px] w-full resize-none bg-transparent py-2 text-sm leading-6 text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] outline-none"
               />
             </div>
@@ -555,16 +606,22 @@ export function ChatClient({
             ) : (
               <button
                 onClick={send}
-                disabled={!input.trim()}
+                disabled={
+                  uploading || (!input.trim() && stagedFiles.length === 0)
+                }
                 className={cn(
                   "flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] transition",
-                  input.trim()
+                  input.trim() || stagedFiles.length > 0
                     ? "bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]"
                     : "bg-[var(--color-fg-muted)] opacity-60",
                 )}
                 aria-label="Send"
               >
-                <ArrowUp size={16} />
+                {uploading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <ArrowUp size={16} />
+                )}
               </button>
             )}
           </div>
@@ -576,6 +633,12 @@ export function ChatClient({
       </div>
     </div>
   );
+}
+
+function prettyBytesClient(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function Bubble({
