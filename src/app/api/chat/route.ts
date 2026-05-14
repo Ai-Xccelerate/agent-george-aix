@@ -86,10 +86,24 @@ export async function POST(req: NextRequest) {
     dbSession!.title = interim;
   }
 
+  // Inline attachment metadata so George can see which files were sent
+  // with this turn and can call `read_document` on them by id.
+  const attachmentMarkers = attachmentList
+    .map(
+      (a) =>
+        `[Attached file: ${a.original_name} (${a.mime_type}, document_id=${a.document_id})]`,
+    )
+    .join("\n");
+  const userContentForLog = attachmentMarkers
+    ? `${attachmentMarkers}\n\n${lastUser.content}`
+    : lastUser.content;
+
   await admin.from("agent_messages").insert({
     session_id: dbSession!.id,
     role: "user",
-    content: lastUser.content,
+    content: userContentForLog,
+    content_json:
+      attachmentList.length > 0 ? { attachments: attachmentList } : null,
   });
 
   // Build transcript context. SDK `resume` will swap to its own context once we
@@ -99,8 +113,8 @@ export async function POST(req: NextRequest) {
     .map((m) => `${m.role === "user" ? "User" : "George"}: ${m.content}`)
     .join("\n\n");
   const prompt = transcript
-    ? `${transcript}\n\nUser: ${lastUser.content}`
-    : lastUser.content;
+    ? `${transcript}\n\nUser: ${userContentForLog}`
+    : userContentForLog;
 
   const abortController = new AbortController();
   req.signal.addEventListener("abort", () => abortController.abort());

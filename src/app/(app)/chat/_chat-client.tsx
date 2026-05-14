@@ -33,7 +33,7 @@ import {
 } from "./_commands";
 import {
   getAttachmentDownloadUrl,
-  uploadAttachmentAction,
+  uploadFilesAction,
 } from "./upload-actions";
 
 export type AttachmentMeta = {
