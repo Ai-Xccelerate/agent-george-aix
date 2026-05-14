@@ -244,9 +244,11 @@ export async function POST(req: NextRequest) {
           message,
           stack: err instanceof Error ? err.stack : undefined,
         });
-        // Some Agent SDK builds throw on resume miss instead of streaming
-        // it. Catch that here too — clear the stale id and surface a
-        // friendlier message so the next send works clean.
+        // Some Agent SDK builds THROW on resume miss instead of streaming
+        // it (the streamed-text version is handled inside runOnce via the
+        // "stale_resume" return). Mirror that recovery here: clear the
+        // stale id and retry without resume in the SAME request so the
+        // user gets their reply without having to re-send.
         if (
           dbSession!.sdk_session_id &&
           /No conversation found with session ID/i.test(message)
@@ -256,10 +258,27 @@ export async function POST(req: NextRequest) {
             .update({ sdk_session_id: null })
             .eq("id", dbSession!.id);
           dbSession!.sdk_session_id = null;
-          send("error", {
-            message:
-              "This session lost its agent-side context (likely a server restart). Send your message again to start fresh.",
-          });
+          assistantText = "";
+          sdkSessionId = undefined;
+          send("system", { sessionId: dbSession!.id, subtype: "reset" });
+          try {
+            const retry = await runOnce(undefined);
+            if (retry === "stale_resume") {
+              send("error", {
+                message:
+                  "Could not start a fresh session after the previous one was lost. Try sending your message again.",
+              });
+            }
+          } catch (retryErr: unknown) {
+            const retryMsg =
+              retryErr instanceof Error ? retryErr.message : String(retryErr);
+            console.error("[chat] retry after stale resume failed", {
+              sessionId: dbSession!.id,
+              message: retryMsg,
+              stack: retryErr instanceof Error ? retryErr.stack : undefined,
+            });
+            send("error", { message: retryMsg });
+          }
         } else {
           send("error", { message });
         }
