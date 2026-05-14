@@ -45,6 +45,7 @@ type Item =
   | {
       kind: "outbound";
       key: string;
+      auditId: string;
       created_at: string;
       action: "drafted" | "reply_drafted" | "sent";
       to: string | null;
@@ -122,6 +123,7 @@ export default async function InboxPage({
       return {
         kind: "outbound",
         key: `a:${a.id}`,
+        auditId: a.id,
         created_at: a.created_at,
         action: a.action.replace("email.", "") as
           | "drafted"
@@ -243,17 +245,14 @@ function InboundRow({ item }: { item: Extract<Item, { kind: "inbound" }> }) {
 }
 
 function OutboundRow({ item }: { item: Extract<Item, { kind: "outbound" }> }) {
-  const Wrapper: React.ElementType = item.sessionId ? Link : "div";
-  const wrapperProps = item.sessionId
-    ? { href: `/chat/${item.sessionId}` }
-    : {};
+  // Always route through the outbound viewer — it renders the draft body
+  // (fetched live from Outlook) and offers a link into the chat session if
+  // one exists. Linking straight to /chat skipped the email itself.
   return (
     <li>
-      <Wrapper
-        {...wrapperProps}
-        className={`flex items-start gap-3 px-4 py-3 text-[13px] ${
-          item.sessionId ? "hover:bg-[var(--color-surface-3)]" : ""
-        }`}
+      <Link
+        href={`/inbox/outbound/${item.auditId}`}
+        className="flex items-start gap-3 px-4 py-3 text-[13px] hover:bg-[var(--color-surface-3)]"
       >
         <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-[var(--color-fg-secondary)]">
           <ArrowUpRight size={13} />
@@ -272,7 +271,7 @@ function OutboundRow({ item }: { item: Extract<Item, { kind: "outbound" }> }) {
         <div className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">
           {relative(item.created_at)}
         </div>
-      </Wrapper>
+      </Link>
     </li>
   );
 }

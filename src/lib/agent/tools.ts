@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildComposioTools } from "./composio-tools";
 import { embedText, hasEmbeddingProvider } from "@/lib/knowledge/embeddings";
+import Anthropic from "@anthropic-ai/sdk";
 
 export type GeorgeToolCtx = {
   orgId: string;
@@ -846,6 +847,145 @@ export function buildGeorgeMcpServer(
     },
   );
 
+  // ---- read_document ----------------------------------------------
+  // When the user attaches a file in chat (uploadAttachmentAction stores
+  // it in Supabase storage + drops a `[Attached file: name]` placeholder
+  // into the conversation), George needs a way to actually read the
+  // contents. This tool downloads the file from storage and turns it into
+  // text George can reason about. PDFs and images are routed through
+  // Claude's native document/image content blocks; plain text formats
+  // are returned directly.
+  const readDocument = tool(
+    "read_document",
+    "Read the contents of a file the user attached to this chat. Call this whenever the user message references an attachment ([Attached file: ...]) and you need to see what's inside it. Supports PDF, images, and plain-text formats (text/csv/markdown).",
+    {
+      document_id: z
+        .string()
+        .uuid()
+        .describe(
+          "The document_id from the [Attached file: ...] placeholder's metadata. Find it in the message's content_json.attachments[].document_id, or if multiple files were attached, pass them one at a time.",
+        ),
+    },
+    async ({ document_id }) => {
+      const docLookup = await db
+        .from("documents")
+        .select("id, storage_path, original_name, mime_type, file_size")
+        .eq("id", document_id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (docLookup.error) return fail(docLookup.error.message);
+      if (!docLookup.data) return fail("Document not found in this org.");
+      const doc = docLookup.data as {
+        id: string;
+        storage_path: string;
+        original_name: string;
+        mime_type: string;
+        file_size: number;
+      };
+
+      const dl = await db.storage
+        .from("customer-docs")
+        .download(doc.storage_path);
+      if (dl.error || !dl.data) {
+        return fail(`Could not fetch the file: ${dl.error?.message ?? "unknown"}`);
+      }
+      const buf = Buffer.from(await dl.data.arrayBuffer());
+
+      // Plain text formats — no model round-trip needed.
+      const PLAIN_TEXT = new Set([
+        "text/plain",
+        "text/csv",
+        "text/markdown",
+      ]);
+      if (PLAIN_TEXT.has(doc.mime_type)) {
+        return ok({
+          document_id: doc.id,
+          name: doc.original_name,
+          mime_type: doc.mime_type,
+          content: buf.toString("utf8"),
+        });
+      }
+
+      // PDFs and images — use Claude's native document / image content
+      // blocks to extract the text. We use Haiku for the extraction pass
+      // to keep latency low; the calling Sonnet model then reasons over
+      // the extracted text.
+      const isPdf = doc.mime_type === "application/pdf";
+      const isImage = doc.mime_type.startsWith("image/");
+      if (!isPdf && !isImage) {
+        return fail(
+          `Reading "${doc.mime_type}" attachments isn't supported yet. Supported: PDF, images, text/csv/markdown.`,
+        );
+      }
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        return fail("Document parsing requires ANTHROPIC_API_KEY.");
+      }
+      const anthropic = new Anthropic({ apiKey });
+      const base64 = buf.toString("base64");
+      try {
+        const result = await anthropic.messages.create({
+          model: "claude-haiku-4-5",
+          max_tokens: 8192,
+          messages: [
+            {
+              role: "user",
+              content: [
+                isPdf
+                  ? {
+                      type: "document",
+                      source: {
+                        type: "base64",
+                        media_type: "application/pdf",
+                        data: base64,
+                      },
+                    }
+                  : {
+                      type: "image",
+                      source: {
+                        type: "base64",
+                        media_type: doc.mime_type as
+                          | "image/png"
+                          | "image/jpeg"
+                          | "image/webp"
+                          | "image/gif",
+                        data: base64,
+                      },
+                    },
+                {
+                  type: "text",
+                  text: isPdf
+                    ? "Extract all text from this document. Preserve structure (headings, lists, tables, signatures). Do not summarize, do not omit anything — output the raw text content as it appears."
+                    : "Describe what is shown in this image. If there is readable text, transcribe it verbatim. If it's a screenshot of a UI/form/document, transcribe all visible text and note the layout.",
+                },
+              ],
+            },
+          ],
+        });
+        const text = result.content
+          .filter((b) => b.type === "text")
+          .map((b) => (b as { type: "text"; text: string }).text)
+          .join("\n\n");
+        return ok({
+          document_id: doc.id,
+          name: doc.original_name,
+          mime_type: doc.mime_type,
+          file_size: doc.file_size,
+          content: text || "(no text extracted)",
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("[read_document] extraction failed", {
+          document_id,
+          mime_type: doc.mime_type,
+          message,
+        });
+        return fail(`Extraction failed: ${message}`);
+      }
+    },
+  );
+
   const supabaseTools = [
     findCustomer,
     listCustomers,
@@ -862,6 +1002,7 @@ export function buildGeorgeMcpServer(
     markCadenceMet,
     searchKnowledge,
     readKnowledgeDoc,
+    readDocument,
   ];
 
   const composioTools = buildComposioTools({

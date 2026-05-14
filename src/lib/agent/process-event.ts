@@ -120,6 +120,16 @@ export async function processAgentEvent(
     );
     if (fetched.ok) {
       fetchedMessage = fetched.data;
+      // Persist the fetched Graph message onto the event row so the
+      // /inbox/[id] detail page can render subject/from/body. Webhook
+      // only stored the trigger envelope ({event_type, id, ...}), which
+      // has no body. Merge under `fetched` to match extractOutlookMessage.
+      await admin
+        .from("agent_events")
+        .update({
+          payload: { ...event.payload, fetched: fetchedMessage },
+        })
+        .eq("id", event.id);
     } else {
       console.warn("[process-event] OUTLOOK_GET_MESSAGE failed", {
         messageId,

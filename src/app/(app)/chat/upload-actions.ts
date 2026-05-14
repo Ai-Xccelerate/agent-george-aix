@@ -144,12 +144,17 @@ export async function uploadAttachmentAction(
     mime_type: file.type,
     file_size: file.size,
   };
+  // The placeholder text is what George actually sees in his prompt — the
+  // chat route forwards message.content as plain text, not the structured
+  // attachments. Embed the document_id inline so George can pass it to
+  // `read_document` without us also having to plumb content_json into the
+  // SDK prompt.
   const messageInsert = await admin
     .from("agent_messages")
     .insert({
       session_id: sessionId,
       role: "user",
-      content: `[Attached file: ${file.name} (${file.type}, ${prettyBytes(file.size)})]`,
+      content: `[Attached file: ${file.name} (${file.type}, ${prettyBytes(file.size)}, document_id=${docId})]`,
       content_json: { attachments: [attachmentPayload] },
     })
     .select("id")
