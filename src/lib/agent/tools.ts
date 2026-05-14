@@ -857,7 +857,7 @@ export function buildGeorgeMcpServer(
   // are returned directly.
   const readDocument = tool(
     "read_document",
-    "Read the contents of a file the user attached to this chat. Call this whenever the user message references an attachment ([Attached file: ...]) and you need to see what's inside it. Supports PDF, images, and plain-text formats (text/csv/markdown).",
+    "Read the contents of a file the user attached to this chat. Call this whenever the user message references an attachment ([Attached file: ...]) and you need to see what's inside it. Supports PDF, images, plain text (txt/csv/md), Word (docx), Excel (xlsx), and PowerPoint (pptx).",
     {
       document_id: z
         .string()
@@ -906,6 +906,66 @@ export function buildGeorgeMcpServer(
         });
       }
 
+      // Office formats — extracted locally with format-specific libs so
+      // George gets clean text without a model round-trip.
+      const DOCX =
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      const XLSX =
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      const PPTX =
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+      if (doc.mime_type === DOCX) {
+        const mammoth = await import("mammoth");
+        try {
+          const result = await mammoth.extractRawText({ buffer: buf });
+          return ok({
+            document_id: doc.id,
+            name: doc.original_name,
+            mime_type: doc.mime_type,
+            file_size: doc.file_size,
+            content: result.value || "(empty document)",
+          });
+        } catch (err) {
+          return fail(`docx extraction failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      if (doc.mime_type === XLSX || doc.mime_type === "application/vnd.ms-excel") {
+        const XLSXLib = await import("xlsx");
+        try {
+          const wb = XLSXLib.read(buf, { type: "buffer" });
+          const parts: string[] = [];
+          for (const sheetName of wb.SheetNames) {
+            const sheet = wb.Sheets[sheetName];
+            const csv = XLSXLib.utils.sheet_to_csv(sheet, { blankrows: false });
+            parts.push(`# Sheet: ${sheetName}\n\n${csv}`);
+          }
+          return ok({
+            document_id: doc.id,
+            name: doc.original_name,
+            mime_type: doc.mime_type,
+            file_size: doc.file_size,
+            content: parts.join("\n\n").slice(0, 200_000),
+          });
+        } catch (err) {
+          return fail(`xlsx extraction failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      if (doc.mime_type === PPTX) {
+        const officeparser = await import("officeparser");
+        try {
+          const text = await officeparser.parseOfficeAsync(buf);
+          return ok({
+            document_id: doc.id,
+            name: doc.original_name,
+            mime_type: doc.mime_type,
+            file_size: doc.file_size,
+            content: text || "(no text extracted)",
+          });
+        } catch (err) {
+          return fail(`pptx extraction failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
       // PDFs and images — use Claude's native document / image content
       // blocks to extract the text. We use Haiku for the extraction pass
       // to keep latency low; the calling Sonnet model then reasons over
@@ -914,7 +974,7 @@ export function buildGeorgeMcpServer(
       const isImage = doc.mime_type.startsWith("image/");
       if (!isPdf && !isImage) {
         return fail(
-          `Reading "${doc.mime_type}" attachments isn't supported yet. Supported: PDF, images, text/csv/markdown.`,
+          `Reading "${doc.mime_type}" attachments isn't supported yet. Supported: PDF, images, txt/csv/md, docx, xlsx, pptx.`,
         );
       }
 

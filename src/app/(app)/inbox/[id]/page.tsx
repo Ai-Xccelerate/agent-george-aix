@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, MessageSquare } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { extractOutlookMessage } from "@/lib/agent/process-event";
+import { callAction } from "@/lib/composio/client";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +38,41 @@ export default async function InboundEmailPage({
     .maybeSingle();
   if (!data) notFound();
   const row = data as EventRow;
+
+  // Backfill for rows ingested before the webhook started persisting the
+  // fetched Graph message. If we still only have the trigger envelope,
+  // fetch the full message now and merge it onto the row so subject /
+  // from / body render. Only attempts once per page load; success is
+  // persisted so subsequent views are cheap.
+  const hasFetched = Boolean(
+    (row.payload as Record<string, unknown> | null)?.fetched,
+  );
+  if (!hasFetched) {
+    const triggerData =
+      ((row.payload as Record<string, unknown> | null)?.data as
+        | Record<string, unknown>
+        | undefined) ?? {};
+    const messageId = (triggerData.id as string | undefined) ?? null;
+    if (messageId) {
+      const fetched = await callAction<Record<string, unknown>>(
+        "OUTLOOK_GET_MESSAGE",
+        user.orgId,
+        { messageId },
+      );
+      if (fetched.ok) {
+        const merged = {
+          ...(row.payload ?? {}),
+          fetched: fetched.data,
+        } as Record<string, unknown>;
+        const admin = createSupabaseAdmin();
+        await admin
+          .from("agent_events")
+          .update({ payload: merged })
+          .eq("id", row.id);
+        row.payload = merged;
+      }
+    }
+  }
 
   const email = extractOutlookMessage(row.payload);
 

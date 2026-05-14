@@ -14,14 +14,26 @@ export const maxDuration = 300;
 
 type ChatTurn = { role: "user" | "assistant"; content: string };
 
+type AttachmentInput = {
+  document_id: string;
+  storage_path: string;
+  original_name: string;
+  mime_type: string;
+  file_size: number;
+};
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return new Response("unauthorized", { status: 401 });
 
-  const { messages, sessionId } = (await req.json()) as {
+  const { messages, sessionId, attachments } = (await req.json()) as {
     messages: ChatTurn[];
     sessionId?: string;
+    attachments?: AttachmentInput[];
   };
+  const attachmentList: AttachmentInput[] = Array.isArray(attachments)
+    ? attachments
+    : [];
 
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   if (!lastUser) return new Response("no user message", { status: 400 });

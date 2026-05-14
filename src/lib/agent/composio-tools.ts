@@ -86,7 +86,14 @@ export function buildComposioTools(ctx: Ctx) {
       await audit(ctx, "email.drafted", {
         draft_id: draftId,
         to: input.to,
+        cc: input.cc ?? [],
+        bcc: input.bcc ?? [],
         subject: input.subject,
+        // Snapshot the body at draft time so the /inbox/outbound/[id]
+        // viewer can always render a clean HTML preview, even if the
+        // Outlook draft is later sent (id moves to Sent Items) or
+        // deleted (Outlook returns ErrorItemNotFound).
+        body_html: input.body_html,
       });
       return ok({
         draft_id: draftId,
@@ -122,6 +129,8 @@ export function buildComposioTools(ctx: Ctx) {
         draft_id: draftId,
         message_id,
         reply_all: !!reply_all,
+        // Snapshot for the outbound viewer (see note in draft_email).
+        body_html,
       });
       return ok({
         draft_id: draftId,

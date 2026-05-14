@@ -32,7 +32,7 @@ export default async function CustomersPage() {
   const byId = new Map(rows.map((r) => [r.id, r] as const));
 
   return (
-    <div className="mx-auto max-w-[1180px] space-y-6 px-8 py-7">
+    <div className="w-full space-y-6 px-8 py-7">
       <header className="flex items-end justify-between">
         <div>
           <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Channel partners</h1>
