@@ -951,9 +951,26 @@ export function buildGeorgeMcpServer(
         }
       }
       if (doc.mime_type === PPTX) {
-        const officeparser = await import("officeparser");
+        const { parseOffice } = await import("officeparser");
         try {
-          const text = await officeparser.parseOfficeAsync(buf);
+          // parseOffice accepts a Buffer; cast through unknown because the
+          // exported overload list doesn't include the Buffer form on every
+          // version of the type declarations.
+          const ast = await (
+            parseOffice as unknown as (
+              file: Buffer,
+            ) => Promise<{
+              content: Array<{ text?: string; children?: unknown[] }>;
+            }>
+          )(buf);
+          // Walk the content tree and concatenate each node's `text`. The
+          // pptx parser sets `text` on every container node (slide,
+          // paragraph) as the joined text of its descendants, so a single
+          // top-level pass is enough for a usable extraction.
+          const text = ast.content
+            .map((n) => (typeof n.text === "string" ? n.text : ""))
+            .filter(Boolean)
+            .join("\n\n");
           return ok({
             document_id: doc.id,
             name: doc.original_name,
