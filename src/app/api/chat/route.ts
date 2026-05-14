@@ -130,6 +130,12 @@ export async function POST(req: NextRequest) {
       async function runOnce(
         resumeId: string | undefined,
       ): Promise<"ok" | "stale_resume"> {
+        console.log("[chat] runOnce.start", {
+          sessionId: dbSession!.id,
+          resumeId: resumeId ?? null,
+          hasApiKey: Boolean(process.env.ANTHROPIC_API_KEY),
+          home: process.env.HOME ?? null,
+        });
         const q = query({
           prompt,
           options: {
@@ -151,7 +157,12 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        let sawAny = false;
         for await (const msg of q as AsyncIterable<SDKMessage>) {
+          if (!sawAny) {
+            sawAny = true;
+            console.log("[chat] first SDK message", { type: msg.type });
+          }
           if (msg.type === "assistant") {
             const blocks = msg.message?.content ?? [];
             for (const b of blocks) {
@@ -228,6 +239,11 @@ export async function POST(req: NextRequest) {
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
+        console.error("[chat] query failed", {
+          sessionId: dbSession!.id,
+          message,
+          stack: err instanceof Error ? err.stack : undefined,
+        });
         // Some Agent SDK builds throw on resume miss instead of streaming
         // it. Catch that here too — clear the stale id and surface a
         // friendlier message so the next send works clean.

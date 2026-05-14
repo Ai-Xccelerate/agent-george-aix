@@ -37,9 +37,13 @@ ENV HOSTNAME=0.0.0.0
 # Default to 3000 for local `docker run`; Railway will override via $PORT.
 ENV PORT=3000
 
-# Non-root user for the runtime.
+# Non-root user for the runtime. `--create-home` is required: the Claude
+# Agent SDK's `claude` binary writes session state to $HOME/.claude, and
+# without a writable home it hangs silently on first write (silent SSE,
+# no streamed reply). HOME is also pinned explicitly for belt-and-braces.
 RUN groupadd --system --gid 1001 nodejs \
- && useradd --system --uid 1001 --gid nodejs nextjs
+ && useradd --system --uid 1001 --gid nodejs --create-home --home-dir /home/nextjs nextjs
+ENV HOME=/home/nextjs
 
 COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=build --chown=nextjs:nodejs /app/.next ./.next
