@@ -60,6 +60,8 @@ function shouldHideBubble(pathname: string | null): boolean {
   if (!pathname) return true;
   if (pathname.startsWith("/chat")) return true;
   if (pathname.startsWith("/settings")) return true;
+  // /actions has an inline chat column per-item; surface conflict.
+  if (pathname.startsWith("/actions")) return true;
   return false;
 }
 
@@ -114,6 +116,23 @@ export function FloatingChatBubble() {
     } catch {
       /* ignore */
     }
+  }, []);
+
+  // External deep-link: other surfaces (AI actions, inbox row) can ask the
+  // bubble to load a specific session by dispatching:
+  //   window.dispatchEvent(new CustomEvent("george:open-session", { detail: { sessionId } }))
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    function onOpenSession(e: Event) {
+      const ce = e as CustomEvent<{ sessionId?: string }>;
+      const id = ce.detail?.sessionId;
+      if (!id) return;
+      setSessionId(id);
+      setOpen(true);
+    }
+    window.addEventListener("george:open-session", onOpenSession);
+    return () => window.removeEventListener("george:open-session", onOpenSession);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Open the panel → if we don't already have a session, create one.

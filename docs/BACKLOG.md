@@ -398,6 +398,211 @@ These aren't todos in the build sense — they're decisions we owe ourselves bef
 
 ---
 
+## Program-management capability roadmap **[KB 2026-05-19]**
+
+Surfaced by the post-Seattle KB refresh (`core/02-agent-george-role.md`, `core/03-agent-george-lifecycle-steps.md`). The single operating objective is to move program-management capacity from **5–10 partners per PM → 25 → 50**. Every item below is scored against (a) does it move the capacity number and (b) does it take a task out of Mode A into Mode B with a real, measurable gate.
+
+### 50. Pre-call briefing engine (Mode A → B)
+**What:** On-demand "one-screen brief" per partner: profile, recent assessments, deals in flight, open support questions, last coach touch, suggested agenda. Ready before the PM sits down.
+
+**Why deferred:** Need to consolidate partner timeline first (assessment activity is not modelled yet — see #51). Today the only inputs we hold are agent_sessions, agent_jobs, contacts, contracts.
+
+**Gate to Mode B:** PM has used the brief format for 4+ partners and confirms it matches what they would have produced.
+
+**Where:** New surface — likely a `/partners/[id]/brief` view backed by a knowledge-routed agent run, or an inline chat tool `prepare_partner_brief(partner_id)`.
+
+**Status:** Idea.
+
+---
+
+### 51. Tenant-ingest watcher (Mode B)
+**What:** Watch every Transition Hub tenant ingest. Confirm start, confirm completion, classify failures (CSP readiness quota issues, parsed-contract pricing-tier issues, Partner Center API outage), trigger reruns on known-good remediation patterns, escalate logic failures to Esteban + the PM.
+
+**Why deferred:** No integration to Transition Hub job-state today. Onyx platform is still being moved to Azure; the job-watch surface isn't defined.
+
+**Gate to Mode B:** one full month of clean classification with zero PM corrections on failure category.
+
+**Where:** Needs a Transition Hub events feed (webhook or polled). Likely a new `tenant_ingests` table + an autonomous-job runner sweeping it.
+
+**Status:** Pending — depends on Transition Hub platform consolidation on Azure.
+
+---
+
+### 52. Persona-tailored scenario drafting
+**What:** Same assessment data, four rendered views: partner AM view (deal-leading language), partner SE view (24-workload depth), customer CFO view (As-Is / Right-Size / Optimize commercial), customer CIO view (security score, AI readiness, competitive-takeout). George drafts; partner sends.
+
+**Why deferred:** Need the assessment data shape from Transition Hub first.
+
+**Where:** Likely a new agent tool `render_scenario(assessment_id, persona)` and a knowledge-doc set per persona template.
+
+**Status:** Idea.
+
+---
+
+### 53. Partner-outbound drafting in partner brand
+**What:** Drafted in the partner's voice, on the partner's brand, for the PM (or the partner) to review and send. Includes the customer-side Entra ID authorization email and the in-cycle partner-to-customer status update.
+
+**Why deferred:** Partner brand assets and voice notes aren't captured yet. Today every partner-facing artifact would carry Onyx defaults.
+
+**Where:** New `partner_brand` fields on `customers` (logo, primary color, sender name, voice notes), wired into draft_email so the drafted body matches.
+
+**Status:** Idea. Brand-asset capture is a prerequisite.
+
+---
+
+### 54. Licensing-question router with confidence-scored answers
+**What:** Take a partner's licensing question (any surface — chat, email, Teams agent, Copilot, shared inbox). Query Support Hub's curated KB with confidence. For high-confidence: draft, then in Mode B send directly. For low-confidence: route to the human-in-the-loop and name who's picking it up and when.
+
+**Why deferred:** Support Hub KB is a separate system (ChromaDB, Cohere search, LangSmith tracing); not yet integrated. The HITL workflow isn't wired either.
+
+**Gate to Mode B:** PM has reviewed 50+ George-drafted licensing answers and the override rate is below an agreed threshold (number TBD).
+
+**Where:** A new `search_support_hub` MCP tool + a routing table for surfaces.
+
+**Status:** Pending — needs Support Hub API surface.
+
+---
+
+### 55. Multi-surface delivery for Support Hub answers
+**What:** Render the same answer into Microsoft Teams (agent in marketplace), Copilot, shared inbox, and plain email — meeting partners where they already are. "Take this to where the users live" is the explicit direction.
+
+**Why deferred:** Today Support Hub is web-only. Teams agent is on Onyx's roadmap; Copilot agent is downstream of that. No work on the George side until the upstream surfaces exist.
+
+**Status:** Pending — blocked on Onyx product side.
+
+---
+
+### 56. Partner-health scoring across the PM's book
+**What:** Weekly health pull per partner: assessments run, deals in motion, deals at risk, support volume, response latency, days to renewal. Risk classification (on-track / watch / at-risk) with the specific signal cited.
+
+**Why deferred:** Need Transition Hub assessment counts and Support Hub interaction logs. Schema for `customer_health` exists; the inputs do not.
+
+**Gate to Mode B for monitoring:** day-one. Outreach drafting stays in Mode A.
+
+**Where:** Extend `customer_health` with the multi-signal inputs; build a scheduled job that writes weekly snapshots; surface in `/dashboard` and in the daily digest.
+
+**Status:** Idea.
+
+---
+
+### 57. Renewal clock — T-90 / T-60 / T-30
+**What:** Track contract end dates. At T-90 surface to PM with usage data. At T-60 draft renewal-conversation talking points (Mode A). At T-30 escalate if no PM-led conversation has happened.
+
+**Why deferred:** Contract end-date capture is in `contracts` but not validated. No scheduled sweep yet.
+
+**Where:** Standing job + a `renewal_alerts` table or a typed `agent_events`.
+
+**Status:** Idea.
+
+---
+
+### 58. Coaching knowledge capture (Mode B)
+**What:** Capture every coached session — transcript, decisions, what the PM said, what the partner asked. Structure into a program-management knowledge layer (question, situation, PM framing, recommended approach). Surface relevant prior coaching when a new partner hits the same question. This is how the second partner is faster than the first.
+
+**Why deferred:** Today Fireflies transcripts come in raw and aren't being structured. The "PM knowledge layer" is a new concept — separate from the partner-facing Support Hub KB.
+
+**Where:** New `coaching_notes` table; subagent that ingests transcripts and writes structured Q&A; hooked into `search_knowledge` with a separate scope.
+
+**Status:** Idea.
+
+---
+
+### 59. Mode A / Mode B governance
+**What:** Per-task confidence tracking, PM-approved Mode B transitions per task type per partner, audit trail of every mode-change decision. George does not graduate himself — the PM moves him.
+
+**Why deferred:** No "mode state" anywhere in the schema yet. Need to model task-type × partner × mode + override-rate tracking before the governance UI makes sense.
+
+**Where:** New `agent_mode_grants` table; UI in `/settings/jobs` or a new `/partners/[id]/agent` tab.
+
+**Status:** Idea. Foundational for #54, #55, #56.
+
+---
+
+### 60. PM daily / weekly / monthly digests
+**What:**
+- **Daily (one screen):** drafts pending review, decisions needed, new risk flags across the PM's book.
+- **Weekly:** per-partner health summary + capacity-against-target line.
+- **Monthly capacity report (PM-lead facing):** actual partners-per-PM in flight vs target (5 → 25 → 50).
+
+**Why deferred:** Depends on #56 and #59 being real.
+
+**Where:** Standing jobs + a `/dashboard` redesign. Today's dashboard is generic; the PM-lead view is the one Fraser would actually open.
+
+**Status:** Idea.
+
+---
+
+### 61. Branded live-link assessment output (replaces PDF)
+**What:** Replace today's PDF export of Transition Hub scenarios with a branded live link that the partner can share with their customer. PowerPoint is the partner-requested fallback. This is a partner ask coming out of the Seattle workshop.
+
+**Why deferred:** Lives in Transition Hub, not in George — but George needs to know what surface the link comes from so he drafts the right partner-to-customer email body.
+
+**Status:** Pending — Onyx-side platform work. Track for awareness.
+
+---
+
+### 62. Maya ↔ George handover
+**What:** Define behavior at moments where both Maya (in-app, partner-facing) and George (outside the app, PM-facing) could engage the same partner. Default today: George does not engage the partner's customer directly; the partner owns that relationship. Maya direction (multimodal, multilingual) may shift this.
+
+**Why deferred:** Maya is a thin entry point today; the multimodal version is roadmap. Premature to design the handover until Maya's surface is real.
+
+**Status:** Open question — captured in `core/02-agent-george-role.md`.
+
+---
+
+### 63. PM-lead capacity dashboard
+**What:** John / Chris / Neil / Fraser want a view that answers "how close are we to PM 2.0?" — actual partners-per-PM in flight, target, gap, where George is bottlenecked. Different audience from #60 (which is per-PM).
+
+**Why deferred:** Same dependencies as #60.
+
+**Status:** Idea.
+
+---
+
+### 64. Outlook-side category labels per customer
+**What:** When inbound mail to `agent.george@getonyx.ai` is auto-linked to a customer in our DB, also stamp an Outlook category on the message itself (e.g. `Customer: Helix Cloud`). One category color per partner, deterministic from name. Likely needs `OUTLOOK_UPDATE_MESSAGE` or an equivalent Graph categories endpoint via Composio.
+
+**Why deferred:** Need to verify the Composio action slug + payload shape and seed the org's master Outlook category list (Graph requires categories be defined per-mailbox before they can be applied). App-side labels in `/actions` are already shipped — Outlook-side is the polish layer.
+
+**Where:** `src/lib/agent/process-event.ts` after `resolveSenderToCustomer`. Plus a one-time category-bootstrap routine.
+
+**Status:** Idea.
+
+---
+
+### 65. Approve/edit/dismiss controls inline on /actions
+**What:** Each draft row on `/actions` today opens the floating chat for review. Add inline buttons: **Send** (calls `send_email_draft` server action), **Edit** (opens the bubble with the draft preloaded for revision), **Discard** (deletes the Outlook draft + the audit row). Keep the open-in-bubble flow as the fallback for nuanced cases.
+
+**Why deferred:** Send-without-bubble bypasses the human-in-the-loop framing the prompt has been built around — needs a deliberate decision on whether to allow direct send from the actions list or require the bubble round-trip. Worth shipping after a week of using the bubble flow.
+
+**Where:** New server actions in `src/app/(app)/actions/actions.ts`; row component in `_open-in-bubble.tsx` grows into a control cluster.
+
+**Status:** Idea.
+
+---
+
+### 67. Sanitized HTML rendering in /actions detail pane
+**What:** The right column on `/actions` today shows the email body and George's draft as stripped plain text. Real Outlook mail uses bullets, links, inline emphasis — rendering as text loses signal. Render sanitized HTML (DOMPurify or rehype-sanitize) instead, with a strict allowlist (no `<script>`, no inline event handlers, no remote images that could beacon).
+
+**Why deferred:** Inbound mail comes from the wild internet — rendering it raw is an XSS surface. Needs a vetted sanitizer, a deliberate allowlist, and a "load remote images?" toggle for tracking-pixel hygiene.
+
+**Where:** `src/app/(app)/actions/page.tsx` DetailPane → InboundBody / DraftBody.
+
+**Status:** Idea.
+
+---
+
+### 66. Risk flags as a first-class surface
+**What:** George already names risks in his summaries; promote those into structured records (`agent_events` of type `risk_flag` or a `risks` table) so the AI actions page can show a "Flagged risks" section alongside drafts and inbound. Each risk: customer, severity, signal, recommended next step, status (open / acknowledged / resolved).
+
+**Why deferred:** No structured risk model today. Today George's risk language only exists inside autonomous-run summary text — readable but not queryable.
+
+**Where:** A new tool `flag_risk(customer_id, severity, signal, suggested_action)` for George to call; new section in `/actions`.
+
+**Status:** Idea. Pairs naturally with #56 (partner-health scoring).
+
+---
+
 ## How to use this file
 
 - Add new items when we defer something. Always say *why deferred* — that's the most decay-resistant detail.

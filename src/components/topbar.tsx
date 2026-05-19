@@ -1,9 +1,9 @@
 "use client";
 
-import { Bell, Moon, Search, Sun } from "lucide-react";
+import { Bell, Menu, Moon, Search, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
-export function Topbar() {
+export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   // Initialize from the actual <html class>, which the server set from the
   // george-theme cookie. No FOUC, no flicker.
   const [dark, setDark] = useState<boolean | null>(null);
@@ -21,16 +21,26 @@ export function Topbar() {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-6">
-      <div className="flex h-9 w-[300px] items-center gap-2 rounded-md bg-[var(--color-surface-2)] px-3.5">
-        <Search size={16} className="text-[var(--color-fg-muted)]" />
-        <input
-          placeholder="Search customers, conversations, knowledge…"
-          className="w-full bg-transparent text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] outline-none"
-        />
+    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-3 sm:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <button
+          type="button"
+          aria-label="Open menu"
+          onClick={onMenuClick}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-[var(--color-surface-2)] md:hidden"
+        >
+          <Menu size={18} className="text-[var(--color-fg-muted)]" />
+        </button>
+        <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md bg-[var(--color-surface-2)] px-3.5 sm:max-w-[300px]">
+          <Search size={16} className="shrink-0 text-[var(--color-fg-muted)]" />
+          <input
+            placeholder="Search…"
+            className="w-full min-w-0 bg-transparent text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] outline-none"
+          />
+        </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <IconButton aria-label="Notifications">
           <Bell size={18} className="text-[var(--color-fg-muted)]" />
         </IconButton>

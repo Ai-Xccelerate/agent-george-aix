@@ -584,7 +584,7 @@ export function ChatClient({
                   }
                 }}
                 rows={1}
-                placeholder="Attach PDFs/DOCX/PPTX/XLSX/MD/TXT, type / for commands, or @ a customer…"
+                placeholder="Type / for commands, @ for a customer, or just start chatting with George…"
                 className="block max-h-[180px] w-full resize-none bg-transparent py-2 text-sm leading-6 text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] outline-none"
               />
             </div>

@@ -60,7 +60,7 @@ const TOPICS: Topic[] = [
 
 export default function HelpIndexPage() {
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-[1180px] space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7">
       <header>
         <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Help &amp; docs</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">

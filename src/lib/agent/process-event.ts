@@ -161,6 +161,14 @@ export async function processAgentEvent(
   const sessionTitle = `Email: ${email.subject ?? "(no subject)"}`.slice(0, 120);
   const seedContent = renderInboundForChat(email);
 
+  // Resolve sender → customer so the inbox/actions list can label the row.
+  // Match contacts.email first (most specific), then customers.domain on the
+  // sender's domain. No match → null and we keep going.
+  const customerId = await resolveSenderToCustomer(
+    event.org_id,
+    email.from?.address ?? null,
+  );
+
   // 3) Create the agent_sessions row up front so a session_id exists even
   //    if the agent run errors. The chat history rail will then show the
   //    inbound email + the failure so the user can react.
@@ -171,6 +179,7 @@ export async function processAgentEvent(
       user_id: null,
       channel: "email",
       title: sessionTitle,
+      customer_id: customerId,
     })
     .select("id")
     .single();
@@ -499,6 +508,39 @@ function extractAgentmailMessage(
     body_preview: msg.preview ?? null,
     received_at: msg.timestamp ?? null,
   };
+}
+
+async function resolveSenderToCustomer(
+  orgId: string,
+  fromAddress: string | null,
+): Promise<string | null> {
+  if (!fromAddress) return null;
+  const email = fromAddress.toLowerCase().trim();
+  const domain = email.split("@")[1] ?? null;
+  if (!domain) return null;
+  const admin = createSupabaseAdmin();
+
+  // 1) Exact contact-email match — most specific signal.
+  const contactRes = await admin
+    .from("contacts")
+    .select("customer_id")
+    .eq("org_id", orgId)
+    .ilike("email", email)
+    .limit(1)
+    .maybeSingle();
+  if (contactRes.data?.customer_id) return contactRes.data.customer_id as string;
+
+  // 2) Domain match on the customer itself (the partner's main domain).
+  const customerRes = await admin
+    .from("customers")
+    .select("id")
+    .eq("org_id", orgId)
+    .ilike("domain", domain)
+    .limit(1)
+    .maybeSingle();
+  if (customerRes.data?.id) return customerRes.data.id as string;
+
+  return null;
 }
 
 async function processAgentmailEvent(

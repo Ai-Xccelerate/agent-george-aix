@@ -380,7 +380,7 @@ export default async function CustomerPage(
   ];
 
   return (
-    <div className="mx-auto max-w-[1180px] space-y-6 px-8 py-7">
+    <div className="mx-auto max-w-[1180px] space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7">
       <Link
         href="/customers"
         className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"

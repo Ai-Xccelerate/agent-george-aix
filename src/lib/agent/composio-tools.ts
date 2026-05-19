@@ -55,7 +55,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- DRAFT NEW EMAIL ---------------------------------------------
   const draftEmail = tool(
     "draft_email",
-    "Create a draft email in george@onyx's Outlook. Returns the draft id + preview so you can show it to the user. The user MUST confirm before you call send_email_draft.",
+    "Create a draft email in agent.george@getonyx.ai's Outlook. Returns the draft id + preview so you can show it to the user. The user MUST confirm before you call send_email_draft.",
     {
       to: z.array(z.string().email()).min(1),
       cc: z.array(z.string().email()).optional(),
@@ -160,7 +160,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- LIST INBOX --------------------------------------------------
   const listRecentEmails = tool(
     "list_recent_emails",
-    "List recent messages from george@onyx's inbox. Use to find a thread to reply in or to check who's written in. Returns most recent first.",
+    "List recent messages from agent.george@getonyx.ai's inbox. Use to find a thread to reply in or to check who's written in. Returns most recent first.",
     {
       folder: z.enum(["inbox", "sent", "drafts"]).default("inbox").optional(),
       limit: z.number().int().min(1).max(50).default(20).optional(),
@@ -196,7 +196,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- CREATE CALENDAR EVENT --------------------------------------
   const createCalendarEvent = tool(
     "create_calendar_event",
-    "Create an event on george@onyx's calendar. Use to schedule kickoffs, check-ins, etc. Returns the new event id and join URL if it's a Teams meeting.",
+    "Create an event on agent.george@getonyx.ai's calendar. Use to schedule kickoffs, check-ins, etc. Returns the new event id and join URL if it's a Teams meeting.",
     {
       subject: z.string().min(1),
       start_iso: z.string().datetime().describe("ISO 8601 start time (with timezone)."),
@@ -240,7 +240,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- LIST CALENDAR ----------------------------------------------
   const listCalendarEvents = tool(
     "list_calendar_events",
-    "List george@onyx's upcoming calendar events. Use to check availability or find an existing meeting.",
+    "List agent.george@getonyx.ai's upcoming calendar events. Use to check availability or find an existing meeting.",
     {
       start_iso: z.string().datetime().optional().describe("Defaults to now."),
       end_iso: z.string().datetime().optional().describe("Defaults to 14 days from now."),

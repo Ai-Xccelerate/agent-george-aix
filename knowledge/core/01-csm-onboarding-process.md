@@ -1,159 +1,115 @@
-# CSM Onboarding Process & Role
+# Onyx — CSM Onboarding Process
 
-This document captures how onboarding works today at Onyx (pre–Agent George), the artifacts involved, and the ongoing role of the Customer Success Manager (CSM).
+This file describes how Onyx onboards a new partner today and where the motion is changing. The process is **partner-centric**, not end-customer-centric: Onyx onboards the partner (the MSP / CSP), and the partner then runs assessments on their own customers using Transition Hub. The current bottleneck is the human coaching layer — one Fraser onboarding ~10 partners a month is the cap. The work in flight is to lift that cap without losing the coaching quality the partner is buying.
 
 ## Vocabulary
 
-- **Partner**: An MSP (Managed Service Provider) that signs a contract with Onyx.
-- **Partner Admin**: The primary administrator at the partner who manages the contract and users on the Onyx platform.
-- **Partner Internal Users**: Employees of the partner (typically sales, pre-sales, licensing) who use the platform.
-- **End Customer**: A customer of the partner who gets access to the platform through the partner.
-- **Support Hub**: The Onyx product where CSP partners and customers are administered.
-- **Partner Control Panel**: The partner-admin–facing portion of the Support Hub.
-- **Transition Hub / Sales Hub**: Other Onyx hubs included in the full CSP Growth Engine solution.
-- **Onboarding Hub**: The ValueCase-backed space used to track onboarding tasks with the partner. (Domain will migrate from ValueCase to a getonyx subdomain.)
-- **Maya**: The current avatar/name for the support bot inside the Support Hub.
+- **Partner.** The MSP / CSP Onyx contracts with. Synonyms used loosely in transcripts: "account," "customer," "the partner." For this file, **partner** is the only correct term.
+- **Customer.** The partner's end customer (the enterprise whose tenant gets ingested). Onyx does not onboard the customer; the partner does.
+- **Onboarding plan.** The set of steps required to take a newly signed partner from contract to "running their first Transition Hub assessment on a real customer." Today this exists in flow form (Dean documented it) but is not yet codified as a single artifact.
+- **Step.** A single discrete unit inside the onboarding plan (e.g., "partner authorizes their first customer's tenant via Entra ID").
+- **Owner.** The Onyx person accountable for a step. Today, almost always Fraser, Stuart, Navash, or Jen.
+- **Coach / program manager (PM).** Same role, two names. Fraser is the canonical coach; Stuart is the named deal-maker coach; Jen is pivoting to full-time PM; Navash has been doing Support Hub onboarding and is being considered for a Transition Hub PM track.
+- **Pilot.** An Arrow- or distributor-funded onboarding where the partner pays nothing for platform access and the deal economics work off the first big EA win.
 
-## Two Customer Journeys
+## Lifecycle at a glance
 
-1. **Journey A — Partner Onboarding**: Onboarding a new MSP/partner onto the Onyx platform.
-2. **Journey B — End Customer Onboarding**: The partner onboards one of their customers through Onyx.
+The customer-facing arc is **Win → Support → Grow**, with Nurture and Renew named as future phases. From the partner-onboarding side, four phases are observable in the current motion:
 
-Journey B can only begin after the partner admin and internal users of Journey A are set up.
+1. **Sign / kickoff** — contract done, partner introduced to their coach, first assessment customer identified.
+2. **Activation** — partner-branded portal stood up, first customer's tenant authorized, first assessment runs end-to-end, first scenarios reviewed.
+3. **Coaching to confidence** — coach (Fraser / Stuart) sits with the partner through 2–3 real deals; partner moves from "watching" to "doing." Today's reality: this takes weeks, not days.
+4. **Independent operation** — partner runs assessments without the coach in the room; coach reviews on cadence, jumps in only for non-routine deals.
 
-## Pre-Onboarding (Sales-Driven)
+There is no fixed published duration for each phase yet — the working assumption inside Onyx is that "if it is going well, a partner is closing their first deal off a Transition Hub assessment within the first big EA cycle." The Arrow pilot is the first scaled test.
 
-Before any platform setup occurs, the salesperson collects signed documents:
+## How onboarding actually runs today
 
-1. **NDA** — signed via Zoho Sign. Required for both trial and production engagements.
-2. **Contract** — signed via Zoho Sign (production engagements).
-3. **Order Form** — a simple document capturing:
-   - Contract term (typically 3 years)
-   - Pricing total
-   - Billing cadence (monthly / quarterly / yearly)
-   - Whether a Program Manager is included (full CSP Growth Engine solution)
-   - Solution scope
+Stated honestly and post-Seattle workshop:
 
-The salesperson forwards the NDA, contract, and order form to the CSM. The CSM stores them and creates a ValueCase space for the partner.
+1. **Contract / pilot enrollment.** For Arrow pilot partners, Arrow nominates the partner and confirms funding; for non-Arrow partners, Onyx signs them directly on the flat platform license. Booking is via John's calendar today for distributor-routed partners.
+2. **First call.** Coach (Fraser, today) walks the partner through what the platform does, what Onyx will and will not do, and asks the partner to nominate the first customer for assessment.
+3. **Partner-branded portal stood up.** The partner provides branding so the customer-facing artifacts (portal, scenarios) carry the partner's identity, not Onyx's.
+4. **First tenant ingest.** Partner sends their end customer an Entra ID app authorization link. Customer's global admin authorizes; M365 SKU data and Azure 12-month trend ingest; CSP readiness checks run (quotas, marketplace, reserved instances).
+5. **Assessment review with the coach.** Coach sits with the partner and walks them through the three scenarios — As-Is, Right-Size, Optimize — plus the Insights (security score, productivity, AI adoption, third-party takeout signals). Today this is the highest-value, highest-friction moment in the onboarding because the platform is "a little buggy" and the partner needs the coach to read the data.
+6. **First customer-facing artifact.** Output is exported (today: PDF) for the partner to take to their customer. Partners want PowerPoint or a branded live link; the team's stated direction is a branded live link.
+7. **Second and third assessments.** Coach drops their time on the partner from "in every meeting" to "on the readout." Partner starts running ingest themselves; coach reviews the scenarios.
+8. **Steady-state.** Partner operates independently; coach moves to monthly or by-exception. Support Hub becomes the partner's go-to for licensing questions, today via the web chat (and over time via Teams, Copilot, shared inbox, and email).
 
-## Kickoff / Onboarding Call
+What this looks like in current pipeline reality: Transition Hub onboardings are oversubscribed ("we can't close them"). Support Hub has three to four closed customers and no pipeline backlog.
 
-Run by the salesperson + CSM together with the partner.
+## Artifacts
 
-- Introductions
-- Confirm what was purchased
-- Identify the **Partner Admin** (the person who will administer the contract)
-  - Sometimes the admin is on the call; sometimes the signer names them afterward
-  - Onyx tends to deal with senior people on this call; the actual admin may be delegated later
-- Walk through the Onboarding Hub (ValueCase space)
-- Agree on a **Start Date** (90% of the time this is the day of the onboarding call)
-- Agree on cadence for ongoing calls (weekly / biweekly / monthly)
-- Agree on an onboarding timeline (2 weeks to 3 months, depending on scope and whether end customers are included)
+- **Partner-branded portal** — the customer-facing surface. Branding is captured during activation.
+- **Tenant ingest authorization** — Entra ID app link to the partner's customer.
+- **Assessment output** — As-Is, Right-Size, Optimize scenarios + Insights. Today: PDF export. Target: branded live link. PowerPoint is the partner-requested fallback.
+- **Documented onboarding flow** — Dean documented the current flows. Not located in this source pack; treat as authoritative once found.
+- **Coach notes** — today informal; the new motion will codify them as input to a PM agent.
 
-The CSM does not configure anything in the Support Hub until after this call.
+> Internal only — do not paraphrase to customers.
+> Most partner-facing artifacts ride on the partner's brand, not Onyx's. The platform is white-label by design. Any artifact George produces that touches a customer-of-a-partner should default to the partner's brand and the partner's voice unless explicitly requested otherwise.
 
-## Onboarding Hub Task List
+## Roles and accountabilities
 
-The Onboarding Hub (ValueCase) is the single source of truth for the onboarding plan. Each task has a target date and is ticked off as completed. Currently the hub bundles Support Hub, Transition Hub, and Sales Hub onboarding together; it will be split per hub.
+- **Coach / program manager (Fraser today, Jen pivoting, Navash candidate).** Owns the partner relationship through coaching. Decides when a partner is ready to operate independently. Currently caps at roughly 10 active onboardings each.
+- **Stuart** — deal-maker coach. The named expert Onyx pitches as "you also get this person." Used selectively on harder partner deals.
+- **Navash** — has been the Support Hub onboarding lead; operations-leaning background. Being assessed for a Transition Hub PM role pending her own appetite.
+- **Jen** — pivoting to 100% PM, reporting to Fraser, with an agent assist on the way. Coming off Support Hub onboarding cover.
+- **James** — moving off PM, back to selling.
+- **Support / engineering.** The Surfe team (Esteban, Argentina) holds the platform. Esteban has a proposed architecture and is being given two weeks to bring it to life with DevOps observation.
+- **Customer-side champion (partner side).** Whoever inside the partner owns Microsoft practice growth — typically the founder, VP Sales, or a designated pre-sales lead.
+- **Exec sponsor (partner side).** Typically the partner CEO.
 
-### 1. Contract & Commercial Setup
-- **Contract Signed** — always pre-ticked (gate to enter the hub).
-- **Supplier Onboarding** — partner sets up Onyx as a supplier in their systems.
-- **Partner Onboarding for Invoicing** — partner provides finance/AP contacts so Onyx can bill correctly. Passed to Onyx finance.
-- **Funding & Co-op Guide** — a standard ~8-page document Onyx provides explaining how the partner can claim Microsoft co-op funding to offset the price. Partner files the Statement of Work with Microsoft; Onyx sales / Program Manager (Fraser, James) help draft the SOW. Only available to partners (not end customers).
-- **Start Date** — recorded in the hub.
+## Cadences
 
-### 2. Partner Admin Onboarding *(blocking gate)*
+- **Active onboarding.** Multiple touchpoints per week during the first one or two assessments; cadence stepped down as the partner gains confidence.
+- **Arrow pilot kickoff.** Seven partner meetings being booked the week following the workshop; Arrow team books direct via John's calendar. Tom Harshberg's stated rule: "I am here for advice; I am not a gate to get anything done."
+- **Joint Arrow ↔ Onyx coordination.** Laurie (Arrow) is setting up a Teams channel for joint discussion.
+- **Internal Onyx cadence.** Coaches sync with Fraser; Fraser syncs with John, Chris, Neil. No formal repeating cadence has been published in this source pack — assume weekly until told otherwise.
 
-No other onboarding can proceed until the partner admin account exists, because all other users are added under that admin.
+## On-track vs at-risk signals
 
-- **Admin User Data Collection** in the hub. Required fields:
-  - First name, last name
-  - Email address
-  - **Domain** (used to scope the customer's login URL, e.g. `partnername.getonyx.ai`)
-  - Contact email address visible to that partner's customers on the login page
-  - Contact phone (likely to be removed — rarely used)
-- **Create the admin** in Support Hub → CSP Partner Management → "Add CSP Partner".
-- Admin receives a verification email. Status flips from "Email Verification Pending" → "Active".
-- **User Admin Login Created and Issued** — ticked in the hub.
-- **Partner Center Link Connection** — handled by the Program Manager for the Transition Hub (when included).
-- **Admin Onboarding & Training** — short (~10 minute) walkthrough of the Partner Control Panel. Sometimes done in the kickoff call, sometimes scheduled separately depending on time and audience seniority. Onyx has a short recording of the Partner Control Panel walkthrough that can be reused.
+### On-track
 
-### 3. Partner Internal User Onboarding
+- Partner has nominated a first real customer within the first call.
+- Tenant ingest completes cleanly; CSP readiness checks return without manual intervention.
+- Partner asks specific questions about scenarios ("why is the Optimize number lower than Right-Size?"), not general questions ("how do I use this?").
+- Partner takes a scenarios export into a customer meeting within the first two to three weeks.
+- Partner's pre-sales person starts running the second ingest without the coach in the room.
+- Partner moves a customer to a CSP commitment off the first assessment.
 
-- **Awareness Communication for Partner Users** — Onyx provides a templated message (newsletter / email) the partner can send internally explaining what was purchased and why. Use is at the partner admin's discretion. Some partners invite Onyx to their weekly team call to do a short live intro + demo instead.
-- **Data Collection** — list of internal users (typical range: 5–35 per partner, depending on size).
-- **User Creation** — either:
-  - Onyx adds them via Support Hub → CSP Customer Management → "Add CSP Customer", aligned to that partner; or
-  - The partner admin adds them via the Partner Control Panel. Today, partner-side additions land in a **Pending Request List** that Onyx must accept. This approval step is planned to be removed (auto-accept), with a 6- and 12-month true-up to reconcile user counts and billing.
-  - Bulk import via a master spreadsheet is being built (back-end team will load).
-- **Partner User Logins Created and Issued** — ticked in the hub.
-- **Partner User Enablement** — sometimes a short demo on the partner's weekly call.
+### At-risk
 
-### 4. End Customer Onboarding (Journey B)
+- Partner has not named a first customer within the first two weeks.
+- Tenant ingest fails or returns numbers that the partner pushes back on ("right-size looks wrong"), and the issue is logic, not data.
+- Partner-Center connection issue blocks partner-side incentive data (this is a known Microsoft-side outage, not partner fault — flag it but do not let the partner think it is them).
+- The coach is in every meeting beyond the third assessment — that means the platform is not yet doing the work.
+- Partner is asking for "more reports" rather than asking how to win the next deal — this is an anti-pattern signal.
+- Partner stops responding to scheduling within five business days.
 
-Mechanically the same as partner internal user onboarding, with these differences:
+## Handoffs
 
-- **Audience is different**: end customers (not partner employees).
-- **Awareness Communication** is a separate, end-customer–oriented template.
-- **User counts are smaller**: typically 1–5 per end customer.
-- **Only the partner admin (or Onyx) can add end customer users.** Partner internal users (e.g. sales) cannot.
-- **End Customer Webinar** — typically handled by the partner admin or their internal user; Onyx will help when asked.
+- **Sales → CS.** Today, John (or whoever closed the partner) hands the partner to Fraser. There is no formalized handoff packet yet beyond a verbal briefing; codifying this is part of the post-workshop work.
+- **Onboarding → steady-state.** Coach declares the partner independent after two or three coached deals. This is judgment-based today, not metric-gated. The metric Onyx wants is "first deal closed off a Transition Hub assessment."
+- **CSM → Support.** Once the partner is in steady state, license questions go into Support Hub (today: web chat; soon: Teams agent, Copilot agent, shared inbox, email). The CSM stays the relationship owner; Support Hub answers the queries.
+- **Engineering escalations.** If an assessment surfaces a logic issue (not a data issue), Esteban + Fraser are the loop. DevOps observation is being added in the two-week architecture sprint.
 
-### 5. Success Sprint (Post-Onboarding)
+## What has changed recently and why
 
-For the full CSP Growth Engine solution, structured check-ins at:
-- 30 days
-- 60 days
-- 90 days
+George must not reference the older motion. The current state, as of the May 13–14 Seattle workshop:
 
-## Ongoing CSM Role
+- **Sales Hub is parked.** Do not mention Sales Hub as an active product in any onboarding conversation.
+- **Support Hub is being simplified.** The web chat stays, but the strategic surfaces are Microsoft Teams (agent in the marketplace), Copilot, shared inbox, and email. "Take this to where the users live" is the explicit direction. Do not promise the partner a separate Support Hub portal as the primary experience.
+- **PM roles are being reshuffled.** James is off PM. Jen is moving to 100% PM under Fraser with agent assistance. Navash is being assessed for a Transition Hub PM role. Do not refer to anyone by their pre-workshop role.
+- **2.0 is being defined as "automated onboarding + PM agents + hardened Transition Hub on Azure."** Not a clean-room rebuild; not a 44-reports tool. If a partner asks "what is 2.0?" the honest answer is: faster scale onto more partners without losing coaching quality.
+- **The platform is being moved to Azure end-to-end.** Replit was the prototype layer; production is Azure. Do not reference Replit when describing where the platform runs.
+- **Coupling between marketing site and product is being broken.** The marketing site is moving to Vercel under Megan's ownership. Do not link partners to the product app from marketing pages until the decoupling is done.
 
-After onboarding, the CSM owns the ongoing relationship with the partner admin.
+## Open questions
 
-### Cadence Calls
-- Frequency negotiated per partner (weekly, biweekly, monthly).
-- Cadence is **only on calendars today** — not captured in ValueCase or anywhere structured.
-
-### Utilization & QA Reporting (Manual Today)
-Prepared for every cadence call. Indu (QA lead) collects:
-- Total number of users
-- Total number of messages
-- Total number of flags
-- Total number of recalls
-- Out-of-scope question breakdown (categorized manually — operational, etc.)
-
-These numbers are pasted into a PowerPoint template per partner and walked through on the call.
-
-### Question / Flag Handling
-Two intake mechanisms today:
-1. **Shared QA mailbox** in Outlook — receives notifications when the bot cannot answer a question. Indu's QA team reviews the question, retries Maya with a rephrasing, or composes an answer, then replies to the user. Older interactions were resolved over email.
-2. **Flag Management screen** in the Support Hub — when a user flags an in-app answer for more information, it lands here. Replies are now sent from this screen (no longer email).
-
-### Communication Channels with Partners
-- ~90% via email
-- ~10% via Microsoft Teams (used for urgent issues)
-- Most partners are in NorAm; CSM in a different timezone
-
-### Who Reaches Out to the CSM
-- **~90% partner admin.** Typical reasons:
-  - Forgot how to add a user
-  - Has a spreadsheet of users they want bulk-added
-  - Question about the Partner Control Panel (admin side)
-  - Cannot see expected data / users
-- Partner internal users rarely reach out directly.
-- End customers reach out to **the partner first** (their salesperson, pre-sales, or licensing team). They only contact Onyx when responding to a flag follow-up.
-
-### Backup / Coverage
-- Jen and Indu cover CSM duties (calls, onboarding admin) when the primary CSM is unavailable.
-- Sales (e.g. John, Stu, Anil, Chris, James) remain available to support the partner relationship.
-
-## Pain Points (Today)
-
-- Cadence and meeting schedules live only in calendars, not in any structured system.
-- Utilization stats are pulled manually from the platform.
-- Out-of-scope question categorization is manual.
-- Reporting decks are manually copy-pasted per partner.
-- Bulk user add is not yet supported in the UI.
-- Partner-added users require manual approval in a Pending Request List.
-- No chatbot inside the Partner Control Panel today — every admin question routes to the CSM by email.
+- Where the canonical onboarding-flow document lives (Dean documented it; pack does not include it).
+- Whether there is a target time-to-first-assessment Onyx is publishing internally.
+- Default cadence for coach ↔ partner meetings during active onboarding.
+- Named exec sponsor on Onyx side for each tier of partner (Arrow-pilot vs direct).
+- Status today of the Partner Center API connection (known broken on Microsoft side as of the workshop).
+- Whether Support Hub gets its own light onboarding motion (Navash's current role) or rolls into the Transition Hub flow once the surfaces collapse onto Teams / Copilot / email.

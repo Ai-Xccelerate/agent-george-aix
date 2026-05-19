@@ -146,7 +146,7 @@ export default async function InboxPage({
     filter === "all" ? allItems : allItems.filter((i) => i.kind === filter);
 
   return (
-    <div className="mx-auto max-w-[1180px] space-y-6 px-8 py-7">
+    <div className="mx-auto max-w-[1180px] space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7">
       <header className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Inbox</h1>

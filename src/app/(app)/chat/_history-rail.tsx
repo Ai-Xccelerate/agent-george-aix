@@ -27,10 +27,16 @@ export function HistoryRail({ sessions }: { sessions: HistoryItem[] }) {
   const pathname = usePathname();
   const activeId = pathname?.match(/^\/chat\/([0-9a-f-]{36})/i)?.[1];
   // Persist collapse state — sticks across navigation/refresh.
+  // Default collapsed on small screens so chat content gets the full viewport.
   const [collapsed, setCollapsed] = useState<boolean>(false);
   useEffect(() => {
-    const v = typeof window === "undefined" ? null : localStorage.getItem("chat-rail-collapsed");
-    if (v === "1") setCollapsed(true);
+    if (typeof window === "undefined") return;
+    const v = localStorage.getItem("chat-rail-collapsed");
+    if (v === "1") {
+      setCollapsed(true);
+    } else if (v === null && window.matchMedia("(max-width: 767px)").matches) {
+      setCollapsed(true);
+    }
   }, []);
   useEffect(() => {
     if (typeof window !== "undefined") {

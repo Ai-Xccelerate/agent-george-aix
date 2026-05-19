@@ -3,7 +3,7 @@ import { ArrowLeft, Clock } from "lucide-react";
 
 export default function StandingJobsHelpPage() {
   return (
-    <article className="space-y-8 pb-12">
+    <article className="mx-auto max-w-[1180px] space-y-8 px-4 py-5 sm:px-6 md:px-8 md:py-7 pb-12">
       <Link
         href="/help"
         className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
