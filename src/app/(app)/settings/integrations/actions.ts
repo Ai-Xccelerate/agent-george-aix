@@ -11,8 +11,8 @@ import { getCurrentUser } from "@/lib/supabase/current-user";
 // authConfigId directly via the form — no env plumbing required.
 const AUTH_CONFIG_ENV: Record<string, string | undefined> = {
   OUTLOOK: process.env.COMPOSIO_AUTH_CONFIG_OUTLOOK,
-  FIREFLIES: process.env.COMPOSIO_AUTH_CONFIG_FIREFLIES,
   ONEDRIVE: process.env.COMPOSIO_AUTH_CONFIG_ONEDRIVE,
+  ZOHO: process.env.COMPOSIO_AUTH_CONFIG_ZOHO,
 };
 
 /**

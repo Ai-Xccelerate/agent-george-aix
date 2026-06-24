@@ -128,8 +128,6 @@ const FRIENDLY_NAME: Record<string, string> = {
   GOOGLEDOCS: "Google Docs",
   ZOHO: "Zoho CRM",
   ZOHOCRM: "Zoho CRM",
-  FIREFLIES: "Fireflies",
-  FIREFLIESAI: "Fireflies",
   SLACK: "Slack",
   HUBSPOT: "HubSpot",
   SALESFORCE: "Salesforce",
@@ -149,9 +147,9 @@ function descriptionFor(toolkit: string): string {
     case "OUTLOOK":
     case "MICROSOFTOUTLOOK":
       return "Mailbox & calendar — reads inbox, drafts replies in-thread, schedules meetings.";
-    case "FIREFLIES":
-    case "FIREFLIESAI":
-      return "Meeting transcripts. George catches up on calls he didn't attend.";
+    case "ZOHO":
+    case "ZOHOCRM":
+      return "Zoho CRM — reads leads/contacts/deals, logs activity, and triggers George on new customers and closed-won deals.";
     case "ONEDRIVE":
     case "MICROSOFTONEDRIVE":
       return "Cloud file storage — shared NDAs, contracts, and working files for the team.";

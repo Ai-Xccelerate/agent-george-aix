@@ -153,11 +153,11 @@ Enforcement is server-side: migration `20260515000900_knowledge_vector_search_sk
 ---
 
 ### 12. Production deploy + webhook URLs
-**What:** Deploy to Vercel. Set `NEXT_PUBLIC_APP_URL` to the prod domain. Update Supabase Auth → URL Configuration with the prod URL in Site URL + Redirect URLs. Configure Composio trigger webhook URL.
+**What:** Already deployed on **Railway** (project *Agent George - Onyx*, service `george-onyx`, Docker build from `rvbhavsar/george-onyx`). Remaining: set `NEXT_PUBLIC_APP_URL` to the prod domain. Update Supabase Auth → URL Configuration with the prod URL in Site URL + Redirect URLs. Configure Composio trigger webhook URL. Wire a scheduler for `/api/cron/run-jobs` (see #43 — there's no cron on Railway; the inert `vercel.json` cron was removed).
 
-**Vercel primitive:** Pro tier minimum for prod (unlocks hourly cron + consistent 300s timeout). Codebase deploys without code changes — see `docs/01-vercel-deployment.md` for the full mapping of every existing surface to its Vercel runtime.
+**Host note:** Railway runs a persistent `next start` server — no 300s ceiling, no Vercel Cron. The Vercel-primitive mapping in `docs/01-vercel-deployment.md` is **superseded**; ignore it for the live host.
 
-**Status:** Pending until enough is built that prod testing makes sense.
+**Status:** Live on Railway; cron trigger + prod URL/webhook config still pending.
 
 ---
 
@@ -229,7 +229,9 @@ keeping `full_name` and parsing on display.
 
 **Where:** New tables `agent_jobs` (job spec, schedule, owner) and `agent_job_runs` (execution log, outcome, link to created artifacts). Runner likely lives in a separate worker or Claude Managed Agents endpoint.
 
-**Status:** Shipped 2026-05-12. New tables `agent_jobs` (spec + cron + atomic `running_run_id` claim) and `agent_job_runs` (per-execution log) in migration `20260515000200_agent_jobs.sql`. Runner lives in `src/lib/agent/run-job.ts` — shared by both the cron route and the admin "Run now" button so they can't drift. Cron entry point at `/api/cron/run-jobs` (Vercel Cron + `CRON_SECRET` bearer auth, ~240s per-tick budget, deferred-jobs counted in the response). `GEORGE_AUTONOMOUS_RUN_PROMPT` (`src/lib/agent/prompt.ts`) tells George he's in autonomous mode: no `send_email_draft`, no `AskUserQuestion`, finish with a structured Actions/Awaiting review/Notes summary that becomes the run record. `send_email_draft` is also stripped from the tool allowlist in autonomous mode as a belt-and-braces. Admin UI at `/settings/jobs` (create + list + enable/disable + Run now + recent runs). `vercel.json` declares an hourly cron. Schedules use job-level timezone falling back to `orgs.default_timezone` then UTC. Multi-hour work still pending behind #17.
+**Status:** Shipped 2026-05-12. New tables `agent_jobs` (spec + cron + atomic `running_run_id` claim) and `agent_job_runs` (per-execution log) in migration `20260515000200_agent_jobs.sql`. Runner lives in `src/lib/agent/run-job.ts` — shared by both the cron route and the admin "Run now" button so they can't drift. Cron entry point at `/api/cron/run-jobs` (Vercel Cron + `CRON_SECRET` bearer auth, ~240s per-tick budget, deferred-jobs counted in the response). `GEORGE_AUTONOMOUS_RUN_PROMPT` (`src/lib/agent/prompt.ts`) tells George he's in autonomous mode: no `send_email_draft`, no `AskUserQuestion`, finish with a structured Actions/Awaiting review/Notes summary that becomes the run record. `send_email_draft` is also stripped from the tool allowlist in autonomous mode as a belt-and-braces. Admin UI at `/settings/jobs` (create + list + enable/disable + Run now + recent runs). Schedules use job-level timezone falling back to `orgs.default_timezone` then UTC. Multi-hour work still pending behind #17.
+
+**⚠️ Production gap (found 2026-06-24):** the schedule does not fire in prod. It previously relied on a `vercel.json` cron, but we deploy on **Railway**, where Vercel Cron does not exist — so that cron was inert (confirmed dark in HTTP logs) and has been **removed** to stop implying a working schedule. No Railway cron service / external pinger hits `/api/cron/run-jobs` yet. **To fix:** add a Railway cron service (a second service that `curl`s the endpoint with the `CRON_SECRET` bearer hourly) or an external scheduler. Until then, standing jobs only run via manual "Run now".
 
 ---
 

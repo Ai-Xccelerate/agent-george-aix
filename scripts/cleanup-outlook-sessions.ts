@@ -40,7 +40,7 @@ async function main() {
   const sessionIds = (sessionRes.data ?? []).map((s) => s.id as string);
 
   // Capture every event that points at one of those sessions, plus any orphan
-  // composio/agentmail events not (yet) linked to a session.
+  // composio events not (yet) linked to a session.
   const eventsBySession = await admin
     .from("agent_events")
     .select("id")
@@ -48,7 +48,7 @@ async function main() {
   const eventsBySource = await admin
     .from("agent_events")
     .select("id")
-    .in("source", ["composio", "agentmail"]);
+    .in("source", ["composio"]);
   const eventIds = [
     ...new Set([
       ...(eventsBySession.data ?? []).map((e) => e.id as string),

@@ -339,9 +339,10 @@ export default function StandingJobsHelpPage() {
               just delayed.
             </li>
             <li>
-              <strong>Schedule vs deployment.</strong> Jobs only fire on a
-              deployed environment with{" "}
-              <Code>vercel.json</Code> active. In local dev, use Run now or hit{" "}
+              <strong>Schedule vs deployment.</strong> Jobs only fire when an
+              external scheduler hits the cron endpoint on a deployed
+              environment. We host on Railway, which has no built-in cron — until
+              one is wired, use Run now or hit{" "}
               <Code>/api/cron/run-jobs</Code> with the bearer token. See
               "Testing locally" below.
             </li>

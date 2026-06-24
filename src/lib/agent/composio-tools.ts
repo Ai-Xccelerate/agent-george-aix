@@ -193,6 +193,75 @@ export function buildComposioTools(ctx: Ctx) {
     },
   );
 
+  // ---- SEARCH EMAILS ----------------------------------------------
+  const searchEmails = tool(
+    "search_emails",
+    "Search George's Outlook mailbox with a KQL query — across folders, by sender (from:), recipient (to:/cc:), subject, date (received:), and attachments (hasattachment:yes), with AND/OR. Use this to find whether a contact actually sent what an objective is waiting on (e.g. 'from:vlad@nobletech.com AND hasattachment:yes AND received>=2026-06-20'). Returns matches newest-first.",
+    {
+      query: z
+        .string()
+        .min(1)
+        .describe(
+          "KQL query, e.g. 'from:user@example.com AND subject:logo' or 'received>today-7 AND hasattachment:yes'.",
+        ),
+      size: z.number().int().min(1).max(25).default(10).optional(),
+    },
+    async ({ query, size }) => {
+      const res = await callAction("OUTLOOK_SEARCH_MESSAGES", ctx.orgId, {
+        query,
+        size: size ?? 10,
+      });
+      if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
+      return ok(res.data);
+    },
+  );
+
+  // ---- GET THREAD -------------------------------------------------
+  const getThread = tool(
+    "get_thread",
+    "Fetch the messages in an Outlook conversation by conversation_id (from get_email / list_recent_emails / search_emails, or an objective's thread_conversation_id). Returns both received (inbox) and sent messages in the thread so you can judge whether an objective was ACTUALLY achieved — the deliverable arrived — not merely replied to. Checks attachments too.",
+    {
+      conversation_id: z.string().min(1),
+      include_body: z
+        .boolean()
+        .default(true)
+        .optional()
+        .describe("Include full body (true) or just metadata + preview (false)."),
+    },
+    async ({ conversation_id, include_body }) => {
+      const select =
+        include_body === false
+          ? ["id", "subject", "from", "toRecipients", "receivedDateTime", "hasAttachments", "conversationId"]
+          : ["id", "subject", "from", "toRecipients", "receivedDateTime", "hasAttachments", "conversationId", "bodyPreview", "body"];
+      // OData string literals escape single quotes by doubling them.
+      const filter = `conversationId eq '${conversation_id.replace(/'/g, "''")}'`;
+      const [inbox, sent] = await Promise.all([
+        callAction("OUTLOOK_QUERY_EMAILS", ctx.orgId, {
+          folder: "inbox",
+          filter,
+          select,
+          top: 50,
+          orderby: "receivedDateTime asc",
+        }),
+        callAction("OUTLOOK_QUERY_EMAILS", ctx.orgId, {
+          folder: "sentitems",
+          filter,
+          select,
+          top: 50,
+          orderby: "receivedDateTime asc",
+        }),
+      ]);
+      if (!inbox.ok && !sent.ok) {
+        return fail(connectHintIfNeeded(inbox.error, "Outlook"));
+      }
+      return ok({
+        conversation_id,
+        inbox: inbox.ok ? inbox.data : { error: inbox.error },
+        sent: sent.ok ? sent.data : { error: sent.error },
+      });
+    },
+  );
+
   // ---- CREATE CALENDAR EVENT --------------------------------------
   const createCalendarEvent = tool(
     "create_calendar_event",
@@ -260,50 +329,8 @@ export function buildComposioTools(ctx: Ctx) {
     },
   );
 
-  // ---- FIREFLIES: list transcripts --------------------------------
-  const listMeetingTranscripts = tool(
-    "list_meeting_transcripts",
-    "List recent meeting transcripts from Fireflies. Useful for catching up on a kickoff or weekly check-in George didn't attend.",
-    {
-      limit: z.number().int().min(1).max(50).default(10).optional(),
-      from_iso: z.string().datetime().optional().describe("Only transcripts after this date."),
-    },
-    async ({ limit, from_iso }) => {
-      const res = await callAction(
-        "FIREFLIES_LIST_TRANSCRIPTS",
-        ctx.orgId,
-        {
-          limit: limit ?? 10,
-          fromDate: from_iso,
-        },
-      );
-      if (!res.ok) return fail(connectHintIfNeeded(res.error, "Fireflies"));
-      return ok(res.data);
-    },
-  );
-
-  // ---- FIREFLIES: get transcript ----------------------------------
-  const getMeetingTranscript = tool(
-    "get_meeting_transcript",
-    "Fetch the full transcript + summary for a Fireflies meeting by id. Use this immediately after a kickoff or check-in to extract decisions, action items, and dates.",
-    {
-      transcript_id: z.string().min(1),
-      customer_id: z.string().uuid().optional().describe("Customer the meeting was about — used for audit logging."),
-    },
-    async ({ transcript_id, customer_id }) => {
-      const res = await callAction("FIREFLIES_GET_TRANSCRIPT", ctx.orgId, {
-        transcriptId: transcript_id,
-      });
-      if (!res.ok) return fail(connectHintIfNeeded(res.error, "Fireflies"));
-      await audit(
-        ctx,
-        "fireflies.transcript_fetched",
-        { transcript_id },
-        customer_id,
-      );
-      return ok(res.data);
-    },
-  );
+  // Meeting transcripts are handled by Scribe (a remote MCP server wired into
+  // the agent runtime), not Composio — see src/lib/agent/scribe.ts.
 
   return [
     draftEmail,
@@ -311,10 +338,10 @@ export function buildComposioTools(ctx: Ctx) {
     sendDraft,
     listRecentEmails,
     getEmail,
+    searchEmails,
+    getThread,
     createCalendarEvent,
     listCalendarEvents,
-    listMeetingTranscripts,
-    getMeetingTranscript,
   ];
 }
 

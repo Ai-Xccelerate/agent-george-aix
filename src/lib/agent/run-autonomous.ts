@@ -15,6 +15,7 @@
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { resolveClaudeCodeExecutable } from "./sdk-binary";
 import { buildGeorgeMcpServer } from "./tools";
+import { buildScribeMcpServer } from "./scribe";
 import { georgeCanUseTool } from "./permissions";
 import { buildGeorgeSystemPrompt } from "./system-prompt";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
@@ -62,6 +63,7 @@ export async function runGeorgeAutonomous(
     userId: input.userId ?? null,
     sessionId: input.sessionId ?? null,
   });
+  const scribe = buildScribeMcpServer();
 
   // Autonomous mode allowlist:
   //   - WebFetch / WebSearch: research is fine in the background.
@@ -91,8 +93,15 @@ export async function runGeorgeAutonomous(
         model: "claude-sonnet-4-6",
         systemPrompt,
         tools: builtinAllow,
-        mcpServers: { george: georgeServer },
-        allowedTools: [...builtinAllow, ...allowedMcpTools],
+        mcpServers: {
+          george: georgeServer,
+          ...(scribe ? { scribe: scribe.server } : {}),
+        },
+        allowedTools: [
+          ...builtinAllow,
+          ...allowedMcpTools,
+          ...(scribe ? scribe.toolNames : []),
+        ],
         canUseTool: georgeCanUseTool,
         pathToClaudeCodeExecutable: resolveClaudeCodeExecutable(),
         resume: input.resumeSdkSessionId ?? undefined,

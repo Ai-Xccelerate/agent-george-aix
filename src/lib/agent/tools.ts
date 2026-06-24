@@ -69,6 +69,15 @@ const stepStatusEnum = z.enum([
   "completed",
   "cancelled",
 ]);
+const objectiveKindEnum = z.enum(["standard", "from_meeting", "ad_hoc"]);
+const objectiveStatusEnum = z.enum([
+  "pending",
+  "awaiting",
+  "achieved",
+  "blocked",
+  "cancelled",
+]);
+const objectiveSideEnum = z.enum(["customer", "onyx"]);
 
 export function buildGeorgeMcpServer(
   ctx: GeorgeToolCtx,
@@ -147,10 +156,20 @@ export function buildGeorgeMcpServer(
         id: string;
         customer_kind: "partner" | "end_customer";
         parent_customer_id: string | null;
+        owner_user_id: string | null;
       };
 
-      const [contacts, contracts, plan, health, parent, endCustomers, cadence] =
-        await Promise.all([
+      const [
+        contacts,
+        contracts,
+        plan,
+        health,
+        parent,
+        endCustomers,
+        cadence,
+        objectives,
+        owner,
+      ] = await Promise.all([
           db
             .from("contacts")
             .select("*")
@@ -195,10 +214,25 @@ export function buildGeorgeMcpServer(
             .eq("customer_id", customer_id)
             .eq("active", true)
             .maybeSingle(),
+          db
+            .from("objectives")
+            .select("*")
+            .eq("customer_id", customer_id)
+            .neq("status", "cancelled")
+            .order("created_at", { ascending: true }),
+          cust.owner_user_id
+            ? db
+                .from("org_members")
+                .select("user_id, full_name, email, role")
+                .eq("org_id", orgId)
+                .eq("user_id", cust.owner_user_id)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null } as const),
         ]);
 
       return ok({
         customer: customerRes.data,
+        owner: owner.data ?? null,
         parent: parent.data ?? null,
         end_customers: endCustomers.data ?? [],
         contacts: contacts.data ?? [],
@@ -206,6 +240,7 @@ export function buildGeorgeMcpServer(
         active_plan: plan.data ?? null,
         latest_health: health.data ?? null,
         cadence: cadence.data ?? null,
+        objectives: objectives.data ?? [],
       });
     },
   );
@@ -1063,6 +1098,278 @@ export function buildGeorgeMcpServer(
     },
   );
 
+  // ---- set_customer_owner -----------------------------------------
+  const setCustomerOwner = tool(
+    "set_customer_owner",
+    "Associate a customer with its Onyx relationship owner — the rep who brought/closed them. George reports to and escalates to this person. Pass the owner's work email; they must be an existing Onyx team member. Discover the owner per customer (from the deal or the kickoff); never assume.",
+    {
+      customer_id: z.string().uuid(),
+      owner_email: z
+        .string()
+        .email()
+        .describe("Work email of the Onyx team member who owns this customer relationship."),
+    },
+    async ({ customer_id, owner_email }) => {
+      const c = await db
+        .from("customers")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("id", customer_id)
+        .maybeSingle();
+      if (c.error) return fail(c.error.message);
+      if (!c.data) return fail("Customer not found in this org.");
+
+      const member = await db
+        .from("org_members")
+        .select("user_id, full_name, email")
+        .eq("org_id", orgId)
+        .ilike("email", owner_email)
+        .maybeSingle();
+      if (member.error) return fail(member.error.message);
+      if (!member.data) {
+        return fail(
+          `No Onyx team member with email ${owner_email} in this org. The owner must be an existing member.`,
+        );
+      }
+
+      const { data, error } = await db
+        .from("customers")
+        .update({ owner_user_id: member.data.user_id })
+        .eq("id", customer_id)
+        .select("id, name, owner_user_id")
+        .single();
+      if (error) return fail(error.message);
+      return ok({ customer: data, owner: member.data });
+    },
+  );
+
+  // ---- create_objective -------------------------------------------
+  const createObjective = tool(
+    "create_objective",
+    "Create an objective George chases to keep an onboarding moving — a concrete thing to obtain or get done (e.g. 'Obtain partner logo (PNG/JPG)', 'Receive list of 3 power users'). The clock advances until the objective is ACHIEVED (your judgment from the actual deliverable), not merely replied to. Use responsible_side='customer' for things the customer owes (you chase the contact) and 'onyx' for things an Onyx teammate owes (you nudge them, escalate to the owner). For the standard onboarding set, read the playbook (core/01, core/03) and create one objective per item — the standard set is NOT hardcoded here.",
+    {
+      customer_id: z.string().uuid(),
+      title: z.string().min(1),
+      description: z.string().optional(),
+      kind: objectiveKindEnum.default("ad_hoc").optional(),
+      responsible_side: objectiveSideEnum.default("customer").optional(),
+      responsible_contact_id: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("Customer-side contact you chase (when responsible_side='customer')."),
+      owner_side_email: z
+        .string()
+        .email()
+        .optional()
+        .describe("Onyx teammate who owes this (when responsible_side='onyx'); resolved to a team member."),
+      cc_emails: z
+        .array(z.string().email())
+        .optional()
+        .describe("Key people both sides to CC on outreach about this objective."),
+      due_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .describe("Hard external deadline — compresses follow-up urgency."),
+      followup_interval_hours: z.number().int().min(1).max(720).default(48).optional(),
+      max_followups: z.number().int().min(0).max(10).default(2).optional(),
+      thread_conversation_id: z
+        .string()
+        .optional()
+        .describe("Outlook conversation id to watch for achievement."),
+      start_clock: z
+        .boolean()
+        .default(false)
+        .optional()
+        .describe("If true, set status='awaiting' and start the clock (next follow-up = now + interval). Use once the first ask has gone out."),
+    },
+    async (input) => {
+      const c = await db
+        .from("customers")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("id", input.customer_id)
+        .maybeSingle();
+      if (c.error) return fail(c.error.message);
+      if (!c.data) return fail("Customer not found in this org.");
+
+      let ownerSideUserId: string | null = null;
+      if (input.owner_side_email) {
+        const m = await db
+          .from("org_members")
+          .select("user_id")
+          .eq("org_id", orgId)
+          .ilike("email", input.owner_side_email)
+          .maybeSingle();
+        if (m.error) return fail(m.error.message);
+        if (!m.data) return fail(`No Onyx team member with email ${input.owner_side_email}.`);
+        ownerSideUserId = m.data.user_id as string;
+      }
+
+      const interval = input.followup_interval_hours ?? 48;
+      const start = input.start_clock ?? false;
+      const { data, error } = await db
+        .from("objectives")
+        .insert({
+          org_id: orgId,
+          customer_id: input.customer_id,
+          title: input.title,
+          description: input.description ?? null,
+          kind: input.kind ?? "ad_hoc",
+          status: start ? "awaiting" : "pending",
+          responsible_side: input.responsible_side ?? "customer",
+          responsible_contact_id: input.responsible_contact_id ?? null,
+          owner_side_user_id: ownerSideUserId,
+          cc_emails: input.cc_emails ?? [],
+          due_date: input.due_date ?? null,
+          followup_interval_hours: interval,
+          next_followup_at: start
+            ? new Date(Date.now() + interval * 3_600_000).toISOString()
+            : null,
+          max_followups: input.max_followups ?? 2,
+          thread_conversation_id: input.thread_conversation_id ?? null,
+          source_session_id: ctx.sessionId ?? null,
+          created_by: ctx.userId,
+        })
+        .select("*")
+        .single();
+      if (error) return fail(error.message);
+      return ok({ objective: data });
+    },
+  );
+
+  // ---- list_objectives --------------------------------------------
+  const listObjectives = tool(
+    "list_objectives",
+    "List a customer's objectives (the checklist), optionally filtered by status. Use to see what's still open for a customer.",
+    {
+      customer_id: z.string().uuid(),
+      status: objectiveStatusEnum.optional(),
+    },
+    async ({ customer_id, status }) => {
+      let q = db
+        .from("objectives")
+        .select("*")
+        .eq("org_id", orgId)
+        .eq("customer_id", customer_id)
+        .order("created_at", { ascending: true });
+      if (status) q = q.eq("status", status);
+      const { data, error } = await q;
+      if (error) return fail(error.message);
+      return ok({ objectives: data ?? [] });
+    },
+  );
+
+  // ---- list_due_objectives ----------------------------------------
+  const listDueObjectives = tool(
+    "list_due_objectives",
+    "List objectives across the org due for a follow-up: status='awaiting' with next_followup_at in the past (or within the optional look-ahead window). This is the work queue for keeping things moving — for each, judge whether it's achieved, follow up, or escalate. Returns the customer + relationship owner so you know who to chase and who to escalate to.",
+    {
+      within_hours: z
+        .number()
+        .int()
+        .min(0)
+        .max(168)
+        .default(0)
+        .optional()
+        .describe("Look-ahead window in hours. 0 = only already-due."),
+      limit: z.number().int().min(1).max(200).default(50).optional(),
+    },
+    async ({ within_hours, limit }) => {
+      const cutoff = new Date(
+        Date.now() + (within_hours ?? 0) * 3_600_000,
+      ).toISOString();
+      const { data, error } = await db
+        .from("objectives")
+        .select("*, customers!inner(id, name, owner_user_id)")
+        .eq("org_id", orgId)
+        .eq("status", "awaiting")
+        .not("next_followup_at", "is", null)
+        .lte("next_followup_at", cutoff)
+        .order("next_followup_at", { ascending: true })
+        .limit(limit ?? 50);
+      if (error) return fail(error.message);
+      return ok({ objectives: data ?? [], as_of: cutoff });
+    },
+  );
+
+  // ---- update_objective -------------------------------------------
+  const updateObjective = tool(
+    "update_objective",
+    "Update an objective. Mark status='achieved' ONLY once the actual deliverable has arrived (your judgment — a reply or out-of-office is NOT achievement); that stamps achieved_at and stops the clock. Set status='blocked' when you escalate to the owner. After you send a follow-up, pass bump_followup=true to advance the clock (increments followup_count and sets next_followup_at to now + interval).",
+    {
+      objective_id: z.string().uuid(),
+      status: objectiveStatusEnum.optional(),
+      bump_followup: z
+        .boolean()
+        .default(false)
+        .optional()
+        .describe("After sending a nudge: increments followup_count and advances next_followup_at by the interval."),
+      next_followup_at: z
+        .string()
+        .datetime()
+        .optional()
+        .describe("Explicitly set the next follow-up time (overrides bump_followup's computed time)."),
+      due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      responsible_contact_id: z.string().uuid().nullable().optional(),
+      cc_emails: z.array(z.string().email()).optional(),
+      thread_conversation_id: z.string().optional(),
+      description: z.string().optional(),
+    },
+    async ({
+      objective_id,
+      status,
+      bump_followup,
+      next_followup_at,
+      due_date,
+      responsible_contact_id,
+      cc_emails,
+      thread_conversation_id,
+      description,
+    }) => {
+      const existing = await db
+        .from("objectives")
+        .select("id, followup_interval_hours, followup_count")
+        .eq("org_id", orgId)
+        .eq("id", objective_id)
+        .maybeSingle();
+      if (existing.error) return fail(existing.error.message);
+      if (!existing.data) return fail("Objective not found in this org.");
+
+      const patch: Record<string, unknown> = {};
+      if (status !== undefined) {
+        patch.status = status;
+        if (status === "achieved") patch.achieved_at = new Date().toISOString();
+      }
+      if (bump_followup) {
+        patch.followup_count = (existing.data.followup_count ?? 0) + 1;
+        patch.next_followup_at = new Date(
+          Date.now() + (existing.data.followup_interval_hours ?? 48) * 3_600_000,
+        ).toISOString();
+        if (status === undefined) patch.status = "awaiting";
+      }
+      if (next_followup_at !== undefined) patch.next_followup_at = next_followup_at;
+      if (due_date !== undefined) patch.due_date = due_date;
+      if (responsible_contact_id !== undefined)
+        patch.responsible_contact_id = responsible_contact_id;
+      if (cc_emails !== undefined) patch.cc_emails = cc_emails;
+      if (thread_conversation_id !== undefined)
+        patch.thread_conversation_id = thread_conversation_id;
+      if (description !== undefined) patch.description = description;
+      if (Object.keys(patch).length === 0) return fail("Nothing to update.");
+
+      const { data, error } = await db
+        .from("objectives")
+        .update(patch)
+        .eq("id", objective_id)
+        .select("*")
+        .single();
+      if (error) return fail(error.message);
+      return ok({ objective: data });
+    },
+  );
+
   const supabaseTools = [
     findCustomer,
     listCustomers,
@@ -1077,6 +1384,11 @@ export function buildGeorgeMcpServer(
     setCadence,
     listUpcomingCadences,
     markCadenceMet,
+    setCustomerOwner,
+    createObjective,
+    listObjectives,
+    listDueObjectives,
+    updateObjective,
     searchKnowledge,
     readKnowledgeDoc,
     readDocument,

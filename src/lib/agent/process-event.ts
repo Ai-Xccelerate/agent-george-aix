@@ -76,14 +76,7 @@ export async function processAgentEvent(
   }
   const event = claim.data as EventRow;
 
-  // 2a) Agentmail branch — inbound email lands in /inbox only. No autonomous
-  //     George run for this slice; that's wired up later. We have the full
-  //     body in the webhook payload, so no fetch step is needed.
-  if (event.source === "agentmail") {
-    return await processAgentmailEvent(event, admin);
-  }
-
-  // 2b) Resolve framing for Composio-sourced events. Outlook "new mail" triggers
+  // Resolve framing for Composio-sourced events. Outlook "new mail" triggers
   //    today; everything else gets marked 'skipped' so we don't leave rows hanging.
   //    OUTLOOK_MESSAGE_TRIGGER is the current Composio slug; OUTLOOK_NEW_MESSAGE
   //    is kept as a legacy alias.
@@ -474,42 +467,6 @@ function renderInboundForChat(email: OutlookMessageFields): string {
   return parts.join("\n");
 }
 
-// ----- Agentmail handling ----------------------------------------------------
-// Agentmail delivers the full message body in the webhook envelope, so we
-// don't need a fetch step. For this slice, the user explicitly wants inbox
-// visibility only — no autonomous George run. That makes this branch a thin
-// "create session + seed inbound message + mark processed" path.
-
-type AgentmailMessagePayload = {
-  message_id?: string;
-  thread_id?: string;
-  from_?: string | string[];
-  to?: string[];
-  subject?: string;
-  text?: string;
-  html?: string;
-  preview?: string;
-  timestamp?: string;
-};
-
-function extractAgentmailMessage(
-  payload: Record<string, unknown> | null | undefined,
-): OutlookMessageFields {
-  const msg = ((payload ?? {}) as { message?: AgentmailMessagePayload }).message ?? {};
-  const fromRaw = msg.from_;
-  const fromAddress = Array.isArray(fromRaw) ? fromRaw[0] : fromRaw ?? null;
-  return {
-    message_id: msg.message_id ?? null,
-    conversation_id: msg.thread_id ?? null,
-    subject: msg.subject ?? null,
-    from: fromAddress ? { name: null, address: fromAddress } : null,
-    to: Array.isArray(msg.to) ? msg.to : [],
-    body_text: msg.text ?? null,
-    body_preview: msg.preview ?? null,
-    received_at: msg.timestamp ?? null,
-  };
-}
-
 async function resolveSenderToCustomer(
   orgId: string,
   fromAddress: string | null,
@@ -541,69 +498,4 @@ async function resolveSenderToCustomer(
   if (customerRes.data?.id) return customerRes.data.id as string;
 
   return null;
-}
-
-async function processAgentmailEvent(
-  event: EventRow,
-  admin: ReturnType<typeof createSupabaseAdmin>,
-): Promise<ProcessEventResult> {
-  const PROCESSABLE = new Set(["message.received"]);
-  if (!PROCESSABLE.has(event.event_type)) {
-    await admin
-      .from("agent_events")
-      .update({
-        status: "skipped",
-        error: `unsupported event_type: ${event.event_type}`,
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", event.id);
-    return { skipped: true, reason: "unsupported_type" };
-  }
-
-  const email = extractAgentmailMessage(event.payload);
-  const sessionTitle = `Email: ${email.subject ?? "(no subject)"}`.slice(0, 120);
-  const seedContent = renderInboundForChat(email);
-
-  const sessionInsert = await admin
-    .from("agent_sessions")
-    .insert({
-      org_id: event.org_id,
-      user_id: null,
-      channel: "email",
-      title: sessionTitle,
-    })
-    .select("id")
-    .single();
-
-  if (sessionInsert.error || !sessionInsert.data) {
-    const errMsg =
-      sessionInsert.error?.message ?? "could not create agent_sessions row";
-    await admin
-      .from("agent_events")
-      .update({
-        status: "failed",
-        error: errMsg,
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", event.id);
-    return { skipped: false, sessionId: null, status: "failed", error: errMsg };
-  }
-  const sessionId = sessionInsert.data.id as string;
-
-  await admin.from("agent_messages").insert({
-    session_id: sessionId,
-    role: "user",
-    content: seedContent,
-  });
-
-  await admin
-    .from("agent_events")
-    .update({
-      status: "processed",
-      session_id: sessionId,
-      processed_at: new Date().toISOString(),
-    })
-    .eq("id", event.id);
-
-  return { skipped: false, sessionId, status: "processed", error: null };
 }

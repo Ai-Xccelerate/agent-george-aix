@@ -13,7 +13,7 @@ This file is the source of truth for orientation. Read top to bottom on a fresh 
 ## Start here, in this order
 
 1. **`docs/00-high-level-requirements.md`** — full product brief (vision, scope, architecture, data model, open questions). Authoritative.
-2. **`docs/01-vercel-deployment.md`** — **runtime + deployment reference.** Which Vercel primitive to use for which kind of work (Function vs Workflow vs DurableAgent vs Sandbox), hard rules, and the migration path for long-running tracks. Read before adding any new server route, scheduled job, or agent surface.
+2. **`docs/01-vercel-deployment.md`** — **superseded.** We deploy on **Railway** (see "Railway is the host" below), not Vercel. This doc captures the earlier Vercel-primitive design (Function vs Workflow vs DurableAgent vs Sandbox); keep it as a future-option reference only. For the current runtime model read the "Runtime — what's actually true on Railway" section below.
 3. **`docs/BACKLOG.md`** — every item deliberately deferred, grouped by area, with what / why / where / status. Authoritative for "what's next?". Cross-walked against the HLR — items tagged `[HLR]` come from the HLR audit.
 4. **`design/design-system.md`** — AIX Core + Onyx purple theme. Token names, gradients, layout patterns. §0 has explicit "apply this theme" instructions.
 5. **`knowledge/core/*.md`** — the actual organizational playbook George ships with. **Listed in the manifest** prepended to George's system prompt every session; fetched in full on demand via the `read_knowledge_doc(path)` tool (see Knowledge Pipeline below).
@@ -108,23 +108,21 @@ These are decided; **don't redo them without saying so**.
 - **Email policy.** George must `draft_email` / `draft_email_reply`, surface preview, wait for explicit user confirm, then `send_email_draft`. Never auto-send. Calendar events go direct (less sensitive). Enforced in the system prompt; deviations would be a regression.
 - **Knowledge pipeline (manifest + on-demand).** The system prompt prepends a **manifest** — every knowledge doc's path + title, with `is_core=true` entries grouped at the top as the "core playbook." No `content_md` in the prompt. George fetches docs in full with `mcp__george__read_knowledge_doc(path)` when it knows which doc has the answer, or `mcp__george__search_knowledge(query)` (chunks span the full KB, core + supplemental) when it doesn't. Pattern is deliberate — CLAUDE.md-style: tiny preamble, deep content read lazily. Don't reintroduce eager full-load of core; it doesn't scale and the manifest gives the agent enough to pick the right doc. Customer-specific data still goes through the Supabase MCP tools, not the knowledge path.
 - **Theme.** Dark-first. Onyx purple palette (`#6D45F5` primary). Server-side cookie (`george-theme`) sets the `dark` class on `<html>` — no FOUC. Toggle in topbar.
-- **Vercel as the host.** Deployed on Vercel Fluid Compute (Node 24, 300s default). Long-running and agentic work belongs in **Vercel Workflow DevKit** (`"use workflow"` orchestration + `"use step"` units), not in plain Functions. See `docs/01-vercel-deployment.md` for the decision table and migration sketches. Supabase stays where it is; **never** migrate Postgres / Auth / Storage to Vercel-side primitives.
+- **Railway is the host.** Deployed on Railway as a persistent Docker container (`Dockerfile` → `next start`, Node 24), not on serverless functions. Project **Agent George - Onyx**, service `george-onyx`, builds from `rvbhavsar/george-onyx` via the Dockerfile (`railway.json`). Because it's a long-lived server there is **no 300s function ceiling** — long work is bounded only by deploys/restarts (single instance). The earlier Vercel-primitive plan (Fluid Compute / Workflow DevKit / DurableAgent / Sandbox) in `docs/01-vercel-deployment.md` is **superseded** — keep it as a future-option reference, not current reality. Supabase stays where it is; **never** migrate Postgres / Auth / Storage off it.
 
-## Runtime — when to use what
+## Runtime — what's actually true on Railway
 
-Quick decision table; the full version is in `docs/01-vercel-deployment.md`.
+We run as **one persistent Node server** in a container — not serverless functions. That changes the model from what `docs/01-vercel-deployment.md` describes (that doc is the superseded Vercel design).
 
-| Work shape | Use | Notes |
+| Work shape | How it runs today | Notes |
 |---|---|---|
-| HTTP route, SSE chat, webhooks ≤ ~4 min | Fluid Compute Function | Default. 300s ceiling. |
-| Background processing right after a 200 | `after()` inside a Function | Native; we use it in `/api/webhooks/composio`. |
-| Recurring ≤ ~4 min | Vercel Cron | Already wired in `vercel.json`. Hourly. |
-| **Anything > 5 min, multi-step, retries, sleeps, waits on events** | **Vercel Workflow** | `"use workflow"` + `"use step"`. Backlog #17 lives here. |
-| **LLM agent loop > 5 min OR needs durability** | **`DurableAgent`** from `@workflow/ai` | Sub-agents (backlog #10) live here. |
-| Untrusted code, browser automation | **Vercel Sandbox** | Firecracker microVM. Pre-build a snapshot. |
-| Provider-agnostic LLM routing | Vercel AI Gateway | String model ids like `"anthropic/claude-sonnet-4-5"`. |
+| HTTP route, SSE chat, webhooks | In-process on the running server | No 300s ceiling. Still keep chat responsive; don't block the SSE loop on background work. |
+| Background processing right after a 200 | `after()` from `next/server` | Works in self-hosted Next; used in `/api/webhooks/composio`. Best-effort — a restart mid-task drops it, hence the cron sweep backstop. |
+| Recurring / scheduled (e.g. standing jobs) | **⚠️ No trigger in production today** | `/api/cron/run-jobs` exists and is correct, but nothing pings it (the inert `vercel.json` cron was removed). Needs a Railway cron service or external pinger (`CRON_SECRET` bearer). See `docs/BACKLOG.md`. |
+| Long-running / multi-step / sub-agents (backlog #17/#10) | **Undecided on Railway** | Can run in-process (bounded by deploys/restarts) or move to a separate worker/queue. The Vercel Workflow/DurableAgent sketches in `docs/01` are *one* option, not the committed path. |
+| Untrusted code, browser automation | Not yet needed | When it is, isolate it (separate service/sandbox) — never run untrusted code in this server process. |
 
-Hard rules: **no Edge Functions** (deprecated), **don't exceed 300s in a Function** (migrate to Workflow), **don't poll long external work from a Function** (use `createHook()`), **don't run untrusted code in-process** (use Sandbox), **don't put background work in the chat SSE handler** (trigger a workflow instead).
+Hard rules that still hold: **don't put background work in the chat SSE handler**, **don't run untrusted code in-process**, **storage/auth stays on Supabase**. The Vercel-specific rules (Edge, 300s Function ceiling, `createHook()`) don't apply to this host.
 
 ## Commands cheat sheet
 

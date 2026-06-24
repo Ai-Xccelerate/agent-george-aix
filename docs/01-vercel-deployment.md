@@ -1,5 +1,22 @@
 # Agent George on Vercel — runtime & deployment reference
 
+> **⚠️ SUPERSEDED — we do not deploy on Vercel.** Agent George runs on **Railway** as a
+> persistent Docker container (`Dockerfile` → `next start`), project **Agent George - Onyx**,
+> service `george-onyx`, building from `rvbhavsar/george-onyx`. See AGENTS.md →
+> "Railway is the host" and "Runtime — what's actually true on Railway" for the current model.
+>
+> What this means for everything below:
+> - **No 300s Function ceiling.** It's a long-lived server; long work is bounded by deploys/restarts, not a per-request cap. The entire "Function → migrate to Workflow at 5 min" framing does not apply.
+> - **No Vercel Cron, Workflow DevKit, DurableAgent, Sandbox, Queues, or AI Gateway.** None of these primitives exist on Railway. The `vercel.json` cron was inert here and has been **removed** — scheduled jobs currently have no trigger (see `docs/BACKLOG.md`).
+> - **`after()` still works** (it's a Next.js feature, not Vercel-only).
+> - **Supabase is unchanged** — that part of the design holds on any host.
+>
+> Kept as a reference for the long-running/agentic design options (Workflow/DurableAgent shapes,
+> Sandbox isolation) **if** we ever move to a serverless host. Treat it as one option, not the
+> committed path. Do not follow it as current guidance.
+
+---
+
 This is the canonical reference for **which Vercel primitive to use for which kind of work**, the hard rules to follow, and the migration path for the long-running surfaces in the backlog. Read this before adding any new server route, background task, or scheduled job.
 
 Last verified: 2026-05-12 against Vercel's Feb 2026 platform baseline.

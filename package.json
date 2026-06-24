@@ -16,6 +16,7 @@
     "start": "next start",
     "lint": "eslint",
     "sync:knowledge": "tsx scripts/sync-knowledge.ts",
+    "seed:reporting-job": "tsx scripts/seed-reporting-job.ts",
     "db:migrate": "bash scripts/db-migrate.sh"
   },
   "dependencies": {
@@ -25,7 +26,6 @@
     "@composio/core": "^0.9.1",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
-    "agentmail": "^0.5.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cron-parser": "^5.5.0",
@@ -33,13 +33,13 @@
     "lucide-react": "^1.14.0",
     "mammoth": "^1.12.0",
     "next": "16.2.6",
+    "node-cron": "^4.5.0",
     "officeparser": "^7.0.2",
     "openai": "^6.37.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "svix": "^1.93.0",
     "tailwind-merge": "^3.6.0",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
@@ -47,6 +47,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/node-cron": "^3.0.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { buildGeorgeMcpServer } from "@/lib/agent/tools";
+import { buildScribeMcpServer } from "@/lib/agent/scribe";
 import { georgeCanUseTool } from "@/lib/agent/permissions";
 import { buildGeorgeSystemPrompt } from "@/lib/agent/system-prompt";
 import { generateSessionTitle } from "@/lib/agent/title";
@@ -135,6 +136,7 @@ export async function POST(req: NextRequest) {
         userId: user.id,
         sessionId: dbSession!.id,
       });
+      const scribe = buildScribeMcpServer();
 
       const fullSystemPrompt = await buildGeorgeSystemPrompt(admin, {
         orgId: user.orgId,
@@ -170,8 +172,15 @@ export async function POST(req: NextRequest) {
             model: "claude-sonnet-4-6",
             systemPrompt: fullSystemPrompt,
             tools: builtinAllow,
-            mcpServers: { george: georgeServer },
-            allowedTools: [...builtinAllow, ...toolNames],
+            mcpServers: {
+              george: georgeServer,
+              ...(scribe ? { scribe: scribe.server } : {}),
+            },
+            allowedTools: [
+              ...builtinAllow,
+              ...toolNames,
+              ...(scribe ? scribe.toolNames : []),
+            ],
             canUseTool: georgeCanUseTool,
             pathToClaudeCodeExecutable: resolveClaudeCodeExecutable(),
             resume: resumeId,
