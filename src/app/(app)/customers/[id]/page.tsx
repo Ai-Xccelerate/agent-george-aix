@@ -9,14 +9,15 @@ import {
   Clock,
   ExternalLink,
   FileText,
-  Heart,
+  Flag,
   ListChecks,
   Mail,
-  MessageSquare,
   Network,
   Phone,
   Repeat,
+  Sparkles,
   Star,
+  Target,
   Users,
 } from "lucide-react";
 import { createSupabaseServer } from "@/lib/supabase/server";
@@ -27,7 +28,7 @@ import {
   StepStatusBadge,
 } from "@/components/ui/badge";
 import { initials } from "@/lib/utils";
-import { CustomerTabs, type CustomerTabSpec } from "./_tabs";
+import { AccountConversations } from "./_account-conversations";
 import {
   AddContactButton,
   AddEndCustomerButton,
@@ -40,6 +41,13 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// ── Account-hub layout ──────────────────────────────────────────────────────
+// George is an employee, not an app: this page is the account's home. The Onyx
+// team comes here to see where a partner's onboarding stands and what George is
+// doing about it — not to operate George. Left column = the account (objectives,
+// plan, meetings, docs, contacts). Right rail = the conversation with George
+// about THIS account + a log of what he's done. Reference: the Agent Joy hub.
+
 type Customer = {
   id: string;
   name: string;
@@ -50,6 +58,7 @@ type Customer = {
   industry: string | null;
   size: string | null;
   notes: string | null;
+  owner_user_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -126,6 +135,37 @@ type Cadence = {
   notes: string | null;
 };
 
+type Objective = {
+  id: string;
+  title: string;
+  status: "pending" | "awaiting" | "achieved" | "blocked" | "cancelled";
+  responsible_side: "customer" | "onyx";
+  due_date: string | null;
+  next_followup_at: string | null;
+  followup_count: number;
+  max_followups: number;
+};
+
+type Owner = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+};
+
+type Session = {
+  id: string;
+  title: string | null;
+  channel: string | null;
+  updated_at: string;
+};
+
+type Activity = {
+  id: string;
+  action: string;
+  created_at: string;
+  session_id: string | null;
+};
+
 export default async function CustomerPage(
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -137,7 +177,7 @@ export default async function CustomerPage(
       supabase
         .from("customers")
         .select(
-          "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, size, notes, created_at, updated_at",
+          "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, size, notes, owner_user_id, created_at, updated_at",
         )
         .eq("id", id)
         .maybeSingle<Customer>(),
@@ -172,7 +212,16 @@ export default async function CustomerPage(
 
   if (!customer) notFound();
 
-  const [parentRes, endCustomersRes, cadenceRes, docsRes] = await Promise.all([
+  const [
+    parentRes,
+    endCustomersRes,
+    cadenceRes,
+    docsRes,
+    objectivesRes,
+    ownerRes,
+    sessionsRes,
+    activityRes,
+  ] = await Promise.all([
     customer.parent_customer_id
       ? supabase
           .from("customers")
@@ -197,16 +246,46 @@ export default async function CustomerPage(
       .maybeSingle<Cadence>(),
     supabase
       .from("documents")
-      .select(
-        "id, original_name, mime_type, file_size, created_at, uploaded_by",
-      )
+      .select("id, original_name, mime_type, file_size, created_at, uploaded_by")
       .eq("customer_id", customer.id)
       .order("created_at", { ascending: false })
       .limit(100),
+    supabase
+      .from("objectives")
+      .select(
+        "id, title, status, responsible_side, due_date, next_followup_at, followup_count, max_followups",
+      )
+      .eq("customer_id", customer.id)
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: true }),
+    customer.owner_user_id
+      ? supabase
+          .from("org_members")
+          .select("user_id, full_name, email")
+          .eq("user_id", customer.owner_user_id)
+          .maybeSingle<Owner>()
+      : Promise.resolve({ data: null as Owner | null }),
+    supabase
+      .from("agent_sessions")
+      .select("id, title, channel, updated_at")
+      .eq("customer_id", customer.id)
+      .order("updated_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("audit_log")
+      .select("id, action, created_at, session_id")
+      .eq("customer_id", customer.id)
+      .order("created_at", { ascending: false })
+      .limit(8),
   ]);
+
   const parent = parentRes.data ?? null;
   const endCustomers = (endCustomersRes.data ?? []) as RelatedCustomer[];
   const cadence = cadenceRes.data ?? null;
+  const objectives = (objectivesRes.data ?? []) as Objective[];
+  const owner = ownerRes.data ?? null;
+  const sessions = (sessionsRes.data ?? []) as Session[];
+  const activity = (activityRes.data ?? []) as Activity[];
 
   const docsRaw = (docsRes.data ?? []) as Array<{
     id: string;
@@ -216,7 +295,6 @@ export default async function CustomerPage(
     created_at: string;
     uploaded_by: string | null;
   }>;
-  // Resolve uploader names in one query so the list doesn't N+1.
   const uploaderIds = Array.from(
     new Set(docsRaw.map((d) => d.uploaded_by).filter((v): v is string => !!v)),
   );
@@ -246,7 +324,10 @@ export default async function CustomerPage(
   const contacts = (contactsRes.data ?? []) as Contact[];
   const primary = contacts.find((c) => c.is_primary) ?? contacts[0] ?? null;
   const contracts = (contractsRes.data ?? []) as Contract[];
-  const activeContract = contracts.find((c) => c.status === "active" || c.status === "signed") ?? contracts[0] ?? null;
+  const activeContract =
+    contracts.find((c) => c.status === "active" || c.status === "signed") ??
+    contracts[0] ??
+    null;
   const plan = planRes.data;
   const steps = (plan?.onboarding_steps ?? []).slice().sort((a, b) => a.ordinal - b.ordinal);
   const healthHistory = (healthRes.data ?? []) as Health[];
@@ -255,7 +336,6 @@ export default async function CustomerPage(
     steps.find((s) => s.status === "in_progress") ??
     steps.find((s) => s.status === "planned" || s.status === "blocked") ??
     null;
-
   const progress =
     steps.length === 0
       ? 0
@@ -263,396 +343,382 @@ export default async function CustomerPage(
           (steps.filter((s) => s.status === "completed").length / steps.length) * 100,
         );
 
+  const openObjectives = objectives.filter(
+    (o) => o.status !== "achieved" && o.status !== "cancelled",
+  );
   const isPartner = customer.customer_kind === "partner";
 
-  const tabs: CustomerTabSpec[] = [
-    {
-      id: "overview",
-      label: "Overview",
-      icon: "overview",
-      panel: (
-        <OverviewPanel
-          customer={customer}
-          primary={primary}
-          contactsCount={contacts.length}
-          latestHealth={latestHealth}
-          healthHistory={healthHistory}
-          activeContract={activeContract}
-          plan={plan}
-          steps={steps}
-          progress={progress}
-          nextDueStep={nextDueStep}
-          cadence={cadence}
-        />
-      ),
-    },
-    {
-      id: "onboarding",
-      label: "Onboarding",
-      icon: "onboarding",
-      badge: plan && steps.length > 0 ? `${progress}%` : null,
-      panel: (
-        <Section
-          title="Onboarding plan"
-          right={
-            plan ? (
-              <span className="text-[12px] text-[var(--color-fg-muted)]">
-                {progress}% complete · {steps.length} step{steps.length === 1 ? "" : "s"}
-              </span>
-            ) : null
-          }
-        >
-          {plan ? (
-            <PlanBlock plan={plan} steps={steps} progress={progress} />
-          ) : (
-            <EmptyRow
-              text="No active onboarding plan."
-              cta={{ label: "Ask George to plan it", href: "/chat" }}
-            />
-          )}
-        </Section>
-      ),
-    },
-    {
-      id: "cadence",
-      label: "Cadence",
-      icon: "cadence",
-      panel: (
-        <Section title="Cadence">
-          {cadence ? (
-            <CadenceBlock cadence={cadence} />
-          ) : (
-            <EmptyRow
-              text="No recurring cadence set."
-              cta={{ label: "Ask George to set one", href: "/chat" }}
-            />
-          )}
-        </Section>
-      ),
-    },
-    {
-      id: "hierarchy",
-      label: isPartner ? "End customers" : "Partner",
-      icon: "hierarchy",
-      badge: isPartner ? endCustomers.length : null,
-      panel: (
-        <HierarchySection
-          customer={customer}
-          parent={parent}
-          endCustomers={endCustomers}
-        />
-      ),
-    },
-    {
-      id: "contacts",
-      label: "Contacts",
-      icon: "contacts",
-      badge: contacts.length,
-      panel: (
-        <Section
-          title={`Contacts (${contacts.length})`}
-          right={
-            <AddContactButton
-              customerId={customer.id}
-              hasPrimary={contacts.some((c) => c.is_primary)}
-            />
-          }
-        >
-          {contacts.length === 0 ? (
-            <EmptyRow text="No contacts yet." />
-          ) : (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-              {contacts.map((c) => (
-                <ContactCard key={c.id} contact={c} />
-              ))}
-            </div>
-          )}
-        </Section>
-      ),
-    },
-    {
-      id: "documents",
-      label: "Documents",
-      icon: "documents",
-      badge: docs.length || null,
-      panel: <DocumentsPanel customerId={customer.id} docs={docs} />,
-    },
-  ];
-
   return (
-    <div className="mx-auto max-w-[1180px] space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7">
+    <div className="w-full space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <Link
         href="/customers"
         className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"
       >
         <ArrowLeft size={14} />
-        All channel partners
+        Partners
       </Link>
 
-      <HeaderCard
+      <StatStripHeader
         customer={customer}
+        owner={owner}
         primary={primary}
         latestHealth={latestHealth}
-        contactsCount={contacts.length}
+        activeContract={activeContract}
+        nextStep={nextDueStep}
+        targetEnd={plan?.target_end_date ?? null}
+        progress={plan ? progress : null}
       />
 
-      <CustomerTabs tabs={tabs} />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,400px)]">
+        {/* ── Left: the account. Masonry on wide screens so a 4K display
+              isn't a tall single column of scrolling; collapses to one
+              column on laptops and stacks on mobile. ─────────────────── */}
+        <div className="gap-6 [column-fill:balance] columns-1 xl:columns-2 [&>*]:mb-6 [&>*]:break-inside-avoid">
+          <ObjectivesSection objectives={objectives} customerId={customer.id} />
+
+          <Section
+            title="Onboarding plan"
+            icon={<ListChecks size={14} className="text-[var(--color-accent)]" />}
+            right={
+              plan ? (
+                <span className="text-[12px] text-[var(--color-fg-muted)]">
+                  {progress}% · {steps.length} step{steps.length === 1 ? "" : "s"}
+                </span>
+              ) : null
+            }
+          >
+            {plan ? (
+              <PlanBlock plan={plan} steps={steps} progress={progress} />
+            ) : (
+              <EmptyRow
+                text="No onboarding plan yet."
+                cta={{ label: "Ask George to plan it", href: `/chat?customer=${customer.id}` }}
+              />
+            )}
+          </Section>
+
+          <Section
+            title="Meetings & cadence"
+            icon={<Repeat size={14} className="text-[var(--color-accent)]" />}
+          >
+            {cadence ? (
+              <CadenceBlock cadence={cadence} />
+            ) : (
+              <EmptyRow
+                text="No recurring cadence set. Scribe joins meetings and George reads the transcript after."
+                cta={{ label: "Ask George to set one", href: `/chat?customer=${customer.id}` }}
+              />
+            )}
+          </Section>
+
+          <DocumentsPanel customerId={customer.id} docs={docs} />
+
+          <Section
+            title={`Contacts (${contacts.length})`}
+            icon={<Users size={14} className="text-[var(--color-accent)]" />}
+            right={
+              <AddContactButton
+                customerId={customer.id}
+                hasPrimary={contacts.some((c) => c.is_primary)}
+              />
+            }
+          >
+            {contacts.length === 0 ? (
+              <EmptyRow text="No contacts yet." />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {contacts.map((c) => (
+                  <ContactCard key={c.id} contact={c} />
+                ))}
+              </div>
+            )}
+          </Section>
+
+          <HierarchySection
+            customer={customer}
+            parent={parent}
+            endCustomers={endCustomers}
+          />
+
+          {customer.notes && (
+            <Section title="Notes">
+              <p className="whitespace-pre-wrap text-sm text-[var(--color-fg-secondary)]">
+                {customer.notes}
+              </p>
+            </Section>
+          )}
+        </div>
+
+        {/* ── Right: George, scoped to this account ──────────────────────── */}
+        <aside className="space-y-6 lg:sticky lg:top-5 lg:self-start">
+          <AccountConversations
+            customerId={customer.id}
+            customerName={customer.name}
+            sessions={sessions}
+          />
+          <ActivitySection activity={activity} />
+          {openObjectives.length === 0 && objectives.length === 0 && (
+            <p className="px-1 text-[12px] leading-relaxed text-[var(--color-fg-muted)]">
+              George works this account on his own — drafting outreach, chasing
+              what onboarding needs, and reporting to {owner?.full_name ?? "the owner"}.
+              You step in to review and decide.
+            </p>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Overview panel — the "dashboard" view, intentionally compact. Full detail
-// for each domain lives in its dedicated tab.
-// ---------------------------------------------------------------------------
-function OverviewPanel({
+// ── Header: name + a horizontal stat strip ──────────────────────────────────
+function StatStripHeader({
   customer,
+  owner,
   primary,
-  contactsCount,
   latestHealth,
-  healthHistory,
   activeContract,
-  plan,
-  steps,
+  nextStep,
+  targetEnd,
   progress,
-  nextDueStep,
-  cadence,
 }: {
   customer: Customer;
+  owner: Owner | null;
   primary: Contact | null;
-  contactsCount: number;
   latestHealth: Health | null;
-  healthHistory: Health[];
   activeContract: Contract | null;
-  plan: Plan | null | undefined;
-  steps: Step[];
-  progress: number;
-  nextDueStep: Step | null;
-  cadence: Cadence | null;
+  nextStep: Step | null;
+  targetEnd: string | null;
+  progress: number | null;
 }) {
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Section title="Health" icon={<Heart size={14} className="text-[var(--color-accent)]" />}>
+    <div className="rounded-[16px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+      <div className="flex flex-wrap items-start justify-between gap-4 p-6 pb-5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+            <Building2 size={22} />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-[24px] font-bold leading-tight text-[var(--color-fg)]">
+                {customer.name}
+              </h1>
+              <KindBadge kind={customer.customer_kind} />
+              <LifecycleBadge value={customer.lifecycle} />
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-[var(--color-fg-secondary)]">
+              {customer.domain && (
+                <a
+                  href={`https://${customer.domain}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1 hover:text-[var(--color-accent)]"
+                >
+                  {customer.domain}
+                  <ExternalLink size={11} />
+                </a>
+              )}
+              {customer.industry && <span>{customer.industry}</span>}
+              {customer.size && <span>{customer.size}</span>}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <EditCustomerButton
+            customer={{
+              id: customer.id,
+              name: customer.name,
+              domain: customer.domain,
+              lifecycle: customer.lifecycle,
+              industry: customer.industry,
+              size: customer.size,
+              notes: customer.notes,
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-b-[16px] border-t border-[var(--color-border-subtle)] bg-[var(--color-border-subtle)] sm:grid-cols-3 lg:grid-cols-6">
+        <Stat label="Contract">
+          {activeContract?.arr_cents != null
+            ? formatMoney(activeContract.arr_cents, activeContract.currency ?? "USD")
+            : "—"}
+        </Stat>
+        <Stat label="Stage">
+          <LifecycleBadge value={customer.lifecycle} />
+        </Stat>
+        <Stat label="Health">
           {latestHealth ? (
-            <HealthBlock health={latestHealth} history={healthHistory} />
-          ) : (
-            <EmptyRow text="No health checks yet." />
-          )}
-        </Section>
-
-        <Section title="Contract" icon={<FileText size={14} className="text-[var(--color-accent)]" />}>
-          {activeContract ? (
-            <ContractRow contract={activeContract} />
-          ) : (
-            <EmptyRow text="No contract on file yet." />
-          )}
-        </Section>
-
-        <Section title="Onboarding" icon={<ListChecks size={14} className="text-[var(--color-accent)]" />}>
-          {plan ? (
-            <OnboardingSummary
-              plan={plan}
-              progress={progress}
-              stepsTotal={steps.length}
-              nextDueStep={nextDueStep}
-            />
-          ) : (
-            <EmptyRow
-              text="No active onboarding plan."
-              cta={{ label: "Ask George to plan it", href: "/chat" }}
-            />
-          )}
-        </Section>
-
-        <Section title="Cadence" icon={<Repeat size={14} className="text-[var(--color-accent)]" />}>
-          {cadence ? (
-            <CadenceSummary cadence={cadence} />
-          ) : (
-            <EmptyRow
-              text="No recurring cadence set."
-              cta={{ label: "Ask George to set one", href: "/chat" }}
-            />
-          )}
-        </Section>
-      </div>
-
-      <Section
-        title={`Contacts (${contactsCount})`}
-        icon={<Users size={14} className="text-[var(--color-accent)]" />}
-      >
-        {primary ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              <ContactCard contact={primary} />
-            </div>
-            {contactsCount > 1 && (
-              <p className="text-[12px] text-[var(--color-fg-muted)]">
-                {contactsCount - 1} more contact{contactsCount - 1 === 1 ? "" : "s"} —
-                see the <strong>Contacts</strong> tab.
-              </p>
-            )}
-          </div>
-        ) : (
-          <EmptyRow text="No contacts yet." />
-        )}
-      </Section>
-
-      {customer.notes && (
-        <Section title="Notes">
-          <p className="whitespace-pre-wrap text-sm text-[var(--color-fg-secondary)]">
-            {customer.notes}
-          </p>
-        </Section>
-      )}
-    </div>
-  );
-}
-
-function OnboardingSummary({
-  plan,
-  progress,
-  stepsTotal,
-  nextDueStep,
-}: {
-  plan: Plan;
-  progress: number;
-  stepsTotal: number;
-  nextDueStep: Step | null;
-}) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-baseline gap-2">
-        <span className="text-[20px] font-bold text-[var(--color-fg)]">{progress}%</span>
-        <span className="text-[12px] text-[var(--color-fg-muted)]">
-          complete · {stepsTotal} step{stepsTotal === 1 ? "" : "s"} · {plan.pace ?? "no pace"}
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-2)]">
-        <div
-          className="h-full brand-gradient transition-all"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-      {nextDueStep ? (
-        <div className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3">
-          <div className="flex items-center gap-2">
-            <StepStatusBadge value={nextDueStep.status} />
-            <span className="text-[13px] font-medium text-[var(--color-fg)]">
-              {nextDueStep.title}
+            <span className="inline-flex items-center gap-1.5">
+              <HealthBadge band={latestHealth.band} />
+              {latestHealth.score != null && (
+                <span className="text-[13px] font-semibold">{latestHealth.score}</span>
+              )}
             </span>
-          </div>
-          {nextDueStep.due_date && (
-            <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-[var(--color-fg-muted)]">
-              <CalendarClock size={10} />
-              due {fmt(nextDueStep.due_date)}
-            </div>
+          ) : (
+            "—"
           )}
-        </div>
-      ) : (
-        <div className="text-[12px] text-[var(--color-fg-muted)]">
-          No step in progress. All caught up.
-        </div>
-      )}
+        </Stat>
+        <Stat label="Owner">{owner?.full_name ?? owner?.email ?? "Unassigned"}</Stat>
+        <Stat label="Primary contact">{primary?.full_name ?? "—"}</Stat>
+        <Stat label={progress != null ? "Next step" : "Target"}>
+          {nextStep ? (
+            <span className="truncate" title={nextStep.title}>
+              {nextStep.title}
+            </span>
+          ) : targetEnd ? (
+            fmt(targetEnd)
+          ) : (
+            "—"
+          )}
+        </Stat>
+      </div>
     </div>
   );
 }
 
-function CadenceSummary({ cadence }: { cadence: Cadence }) {
-  const cadenceLabel: Record<Cadence["frequency"], string> = {
-    weekly: "Weekly",
-    biweekly: "Biweekly",
-    monthly: "Monthly",
-    quarterly: "Quarterly",
-    ad_hoc: "Ad hoc",
-  };
+function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-accent-light)] px-2.5 py-[3px] text-[12px] font-medium text-[var(--color-accent)]">
-          <Repeat size={11} /> {cadenceLabel[cadence.frequency]}
-        </div>
+    <div className="bg-[var(--color-surface-card)] px-4 py-3">
+      <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">
+        {label}
       </div>
-      <div className="grid grid-cols-2 gap-3 text-[13px]">
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">
-            Next
-          </div>
-          <div className="mt-0.5 font-medium text-[var(--color-fg)]">
-            {cadence.next_meeting_at ? fmt(cadence.next_meeting_at) : "—"}
-          </div>
-          {cadence.next_meeting_at && (
-            <div className="text-[11px] text-[var(--color-fg-muted)]">
-              {timeAgo(cadence.next_meeting_at)}
-            </div>
-          )}
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">
-            Last met
-          </div>
-          <div className="mt-0.5 font-medium text-[var(--color-fg)]">
-            {cadence.last_met_at ? fmt(cadence.last_met_at) : "—"}
-          </div>
-        </div>
+      <div className="mt-1 truncate text-[14px] font-medium text-[var(--color-fg)]">
+        {children}
       </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Documents tab — placeholder until backlog #19 (file upload) and #18
-// (contract parsing) land. Once those ship, this surfaces the customer's
-// documents table.
-// ---------------------------------------------------------------------------
-function DocumentsPanel({
+// ── Objectives — what George is chasing for this account ─────────────────────
+function ObjectivesSection({
+  objectives,
   customerId,
-  docs,
 }: {
+  objectives: Objective[];
   customerId: string;
-  docs: DocumentListItem[];
 }) {
+  const open = objectives.filter((o) => o.status !== "achieved");
+  const done = objectives.filter((o) => o.status === "achieved");
   return (
     <Section
-      title={`Documents (${docs.length})`}
-      icon={<FileText size={14} className="text-[var(--color-accent)]" />}
-      right={<UploadDocumentButton customerId={customerId} />}
+      title="Objectives"
+      icon={<Target size={14} className="text-[var(--color-accent)]" />}
+      right={
+        objectives.length > 0 ? (
+          <span className="text-[12px] text-[var(--color-fg-muted)]">
+            {done.length}/{objectives.length} done
+          </span>
+        ) : null
+      }
     >
-      {docs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-6 py-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
-            <FileText size={20} />
-          </div>
-          <h3 className="text-[15px] font-semibold text-[var(--color-fg)]">
-            No documents yet
-          </h3>
-          <p className="max-w-[480px] text-[13px] text-[var(--color-fg-secondary)]">
-            Upload a contract, NDA, or order form here — or drop it into chat
-            and George will file it for this customer. PDFs, images, Office
-            docs, plain text up to 10 MB.
-          </p>
-          <div className="mt-1 flex items-center gap-2">
-            <UploadDocumentButton customerId={customerId} />
-            <Link
-              href="/chat"
-              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 py-1.5 text-[13px] font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
-            >
-              <MessageSquare size={13} />
-              Or drop in chat
-            </Link>
-          </div>
-        </div>
+      {objectives.length === 0 ? (
+        <EmptyRow
+          text="Nothing being chased yet. George creates objectives from the kickoff and follows up until each is met."
+          cta={{ label: "Ask George", href: `/chat?customer=${customerId}` }}
+        />
       ) : (
-        <DocumentList docs={docs} />
+        <ul className="space-y-2">
+          {[...open, ...done].map((o) => (
+            <ObjectiveRow key={o.id} objective={o} />
+          ))}
+        </ul>
       )}
     </Section>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Hierarchy panel — for a partner shows the end-customer list; for an end-
-// customer shows the parent partner.
-// ---------------------------------------------------------------------------
+function ObjectiveRow({ objective: o }: { objective: Objective }) {
+  const achieved = o.status === "achieved";
+  const blocked = o.status === "blocked";
+  return (
+    <li className="flex items-start gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3">
+      {achieved ? (
+        <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[var(--color-success)]" />
+      ) : blocked ? (
+        <Flag size={16} className="mt-0.5 shrink-0 text-[var(--color-warning)]" />
+      ) : (
+        <Circle size={16} className="mt-0.5 shrink-0 text-[var(--color-fg-muted)]" />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-[13px] font-medium ${achieved ? "text-[var(--color-fg-muted)] line-through" : "text-[var(--color-fg)]"}`}
+          >
+            {o.title}
+          </span>
+          <ObjectiveStatusBadge status={o.status} />
+        </div>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--color-fg-muted)]">
+          <span>{o.responsible_side === "onyx" ? "Onyx owes" : "Customer owes"}</span>
+          {!achieved && o.followup_count > 0 && (
+            <span>follow-up {o.followup_count}/{o.max_followups}</span>
+          )}
+          {o.due_date && (
+            <span className="inline-flex items-center gap-1">
+              <CalendarClock size={10} /> due {fmt(o.due_date)}
+            </span>
+          )}
+          {!achieved && o.next_followup_at && (
+            <span>next nudge {timeAgo(o.next_followup_at)}</span>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function ObjectiveStatusBadge({ status }: { status: Objective["status"] }) {
+  const map: Record<Objective["status"], { label: string; cls: string }> = {
+    pending: { label: "Pending", cls: "bg-[var(--color-surface-3)] text-[var(--color-fg-secondary)]" },
+    awaiting: { label: "Awaiting", cls: "bg-[var(--color-accent-light)] text-[var(--color-accent)]" },
+    achieved: { label: "Done", cls: "bg-[var(--color-surface-3)] text-[var(--color-success)]" },
+    blocked: { label: "Escalated", cls: "bg-[var(--color-surface-3)] text-[var(--color-warning)]" },
+    cancelled: { label: "Cancelled", cls: "bg-[var(--color-surface-3)] text-[var(--color-fg-muted)]" },
+  };
+  const s = map[status];
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-[2px] text-[10px] font-medium ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
+
+// ── Activity — what George did on this account ───────────────────────────────
+function ActivitySection({ activity }: { activity: Activity[] }) {
+  if (activity.length === 0) return null;
+  return (
+    <Section
+      title="What George did"
+      icon={<Sparkles size={14} className="text-[var(--color-accent)]" />}
+    >
+      <ul className="space-y-2.5">
+        {activity.map((a) => (
+          <li key={a.id} className="flex items-start gap-2.5 text-[12px]">
+            <Circle size={6} className="mt-1.5 shrink-0 fill-[var(--color-accent)] text-[var(--color-accent)]" />
+            <div className="min-w-0 flex-1">
+              <span className="text-[var(--color-fg-secondary)]">{actionLabel(a.action)}</span>
+              <span className="ml-1.5 text-[var(--color-fg-muted)]">· {timeAgo(a.created_at)}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+function actionLabel(action: string): string {
+  const map: Record<string, string> = {
+    "email.drafted": "Drafted an email",
+    "email.reply_drafted": "Drafted a reply",
+    "email.sent": "Sent an email",
+    "calendar.event_created": "Scheduled a meeting",
+    "fireflies.transcript_fetched": "Pulled a meeting transcript",
+  };
+  return map[action] ?? action.replace(/[._]/g, " ");
+}
+
+// ── Hierarchy ───────────────────────────────────────────────────────────────
 function HierarchySection({
   customer,
   parent,
@@ -700,14 +766,12 @@ function HierarchySection({
     <Section
       title={`End customers (${endCustomers.length})`}
       icon={<Network size={14} className="text-[var(--color-accent)]" />}
-      right={
-        <AddEndCustomerButton parentId={customer.id} parentName={customer.name} />
-      }
+      right={<AddEndCustomerButton parentId={customer.id} parentName={customer.name} />}
     >
       {endCustomers.length === 0 ? (
         <EmptyRow text="No end customers yet for this partner." />
       ) : (
-        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {endCustomers.map((ec) => (
             <li key={ec.id}>
               <Link
@@ -735,104 +799,30 @@ function HierarchySection({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Header (unchanged — sits above the tab strip)
-// ---------------------------------------------------------------------------
-function HeaderCard({
-  customer,
-  primary,
-  latestHealth,
-  contactsCount,
+// ── Documents ───────────────────────────────────────────────────────────────
+function DocumentsPanel({
+  customerId,
+  docs,
 }: {
-  customer: Customer;
-  primary: Contact | null;
-  latestHealth: Health | null;
-  contactsCount: number;
+  customerId: string;
+  docs: DocumentListItem[];
 }) {
   return (
-    <div className="rounded-[16px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-6">
-      <div className="flex items-start justify-between gap-6">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
-            <Building2 size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-[24px] font-bold leading-tight text-[var(--color-fg)]">
-                {customer.name}
-              </h1>
-              <KindBadge kind={customer.customer_kind} />
-              <LifecycleBadge value={customer.lifecycle} />
-              {latestHealth && <HealthBadge band={latestHealth.band} />}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-[var(--color-fg-secondary)]">
-              {customer.domain && (
-                <a
-                  href={`https://${customer.domain}`}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1 hover:text-[var(--color-accent)]"
-                >
-                  {customer.domain}
-                  <ExternalLink size={11} />
-                </a>
-              )}
-              {customer.industry && <span>{customer.industry}</span>}
-              {customer.size && <span>{customer.size}</span>}
-              <span>
-                <Users size={11} className="mr-1 inline" />
-                {contactsCount} contact{contactsCount === 1 ? "" : "s"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <EditCustomerButton
-            customer={{
-              id: customer.id,
-              name: customer.name,
-              domain: customer.domain,
-              lifecycle: customer.lifecycle,
-              industry: customer.industry,
-              size: customer.size,
-              notes: customer.notes,
-            }}
-          />
-          <Link
-            href={`/chat?customer=${customer.id}`}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
-          >
-            <MessageSquare size={14} />
-            Ask George
-          </Link>
-        </div>
-      </div>
-
-      {primary && (
-        <div className="mt-5 flex items-center gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent)] text-[12px] font-semibold text-[var(--color-fg-inverse)]">
-            {initials(primary.full_name)}
-          </div>
-          <div className="leading-tight">
-            <div className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--color-fg)]">
-              {primary.full_name}
-              <Star size={11} className="text-[var(--color-accent)]" />
-              <span className="text-[11px] font-normal text-[var(--color-fg-muted)]">primary</span>
-            </div>
-            <div className="text-[12px] text-[var(--color-fg-secondary)]">
-              {primary.title ?? "—"} · {primary.email ?? "no email"}
-            </div>
-          </div>
-        </div>
+    <Section
+      title={`Documents (${docs.length})`}
+      icon={<FileText size={14} className="text-[var(--color-accent)]" />}
+      right={<UploadDocumentButton customerId={customerId} />}
+    >
+      {docs.length === 0 ? (
+        <EmptyRow text="No documents yet. Upload one, or drop it in chat and George files it here." />
+      ) : (
+        <DocumentList docs={docs} />
       )}
-    </div>
+    </Section>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Shared cells (unchanged from the pre-tab layout)
-// ---------------------------------------------------------------------------
+// ── Shared leaf components ───────────────────────────────────────────────────
 function Section({
   title,
   right,
@@ -862,29 +852,6 @@ function Section({
   );
 }
 
-function ContractRow({ contract }: { contract: Contract }) {
-  return (
-    <div className="grid grid-cols-2 gap-4 text-[13px] md:grid-cols-4">
-      <KV label="Status" value={contract.status.replace("_", " ")} />
-      <KV
-        label="ARR"
-        value={
-          contract.arr_cents != null
-            ? formatMoney(contract.arr_cents, contract.currency ?? "USD")
-            : "—"
-        }
-      />
-      <KV label="Start" value={fmt(contract.start_date)} />
-      <KV label="End" value={fmt(contract.end_date)} />
-      {contract.summary && (
-        <div className="col-span-2 mt-1 rounded-md bg-[var(--color-surface-2)] p-3 text-[12px] text-[var(--color-fg-secondary)] md:col-span-4">
-          {contract.summary}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const DAY_NAMES = [
   "Sunday",
   "Monday",
@@ -903,22 +870,20 @@ function CadenceBlock({ cadence }: { cadence: Cadence }) {
     quarterly: "Quarterly",
     ad_hoc: "Ad hoc",
   };
-  const channelLabel: Record<Cadence["channel"], string> = {
+  const channelLabelMap: Record<Cadence["channel"], string> = {
     call: "Call",
     in_person: "In person",
     email: "Email",
     async: "Async",
   };
-  const dayText =
-    cadence.day_of_week != null ? DAY_NAMES[cadence.day_of_week] : null;
+  const dayText = cadence.day_of_week != null ? DAY_NAMES[cadence.day_of_week] : null;
   const timeText = cadence.time_of_day ? cadence.time_of_day.slice(0, 5) : null;
   const tzText = cadence.timezone ? ` ${cadence.timezone}` : "";
   const slotLine =
     cadence.frequency === "ad_hoc"
       ? "No fixed slot"
-      : [dayText, timeText && `at ${timeText}${tzText}`]
-          .filter(Boolean)
-          .join(" ") || "Day/time not set";
+      : [dayText, timeText && `at ${timeText}${tzText}`].filter(Boolean).join(" ") ||
+        "Day/time not set";
 
   return (
     <div className="space-y-3">
@@ -928,44 +893,20 @@ function CadenceBlock({ cadence }: { cadence: Cadence }) {
         </div>
         <span className="text-[13px] text-[var(--color-fg-secondary)]">{slotLine}</span>
         <span className="text-[12px] text-[var(--color-fg-muted)]">
-          · {channelLabel[cadence.channel]}
+          · {channelLabelMap[cadence.channel]}
           {cadence.duration_min ? ` · ${cadence.duration_min} min` : ""}
         </span>
       </div>
-
       <div className="grid grid-cols-2 gap-4 text-[13px]">
         <KV
           label="Next meeting"
-          value={
-            cadence.next_meeting_at ? (
-              <span>
-                {fmt(cadence.next_meeting_at)}{" "}
-                <span className="text-[11px] text-[var(--color-fg-muted)]">
-                  · {timeAgo(cadence.next_meeting_at)}
-                </span>
-              </span>
-            ) : (
-              "—"
-            )
-          }
+          value={cadence.next_meeting_at ? fmt(cadence.next_meeting_at) : "—"}
         />
         <KV
           label="Last met"
-          value={
-            cadence.last_met_at ? (
-              <span>
-                {fmt(cadence.last_met_at)}{" "}
-                <span className="text-[11px] text-[var(--color-fg-muted)]">
-                  · {timeAgo(cadence.last_met_at)}
-                </span>
-              </span>
-            ) : (
-              "—"
-            )
-          }
+          value={cadence.last_met_at ? fmt(cadence.last_met_at) : "—"}
         />
       </div>
-
       {cadence.notes && (
         <p className="whitespace-pre-wrap rounded-md bg-[var(--color-surface-2)] p-3 text-[12px] text-[var(--color-fg-secondary)]">
           {cadence.notes}
@@ -975,62 +916,12 @@ function CadenceBlock({ cadence }: { cadence: Cadence }) {
   );
 }
 
-function HealthBlock({ health, history }: { health: Health; history: Health[] }) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <HealthBadge band={health.band} />
-        {health.score != null && (
-          <span className="text-[13px] font-semibold text-[var(--color-fg)]">
-            {health.score}/100
-          </span>
-        )}
-        <span className="text-[11px] text-[var(--color-fg-muted)]">
-          {timeAgo(health.measured_at)}
-        </span>
-      </div>
-      {health.reason && (
-        <p className="text-[12px] leading-relaxed text-[var(--color-fg-secondary)]">
-          {health.reason}
-        </p>
-      )}
-      {history.length > 1 && (
-        <details className="text-[12px] text-[var(--color-fg-muted)]">
-          <summary className="cursor-pointer hover:text-[var(--color-fg)]">
-            Show {history.length - 1} earlier check{history.length - 1 === 1 ? "" : "s"}
-          </summary>
-          <ul className="mt-2 space-y-1">
-            {history.slice(1).map((h) => (
-              <li key={h.id} className="flex items-center gap-2">
-                <HealthBadge band={h.band} />
-                <span>{fmt(h.measured_at)}</span>
-                {h.reason && <span className="truncate">— {h.reason}</span>}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </div>
-  );
-}
-
 function PlanBlock({ plan, steps, progress }: { plan: Plan; steps: Step[]; progress: number }) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 text-[13px] md:grid-cols-4">
-        <KV label="Status" value={plan.status.replace("_", " ")} />
-        <KV label="Pace" value={plan.pace ?? "—"} />
-        <KV label="Start" value={fmt(plan.start_date)} />
-        <KV label="Target end" value={fmt(plan.target_end_date)} />
-      </div>
-
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-2)]">
-        <div
-          className="h-full brand-gradient transition-all"
-          style={{ width: `${progress}%` }}
-        />
+        <div className="h-full brand-gradient transition-all" style={{ width: `${progress}%` }} />
       </div>
-
       <ol className="space-y-1.5">
         {steps.map((s) => (
           <li
@@ -1039,21 +930,14 @@ function PlanBlock({ plan, steps, progress }: { plan: Plan; steps: Step[]; progr
           >
             <StepIcon status={s.status} />
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-medium text-[var(--color-fg-muted)]">
-                  Step {s.ordinal}
-                </span>
-                <span className="text-[14px] font-medium text-[var(--color-fg)]">
-                  {s.title}
-                </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[14px] font-medium text-[var(--color-fg)]">{s.title}</span>
                 <StepStatusBadge value={s.status} />
               </div>
               {s.description && (
-                <p className="mt-1 text-[12px] text-[var(--color-fg-secondary)]">
-                  {s.description}
-                </p>
+                <p className="mt-1 text-[12px] text-[var(--color-fg-secondary)]">{s.description}</p>
               )}
-              <div className="mt-1 flex gap-3 text-[11px] text-[var(--color-fg-muted)]">
+              <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-[var(--color-fg-muted)]">
                 {s.due_date && (
                   <span className="inline-flex items-center gap-1">
                     <CalendarClock size={10} /> due {fmt(s.due_date)}
@@ -1113,9 +997,7 @@ function ContactCard({ contact }: { contact: Contact }) {
               <Star size={11} className="text-[var(--color-accent)]" aria-label="primary" />
             )}
           </div>
-          <div className="text-[11px] text-[var(--color-fg-muted)]">
-            {contact.title ?? "—"}
-          </div>
+          <div className="text-[11px] text-[var(--color-fg-muted)]">{contact.title ?? "—"}</div>
           <div className="mt-1 space-y-0.5 text-[11px] text-[var(--color-fg-secondary)]">
             {contact.email && (
               <a
@@ -1142,9 +1024,7 @@ function ContactCard({ contact }: { contact: Contact }) {
 function KV({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">
-        {label}
-      </div>
+      <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">{label}</div>
       <div className="mt-0.5 text-[14px] font-medium text-[var(--color-fg)]">{value}</div>
     </div>
   );
@@ -1158,13 +1038,10 @@ function EmptyRow({
   cta?: { label: string; href: string };
 }) {
   return (
-    <div className="flex items-center justify-between rounded-md border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-4 py-5 text-[13px] text-[var(--color-fg-muted)]">
+    <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-4 py-5 text-[13px] text-[var(--color-fg-muted)]">
       <span>{text}</span>
       {cta && (
-        <Link
-          href={cta.href}
-          className="text-[var(--color-accent)] hover:underline"
-        >
+        <Link href={cta.href} className="shrink-0 text-[var(--color-accent)] hover:underline">
           {cta.label} →
         </Link>
       )}
@@ -1183,13 +1060,16 @@ function fmt(d: string | null) {
 
 function timeAgo(iso: string) {
   const ms = Date.now() - new Date(iso).getTime();
-  const days = Math.floor(ms / 86400000);
+  const future = ms < 0;
+  const abs = Math.abs(ms);
+  const days = Math.floor(abs / 86400000);
   if (days < 1) {
-    const hrs = Math.floor(ms / 3600000);
-    return hrs <= 0 ? "just now" : `${hrs}h ago`;
+    const hrs = Math.floor(abs / 3600000);
+    if (hrs <= 0) return "just now";
+    return future ? `in ${hrs}h` : `${hrs}h ago`;
   }
-  if (days === 1) return "yesterday";
-  if (days < 14) return `${days}d ago`;
+  if (days === 1) return future ? "tomorrow" : "yesterday";
+  if (days < 14) return future ? `in ${days}d` : `${days}d ago`;
   return fmt(iso);
 }
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Building2,
   Inbox as InboxIcon,
   Mail,
   MessageSquare,
@@ -41,6 +42,8 @@ type Item =
       preview: string | null;
       status: string;
       sessionId: string | null;
+      accountName: string | null;
+      customerId: string | null;
     }
   | {
       kind: "outbound";
@@ -52,6 +55,8 @@ type Item =
       subject: string | null;
       draftId: string | null;
       sessionId: string | null;
+      accountName: string | null;
+      customerId: string | null;
     };
 
 export default async function InboxPage({
@@ -100,9 +105,41 @@ export default async function InboxPage({
     .limit(200);
   const auditRows = (auditRes.data ?? []) as AuditRow[];
 
+  // Resolve which account each email is about. Outbound rows carry customer_id
+  // directly; inbound rows reach it via their session (agent_sessions.customer_id).
+  const inboundSessionIds = Array.from(
+    new Set(eventRows.map((e) => e.session_id).filter((v): v is string => !!v)),
+  );
+  const sessionCustomer = new Map<string, string | null>();
+  if (inboundSessionIds.length > 0) {
+    const sRes = await supabase
+      .from("agent_sessions")
+      .select("id, customer_id")
+      .in("id", inboundSessionIds);
+    for (const s of (sRes.data ?? []) as Array<{ id: string; customer_id: string | null }>) {
+      sessionCustomer.set(s.id, s.customer_id);
+    }
+  }
+  const customerIds = Array.from(
+    new Set(
+      [
+        ...auditRows.map((a) => a.customer_id),
+        ...Array.from(sessionCustomer.values()),
+      ].filter((v): v is string => !!v),
+    ),
+  );
+  const customerName = new Map<string, string>();
+  if (customerIds.length > 0) {
+    const cRes = await supabase.from("customers").select("id, name").in("id", customerIds);
+    for (const c of (cRes.data ?? []) as Array<{ id: string; name: string }>) {
+      customerName.set(c.id, c.name);
+    }
+  }
+
   const allItems: Item[] = [
     ...eventRows.map<Item>((e) => {
       const email = parseOutlookFields(e.payload);
+      const cid = e.session_id ? sessionCustomer.get(e.session_id) ?? null : null;
       return {
         kind: "inbound",
         key: `e:${e.id}`,
@@ -113,6 +150,8 @@ export default async function InboxPage({
         preview: email.preview,
         status: e.status,
         sessionId: e.session_id,
+        customerId: cid,
+        accountName: cid ? customerName.get(cid) ?? null : null,
       };
     }),
     ...auditRows.map<Item>((a) => {
@@ -133,6 +172,8 @@ export default async function InboxPage({
         subject: (p.subject as string) ?? null,
         draftId: (p.draft_id as string) ?? null,
         sessionId: a.session_id,
+        customerId: a.customer_id,
+        accountName: a.customer_id ? customerName.get(a.customer_id) ?? null : null,
       };
     }),
   ].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
@@ -146,17 +187,13 @@ export default async function InboxPage({
     filter === "all" ? allItems : allItems.filter((i) => i.kind === filter);
 
   return (
-    <div className="mx-auto max-w-[1180px] space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7">
+    <div className="w-full space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <header className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Inbox</h1>
           <p className="text-sm text-[var(--color-fg-secondary)]">
-            Every email George touches — inbound to{" "}
-            <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5 text-[12px]">
-              george@onyx
-            </code>{" "}
-            and outbound drafts/sends. Click any row to open the chat
-            session it lives in.
+            Every email George handles, by account — inbound to his mailbox and the
+            replies he drafts and sends. Click a message to read the full thread.
           </p>
         </div>
         <Link
@@ -220,6 +257,7 @@ function InboundRow({ item }: { item: Extract<Item, { kind: "inbound" }> }) {
               {item.subject ?? "(no subject)"}
             </span>
             <InboundStatusBadge status={item.status} />
+            <AccountChip name={item.accountName} />
           </div>
           <div className="mt-0.5 text-[12px] text-[var(--color-fg-secondary)]">
             from {item.from ?? "(unknown sender)"}
@@ -263,6 +301,7 @@ function OutboundRow({ item }: { item: Extract<Item, { kind: "outbound" }> }) {
               {item.subject ?? "(no subject)"}
             </span>
             <OutboundStatusBadge action={item.action} />
+            <AccountChip name={item.accountName} />
           </div>
           <div className="mt-0.5 text-[12px] text-[var(--color-fg-secondary)]">
             {item.to ? `to ${item.to}` : "(no recipient captured)"}
@@ -273,6 +312,16 @@ function OutboundRow({ item }: { item: Extract<Item, { kind: "outbound" }> }) {
         </div>
       </Link>
     </li>
+  );
+}
+
+function AccountChip({ name }: { name: string | null }) {
+  if (!name) return null;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-surface-2)] px-2 py-[1px] text-[10px] font-medium text-[var(--color-fg-secondary)]">
+      <Building2 size={9} />
+      {name}
+    </span>
   );
 }
 

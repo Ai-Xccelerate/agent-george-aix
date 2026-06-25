@@ -6,7 +6,6 @@ import {
   Inbox,
   LayoutDashboard,
   MessageSquare,
-  Sparkles,
   Users,
   Settings,
   HelpCircle,
@@ -19,9 +18,8 @@ import { BrandLogo } from "@/components/brand-logo";
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Agent George", icon: MessageSquare },
-  { href: "/customers", label: "Channel partners", icon: Users },
   { href: "/inbox", label: "Inbox", icon: Inbox },
-  { href: "/actions", label: "AI actions", icon: Sparkles },
+  { href: "/customers", label: "Partners", icon: Users },
 ];
 
 export type SidebarUser = { fullName: string; email: string | null; orgName: string };

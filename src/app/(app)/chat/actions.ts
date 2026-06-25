@@ -26,6 +26,46 @@ export async function newChatAction() {
   redirect(`/chat/${data.id}`);
 }
 
+/**
+ * Start (or reuse) a chat thread bound to a specific customer, for the account
+ * hub's inline "Ask George about <partner>" launcher. Returns the session id so
+ * the client can mount the embedded chat inline — no redirect. The session's
+ * `customer_id` makes George account-aware (see /api/chat → buildGeorgeSystemPrompt).
+ * Reuses the most recent still-empty account thread so repeated clicks don't
+ * pile up blank sessions.
+ */
+export async function startAccountChatAction(customerId: string): Promise<string> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Not signed in.");
+  const admin = createSupabaseAdmin();
+
+  const existing = await admin
+    .from("agent_sessions")
+    .select("id")
+    .eq("org_id", user.orgId)
+    .eq("customer_id", customerId)
+    .eq("channel", "chat")
+    .is("title", null)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existing.data?.id) return existing.data.id as string;
+
+  const { data, error } = await admin
+    .from("agent_sessions")
+    .insert({
+      org_id: user.orgId,
+      user_id: user.id,
+      channel: "chat",
+      customer_id: customerId,
+      title: null,
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Could not start chat.");
+  return data.id as string;
+}
+
 export async function deleteChatAction(formData: FormData) {
   const id = String(formData.get("session_id") ?? "");
   if (!id) return;

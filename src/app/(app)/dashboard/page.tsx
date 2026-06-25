@@ -1,270 +1,302 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-  Activity,
-  AlertTriangle,
-  ArrowRight,
-  Building2,
-  Clock,
-  Sparkles,
-  Users,
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, Flag, Mail, Sparkles } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { LifecycleBadge } from "@/components/ui/badge";
+import { Greeting } from "./_greeting";
+import { ActivityStats } from "./_activity-stats";
 
 export const dynamic = "force-dynamic";
+
+const STAGES: Array<{ key: string; label: string }> = [
+  { key: "prospect", label: "Prospect" },
+  { key: "onboarding", label: "Onboarding" },
+  { key: "active", label: "Active" },
+  { key: "at_risk", label: "At risk" },
+  { key: "churned", label: "Churned" },
+];
+
+const DRAFT_ACTIONS = ["email.drafted", "email.reply_drafted"];
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
-
   const admin = createSupabaseAdmin();
   const orgId = user.orgId;
+  const ninetyAgo = new Date(Date.now() - 90 * 86400000).toISOString();
 
-  // All counts in parallel. We use head:true + count:'exact' so we only get
-  // the integer back, not the rows.
-  const [
-    activePartners,
-    activeEndCustomers,
-    onboarding,
-    atRisk,
-    onboardingTotal,
-    activeTotal,
-    standingJobs,
-  ] = await Promise.all([
-    admin
-      .from("customers")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("customer_kind", "partner")
-      .eq("lifecycle", "active"),
-    admin
-      .from("customers")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("customer_kind", "end_customer")
-      .eq("lifecycle", "active"),
-    admin
-      .from("customers")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("lifecycle", "onboarding"),
-    admin
-      .from("customers")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("lifecycle", "at_risk"),
-    admin
-      .from("customers")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("lifecycle", "onboarding"),
-    admin
-      .from("customers")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("lifecycle", "active"),
-    admin
-      .from("agent_jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("enabled", true),
-  ]);
+  const [custRes, activityRes, objAchievedRes, recentDraftsRes, atRiskRes, escalatedRes, integrationsRes] =
+    await Promise.all([
+      admin.from("customers").select("id, lifecycle, customer_kind").eq("org_id", orgId).limit(1000),
+      admin
+        .from("audit_log")
+        .select("action, created_at")
+        .eq("org_id", orgId)
+        .in("action", [...DRAFT_ACTIONS, "email.sent", "calendar.event_created"])
+        .gte("created_at", ninetyAgo)
+        .limit(5000),
+      admin
+        .from("objectives")
+        .select("achieved_at")
+        .eq("org_id", orgId)
+        .eq("status", "achieved")
+        .gte("achieved_at", ninetyAgo)
+        .limit(5000),
+      admin
+        .from("audit_log")
+        .select("id, payload, customer_id")
+        .eq("org_id", orgId)
+        .in("action", DRAFT_ACTIONS)
+        .order("created_at", { ascending: false })
+        .limit(4),
+      admin
+        .from("customers")
+        .select("id, name")
+        .eq("org_id", orgId)
+        .eq("lifecycle", "at_risk")
+        .order("updated_at", { ascending: false })
+        .limit(5),
+      admin
+        .from("objectives")
+        .select("id, title, customer_id, customers!inner(name)")
+        .eq("org_id", orgId)
+        .eq("status", "blocked")
+        .order("updated_at", { ascending: false })
+        .limit(5),
+      admin.from("integrations").select("provider, status").eq("org_id", orgId),
+    ]);
+
+  const customers = (custRes.data ?? []) as Array<{ lifecycle: string; customer_kind: string }>;
+  const stageCounts = new Map<string, number>();
+  for (const c of customers) stageCounts.set(c.lifecycle, (stageCounts.get(c.lifecycle) ?? 0) + 1);
+  const partnerTotal = customers.filter((c) => c.customer_kind === "partner").length;
+
+  const activity = (activityRes.data ?? []) as Array<{ action: string; created_at: string }>;
+  const drafts = activity.filter((a) => DRAFT_ACTIONS.includes(a.action)).map((a) => a.created_at);
+  const sent = activity.filter((a) => a.action === "email.sent").map((a) => a.created_at);
+  const meetings = activity.filter((a) => a.action === "calendar.event_created").map((a) => a.created_at);
+  const objectives = ((objAchievedRes.data ?? []) as Array<{ achieved_at: string | null }>)
+    .map((o) => o.achieved_at)
+    .filter((t): t is string => !!t);
+
+  const recentDrafts = (recentDraftsRes.data ?? []) as Array<{
+    id: string;
+    payload: { to?: string[]; subject?: string } | null;
+  }>;
+  const atRisk = (atRiskRes.data ?? []) as Array<{ id: string; name: string }>;
+  const escalated = (escalatedRes.data ?? []) as Array<{
+    id: string;
+    title: string;
+    customer_id: string;
+    customers: { name: string }[] | null;
+  }>;
+  const integrations = (integrationsRes.data ?? []) as Array<{ provider: string; status: string }>;
+
+  const needsYouCount = recentDrafts.length + atRisk.length + escalated.length;
+  const firstName = user.fullName?.split(" ")[0] ?? null;
+  const today = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   return (
-    <div className="mx-auto max-w-[1180px] space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7">
-      <HeroCard
-        firstName={user.fullName?.split(" ")[0] ?? null}
-        onboardingCount={onboardingTotal.count ?? 0}
-        activeCount={activeTotal.count ?? 0}
-        standingJobsCount={standingJobs.count ?? 0}
-      />
+    <div className="w-full space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
+      <div>
+        <Greeting firstName={firstName} />
+        <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
+          {today} · {partnerTotal} partner{partnerTotal === 1 ? "" : "s"} in your book
+          {needsYouCount > 0
+            ? ` · ${needsYouCount} thing${needsYouCount === 1 ? "" : "s"} need you`
+            : " · all clear"}
+        </p>
+      </div>
 
-      <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Kpi
-          label="Active channel partners"
-          value={String(activePartners.count ?? 0)}
-          icon={Building2}
-          accent
-          href="/customers"
-        />
-        <Kpi
-          label="Active end customers"
-          value={String(activeEndCustomers.count ?? 0)}
-          icon={Users}
-          tone="info"
-          href="/customers"
-        />
-        <Kpi
-          label="In onboarding"
-          value={String(onboarding.count ?? 0)}
-          icon={Activity}
-          href="/customers"
-        />
-        <Kpi
-          label="At risk"
-          value={String(atRisk.count ?? 0)}
-          icon={AlertTriangle}
-          tone="warning"
-          href="/customers"
-        />
-      </section>
+      <ActivityStats drafts={drafts} sent={sent} meetings={meetings} objectives={objectives} />
 
-      <section className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">
-              Today’s queue
-            </h2>
-            <Link
-              href="/settings/jobs"
-              className="text-[12px] font-medium text-[var(--color-accent)] hover:underline"
-            >
-              Manage standing jobs →
-            </Link>
-          </div>
-          <EmptyState
-            icon={Clock}
-            title="No tasks scheduled yet"
-            body="Configure a standing job (utilization sweep, cadence prep, inbox triage) and George will queue what he runs each day here."
-          />
-        </div>
-
-        <div className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">
-              Recent activity
-            </h2>
-          </div>
-          <EmptyState
-            icon={Sparkles}
-            title="Nothing yet"
-            body="Drop a signed contract into chat and George will add the partner, contacts, and onboarding plan — all of that shows up here."
-          />
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function HeroCard({
-  firstName,
-  onboardingCount,
-  activeCount,
-  standingJobsCount,
-}: {
-  firstName: string | null;
-  onboardingCount: number;
-  activeCount: number;
-  standingJobsCount: number;
-}) {
-  return (
-    <div className="brand-gradient relative overflow-hidden rounded-[16px] p-6 px-7 text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)]">
-      <div className="flex items-start justify-between gap-8">
-        <div className="max-w-[560px] space-y-2">
-          <h1 className="text-[20px] font-bold leading-tight">
-            {firstName ? `Hey ${firstName} — ` : "Hey, "}I’m George, your customer
-            success teammate.
-          </h1>
-          <p className="text-sm text-white/85">
-            Drop a contract, forward an email, or just tell me what’s going on with a
-            partner. I’ll handle onboarding, health, and the busywork.
-          </p>
-          <Link
-            href="/chat"
-            className="mt-3 inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-[var(--color-accent)] hover:bg-white/95"
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <Card
+            title="What needs you"
+            badge={needsYouCount || undefined}
+            right={
+              <Link href="/actions" className="text-[12px] font-medium text-[var(--color-accent)] hover:underline">
+                Open actions →
+              </Link>
+            }
           >
-            Talk to George
-            <ArrowRight size={16} />
-          </Link>
+            {needsYouCount === 0 ? (
+              <Empty text="Nothing waiting. George surfaces drafts to approve, escalations, and at-risk partners here." />
+            ) : (
+              <div className="space-y-4">
+                {recentDrafts.length > 0 && (
+                  <NeedGroup icon={<Mail size={13} />} label={`${recentDrafts.length} draft${recentDrafts.length === 1 ? "" : "s"} to review`}>
+                    {recentDrafts.map((d) => (
+                      <NeedRow
+                        key={d.id}
+                        href="/actions"
+                        title={d.payload?.subject ?? "(no subject)"}
+                        sub={d.payload?.to?.join(", ") ?? "—"}
+                      />
+                    ))}
+                  </NeedGroup>
+                )}
+                {escalated.length > 0 && (
+                  <NeedGroup icon={<Flag size={13} />} label={`${escalated.length} escalated`}>
+                    {escalated.map((e) => (
+                      <NeedRow
+                        key={e.id}
+                        href={`/customers/${e.customer_id}`}
+                        title={e.title}
+                        sub={e.customers?.[0]?.name ?? ""}
+                      />
+                    ))}
+                  </NeedGroup>
+                )}
+                {atRisk.length > 0 && (
+                  <NeedGroup icon={<AlertTriangle size={13} />} label={`${atRisk.length} at-risk partner${atRisk.length === 1 ? "" : "s"}`}>
+                    {atRisk.map((p) => (
+                      <NeedRow key={p.id} href={`/customers/${p.id}`} title={p.name} sub="Health is red" />
+                    ))}
+                  </NeedGroup>
+                )}
+              </div>
+            )}
+          </Card>
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
-          <GlassStat label="Onboarding" value={String(onboardingCount)} />
-          <GlassStat label="Active" value={String(activeCount)} />
-          <GlassStat label="Standing jobs" value={String(standingJobsCount)} />
+        <div className="space-y-6">
+          <Card title="Pipeline" right={<Link href="/customers" className="text-[12px] font-medium text-[var(--color-accent)] hover:underline">All partners →</Link>}>
+            <ul className="space-y-1.5">
+              {STAGES.map((s) => (
+                <li key={s.key}>
+                  <Link href="/customers" className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-[var(--color-surface-2)]">
+                    <LifecycleBadge value={s.key} />
+                    <span className="text-[14px] font-semibold tabular-nums text-[var(--color-fg)]">{stageCounts.get(s.key) ?? 0}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <Card
+            title="George's connections"
+            right={<Link href="/settings/integrations" className="text-[12px] font-medium text-[var(--color-accent)] hover:underline">Manage →</Link>}
+          >
+            {integrations.length === 0 ? (
+              <Empty text="No integrations connected yet." />
+            ) : (
+              <ul className="space-y-1.5">
+                {integrations.map((i) => (
+                  <li key={i.provider} className="flex items-center justify-between text-[13px]">
+                    <span className="text-[var(--color-fg)]">{providerLabel(i.provider)}</span>
+                    <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--color-fg-muted)]">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: i.status === "connected" ? "var(--color-success)" : "var(--color-fg-muted)" }}
+                      />
+                      {i.status === "connected" ? "Connected" : i.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </div>
       </div>
+
+      <Link
+        href="/chat"
+        className="flex items-center justify-between gap-4 rounded-[14px] brand-gradient px-6 py-4 text-white shadow-[var(--shadow-cta)] hover:opacity-95"
+      >
+        <div className="flex items-center gap-3">
+          <Sparkles size={18} />
+          <div>
+            <div className="text-[15px] font-semibold">Talk to George</div>
+            <div className="text-[13px] text-white/85">Drop a contract, forward an email, or ask about any partner.</div>
+          </div>
+        </div>
+        <ArrowRight size={18} />
+      </Link>
     </div>
   );
 }
 
-function GlassStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="glass min-w-[110px] rounded-md px-5 py-3 backdrop-blur">
-      <div className="text-[22px] font-bold leading-none text-[var(--color-fg-inverse)]">
-        {value}
-      </div>
-      <div className="mt-1 text-[11px] text-white/70">{label}</div>
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  icon: Icon,
-  tone,
-  accent,
-  href,
-}: {
-  label: string;
-  value: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  tone?: "success" | "warning" | "info";
-  accent?: boolean;
-  href?: string;
-}) {
-  const toneClass =
-    tone === "success"
-      ? "bg-[var(--color-success-light)] text-[var(--color-success)]"
-      : tone === "warning"
-        ? "bg-[var(--color-badge-training-bg)] text-[var(--color-badge-training-fg)]"
-        : tone === "info"
-          ? "bg-[#E6F0FA] text-[var(--color-info)]"
-          : accent
-            ? "bg-[var(--color-accent-light)] text-[var(--color-accent)]"
-            : "bg-[var(--color-surface-2)] text-[var(--color-fg-secondary)]";
-
-  const body = (
-    <div className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-4 transition-colors hover:border-[var(--color-accent)]/30">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-[var(--color-fg-muted)]">{label}</span>
-        <span
-          className={`flex h-7 w-7 items-center justify-center rounded-md ${toneClass}`}
-        >
-          <Icon size={14} />
-        </span>
-      </div>
-      <div className="mt-3 text-[22px] font-bold text-[var(--color-fg)]">{value}</div>
-    </div>
-  );
-
-  return href ? (
-    <Link href={href} className="block">
-      {body}
-    </Link>
-  ) : (
-    body
-  );
-}
-
-function EmptyState({
-  icon: Icon,
+function Card({
   title,
-  body,
+  right,
+  badge,
+  children,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
   title: string;
-  body: string;
+  right?: React.ReactNode;
+  badge?: number;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-[var(--color-border-subtle)] py-10 text-center">
-      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--color-surface-2)] text-[var(--color-fg-muted)]">
-        <Icon size={18} />
+    <section className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-[14px] font-semibold text-[var(--color-fg)]">
+          {title}
+          {badge ? (
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-accent)] px-1.5 text-[11px] font-medium text-white">
+              {badge}
+            </span>
+          ) : null}
+        </h2>
+        {right}
       </div>
-      <div className="text-sm font-medium text-[var(--color-fg)]">{title}</div>
-      <p className="max-w-[320px] text-xs text-[var(--color-fg-muted)]">{body}</p>
+      {children}
+    </section>
+  );
+}
+
+function NeedGroup({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-[var(--color-fg-muted)]">
+        {icon}
+        {label}
+      </div>
+      <div className="space-y-1">{children}</div>
     </div>
   );
+}
+
+function NeedRow({ href, title, sub }: { href: string; title: string; sub: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-3 py-2 hover:bg-[var(--color-surface-2)]"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-medium text-[var(--color-fg)]">{title}</span>
+        {sub && <span className="block truncate text-[11px] text-[var(--color-fg-muted)]">{sub}</span>}
+      </span>
+      <ArrowRight size={13} className="shrink-0 text-[var(--color-fg-muted)]" />
+    </Link>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="rounded-md border border-dashed border-[var(--color-border-subtle)] px-4 py-8 text-center text-[13px] text-[var(--color-fg-muted)]">
+      {text}
+    </div>
+  );
+}
+
+function providerLabel(provider: string): string {
+  const map: Record<string, string> = {
+    composio: "Composio",
+    m365: "Microsoft 365",
+    outlook: "Microsoft Outlook",
+    onedrive: "Microsoft OneDrive",
+    fireflies: "Fireflies",
+    zoho: "Zoho CRM",
+    gmail: "Gmail",
+    slack: "Slack",
+  };
+  return map[provider] ?? provider;
 }

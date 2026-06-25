@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowUpRight, MessageSquare, Users } from "lucide-react";
+import { MessageSquare, Users } from "lucide-react";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import { KindBadge, LifecycleBadge } from "@/components/ui/badge";
 import { NewPartnerButton } from "./_partner-form";
+import { PartnersView, type PartnerRow } from "./_partners-view";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,6 @@ type CustomerRow = {
   customer_kind: "partner" | "end_customer";
   parent_customer_id: string | null;
   industry: string | null;
-  size: string | null;
   updated_at: string;
 };
 
@@ -23,22 +22,93 @@ export default async function CustomersPage() {
   const { data: customers } = await supabase
     .from("customers")
     .select(
-      "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, size, updated_at",
+      "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, updated_at",
     )
     .order("updated_at", { ascending: false })
-    .limit(200);
+    .limit(300);
 
   const rows = (customers ?? []) as CustomerRow[];
   const byId = new Map(rows.map((r) => [r.id, r] as const));
+  const ids = rows.map((r) => r.id);
+
+  // Latest health + open objectives in two bulk queries (no N+1).
+  const [healthRes, objRes] = await Promise.all([
+    ids.length
+      ? supabase
+          .from("customer_health")
+          .select("customer_id, band, score, measured_at")
+          .in("customer_id", ids)
+          .order("measured_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+    ids.length
+      ? supabase
+          .from("objectives")
+          .select("customer_id, title, status, due_date, next_followup_at")
+          .in("customer_id", ids)
+          .in("status", ["pending", "awaiting", "blocked"])
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const latestHealth = new Map<string, { band: string; score: number | null }>();
+  for (const h of (healthRes.data ?? []) as Array<{
+    customer_id: string;
+    band: string;
+    score: number | null;
+  }>) {
+    if (!latestHealth.has(h.customer_id)) {
+      latestHealth.set(h.customer_id, { band: h.band, score: h.score });
+    }
+  }
+
+  const objByCustomer = new Map<
+    string,
+    Array<{ title: string; due_date: string | null; next_followup_at: string | null }>
+  >();
+  for (const o of (objRes.data ?? []) as Array<{
+    customer_id: string;
+    title: string;
+    due_date: string | null;
+    next_followup_at: string | null;
+  }>) {
+    const arr = objByCustomer.get(o.customer_id) ?? [];
+    arr.push({ title: o.title, due_date: o.due_date, next_followup_at: o.next_followup_at });
+    objByCustomer.set(o.customer_id, arr);
+  }
+
+  function nextStepFor(id: string): string | null {
+    const arr = objByCustomer.get(id);
+    if (!arr || arr.length === 0) return null;
+    // Most urgent: soonest due_date, else soonest next_followup_at.
+    const sorted = [...arr].sort((a, b) => {
+      const ax = a.due_date ?? a.next_followup_at ?? "9999";
+      const bx = b.due_date ?? b.next_followup_at ?? "9999";
+      return ax < bx ? -1 : ax > bx ? 1 : 0;
+    });
+    return sorted[0].title;
+  }
+
+  const partnerRows: PartnerRow[] = rows.map((c) => ({
+    id: c.id,
+    name: c.name,
+    domain: c.domain,
+    kind: c.customer_kind,
+    lifecycle: c.lifecycle,
+    parentName: c.parent_customer_id ? byId.get(c.parent_customer_id)?.name ?? null : null,
+    industry: c.industry,
+    health: latestHealth.get(c.id) ?? null,
+    nextStep: nextStepFor(c.id),
+    openObjectives: objByCustomer.get(c.id)?.length ?? 0,
+    updated_at: c.updated_at,
+  }));
 
   return (
-    <div className="w-full space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7">
-      <header className="flex items-end justify-between">
+    <div className="w-full space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Channel partners</h1>
+          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Partners</h1>
           <p className="text-sm text-[var(--color-fg-secondary)]">
-            Partners (MSPs) Onyx contracts with, and the end customers under each one.
-            Drop a contract in chat to add a new partner.
+            The partners George is onboarding, by stage. Drop a signed contract in chat
+            and he creates the record, contacts, and plan.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -53,93 +123,9 @@ export default async function CustomersPage() {
         </div>
       </header>
 
-      {rows.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-3)] text-[12px] uppercase tracking-wide text-[var(--color-fg-secondary)]">
-              <tr>
-                <Th>Name</Th>
-                <Th>Kind</Th>
-                <Th>Lifecycle</Th>
-                <Th>Partner</Th>
-                <Th>Domain</Th>
-                <Th>Industry</Th>
-                <Th>Updated</Th>
-                <Th>{""}</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((c) => {
-                const parent = c.parent_customer_id
-                  ? byId.get(c.parent_customer_id) ?? null
-                  : null;
-                return (
-                  <tr
-                    key={c.id}
-                    className="group border-t border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-3)]"
-                  >
-                    <Td>
-                      <Link
-                        href={`/customers/${c.id}`}
-                        className="font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
-                      >
-                        {c.name}
-                      </Link>
-                    </Td>
-                    <Td>
-                      <KindBadge kind={c.customer_kind} />
-                    </Td>
-                    <Td>
-                      <LifecycleBadge value={c.lifecycle} />
-                    </Td>
-                    <Td className="text-[var(--color-fg-secondary)]">
-                      {parent ? (
-                        <Link
-                          href={`/customers/${parent.id}`}
-                          className="hover:text-[var(--color-accent)]"
-                        >
-                          {parent.name}
-                        </Link>
-                      ) : (
-                        "—"
-                      )}
-                    </Td>
-                    <Td className="text-[var(--color-fg-secondary)]">{c.domain ?? "—"}</Td>
-                    <Td className="text-[var(--color-fg-secondary)]">{c.industry ?? "—"}</Td>
-                    <Td className="text-[var(--color-fg-muted)]">{formatDate(c.updated_at)}</Td>
-                    <Td>
-                      <Link
-                        href={`/customers/${c.id}`}
-                        className="opacity-0 transition group-hover:opacity-100"
-                        aria-label="Open"
-                      >
-                        <ArrowUpRight size={14} className="text-[var(--color-fg-muted)]" />
-                      </Link>
-                    </Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {partnerRows.length === 0 ? <EmptyState /> : <PartnersView rows={partnerRows} />}
     </div>
   );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-2.5 font-medium">{children}</th>;
-}
-function Td({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return <td className={`px-4 py-3 align-middle ${className ?? ""}`}>{children}</td>;
 }
 
 function EmptyState() {
@@ -148,7 +134,7 @@ function EmptyState() {
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
         <Users size={20} />
       </div>
-      <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">No channel partners yet</h2>
+      <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">No partners yet</h2>
       <p className="max-w-[360px] text-sm text-[var(--color-fg-secondary)]">
         Drop a signed partner contract into the George chat and he&apos;ll create the
         record, contacts, and onboarding plan. End customers get added under each
@@ -166,15 +152,4 @@ function EmptyState() {
       </div>
     </div>
   );
-}
-
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  const now = Date.now();
-  const diff = now - d.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }

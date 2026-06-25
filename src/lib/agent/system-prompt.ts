@@ -37,11 +37,15 @@ export type BuildSystemPromptOptions = {
   orgId: string;
   /** When true, appends GEORGE_AUTONOMOUS_RUN_PROMPT at the end. */
   autonomous?: boolean;
+  /** When set, this conversation is scoped to one customer (the account hub's
+   *  "Ask George about <partner>" chat). Appends a "Current account" block so
+   *  George knows who the conversation is about without being told. */
+  customerId?: string | null;
 };
 
 export async function buildGeorgeSystemPrompt(
   admin: SupabaseClient,
-  { orgId, autonomous = false }: BuildSystemPromptOptions,
+  { orgId, autonomous = false, customerId = null }: BuildSystemPromptOptions,
 ): Promise<string> {
   const [orgRes, docsRes] = await Promise.all([
     admin
@@ -63,10 +67,59 @@ export async function buildGeorgeSystemPrompt(
   const knowledgeBlock = buildKnowledgeBlock(
     (docsRes.data ?? []) as KnowledgeDoc[],
   );
+  const accountBlock = await buildAccountBlock(admin, orgId, customerId);
 
-  const parts: string[] = [GEORGE_SYSTEM_PROMPT, orgBlock, knowledgeBlock];
+  const parts: string[] = [
+    GEORGE_SYSTEM_PROMPT,
+    orgBlock,
+    accountBlock,
+    knowledgeBlock,
+  ];
   if (autonomous) parts.push("\n\n" + GEORGE_AUTONOMOUS_RUN_PROMPT);
   return parts.join("");
+}
+
+/**
+ * "Current account" block — appended when a conversation is scoped to one
+ * customer so George opens already knowing who it's about. He should still use
+ * the tools (get_customer, list_objectives, get_thread) for live detail; this
+ * is just the anchor so he doesn't have to ask "which customer?".
+ */
+async function buildAccountBlock(
+  admin: SupabaseClient,
+  orgId: string,
+  customerId: string | null,
+): Promise<string> {
+  if (!customerId) return "";
+  const { data } = await admin
+    .from("customers")
+    .select("id, name, domain, lifecycle, customer_kind, industry")
+    .eq("org_id", orgId)
+    .eq("id", customerId)
+    .maybeSingle();
+  if (!data) return "";
+  const c = data as {
+    id: string;
+    name: string;
+    domain: string | null;
+    lifecycle: string;
+    customer_kind: string;
+    industry: string | null;
+  };
+  const lines = [
+    `- Name: ${c.name}`,
+    `- Customer id: \`${c.id}\` (use this with get_customer / list_objectives / create_objective)`,
+    `- Kind: ${c.customer_kind}`,
+    `- Lifecycle: ${c.lifecycle}`,
+    c.domain ? `- Domain: ${c.domain}` : null,
+    c.industry ? `- Industry: ${c.industry}` : null,
+  ].filter(Boolean);
+  return (
+    "\n\n# Current account\n\nThis conversation is about the following customer. " +
+    "Assume questions and actions are about them unless told otherwise; call " +
+    "`get_customer` for the full picture (contacts, objectives, plan, health).\n\n" +
+    lines.join("\n")
+  );
 }
 
 export function buildOrgBlock(org: OrgProfile | null): string {

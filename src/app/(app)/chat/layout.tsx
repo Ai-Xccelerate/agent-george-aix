@@ -9,15 +9,17 @@ export default async function ChatLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createSupabaseServer();
-  // Agent George rail shows human-initiated chats only. Email-channel
-  // sessions live in /inbox — surfacing them here too is noisy and
-  // contradicts the "inbox is the triage surface" model.
+  // General conversations with George — the "talk to George about anything"
+  // surface. Account-specific threads live in each partner's account hub, and
+  // email threads live in the Inbox; both are excluded here so this stays the
+  // general workspace (chat channel, not scoped to a customer).
   const { data } = await supabase
     .from("agent_sessions")
     .select("id, title, updated_at, channel")
     .eq("channel", "chat")
+    .is("customer_id", null)
     .order("updated_at", { ascending: false })
-    .limit(100);
+    .limit(150);
   const sessions = (data ?? []) as HistoryItem[];
 
   return (

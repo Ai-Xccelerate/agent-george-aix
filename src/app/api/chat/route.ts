@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     ? (
         await admin
           .from("agent_sessions")
-          .select("id, sdk_session_id, title")
+          .select("id, sdk_session_id, title, customer_id")
           .eq("id", sessionId)
           .eq("org_id", user.orgId)
           .maybeSingle()
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         // `after()` block below).
         title: lastUser.content.slice(0, 80),
       })
-      .select("id, sdk_session_id, title")
+      .select("id, sdk_session_id, title, customer_id")
       .single();
     dbSession = data;
   }
@@ -140,6 +140,9 @@ export async function POST(req: NextRequest) {
 
       const fullSystemPrompt = await buildGeorgeSystemPrompt(admin, {
         orgId: user.orgId,
+        customerId:
+          (dbSession as { customer_id?: string | null } | null)?.customer_id ??
+          null,
       });
 
       // Explicit built-in allowlist. We intentionally EXCLUDE Bash, Read,
