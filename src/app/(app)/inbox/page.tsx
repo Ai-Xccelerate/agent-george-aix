@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   Building2,
   Inbox as InboxIcon,
-  Mail,
   MessageSquare,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
@@ -188,21 +187,12 @@ export default async function InboxPage({
 
   return (
     <div className="w-full space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
-      <header className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Inbox</h1>
-          <p className="text-sm text-[var(--color-fg-secondary)]">
-            Every email George handles, by account — inbound to his mailbox and the
-            replies he drafts and sends. Click a message to read the full thread.
-          </p>
-        </div>
-        <Link
-          href="/chat"
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
-        >
-          <MessageSquare size={14} />
-          Compose in chat
-        </Link>
+      <header>
+        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Inbox</h1>
+        <p className="text-sm text-[var(--color-fg-secondary)]">
+          Every email George handles, by account — inbound to his mailbox and the
+          replies he drafts and sends. Click a message to read the full thread.
+        </p>
       </header>
 
       <FilterStrip current={filter} counts={counts} />
@@ -485,13 +475,6 @@ function EmptyState({ filter }: { filter: "all" | "inbound" | "outbound" }) {
       <p className="max-w-[440px] text-sm text-[var(--color-fg-secondary)]">
         {copy.body}
       </p>
-      <Link
-        href="/chat"
-        className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 py-2 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
-      >
-        <Mail size={14} />
-        Compose in chat
-      </Link>
     </div>
   );
 }

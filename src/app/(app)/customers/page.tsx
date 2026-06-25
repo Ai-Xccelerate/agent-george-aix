@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { MessageSquare, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { NewPartnerButton } from "./_partner-form";
 import { PartnersView, type PartnerRow } from "./_partners-view";
@@ -111,16 +110,7 @@ export default async function CustomersPage() {
             and he creates the record, contacts, and plan.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/chat"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
-          >
-            <MessageSquare size={14} />
-            Add via chat
-          </Link>
-          <NewPartnerButton />
-        </div>
+        <NewPartnerButton />
       </header>
 
       {partnerRows.length === 0 ? <EmptyState /> : <PartnersView rows={partnerRows} />}
@@ -140,15 +130,8 @@ function EmptyState() {
         record, contacts, and onboarding plan. End customers get added under each
         partner once they sign.
       </p>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2">
         <NewPartnerButton />
-        <Link
-          href="/chat"
-          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
-        >
-          <MessageSquare size={14} />
-          Or add via chat
-        </Link>
       </div>
     </div>
   );

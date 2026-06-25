@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, ArrowRight, Flag, Mail, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowRight, Flag, Mail } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { LifecycleBadge } from "@/components/ui/badge";
@@ -205,20 +205,6 @@ export default async function DashboardPage() {
           </Card>
         </div>
       </div>
-
-      <Link
-        href="/chat"
-        className="flex items-center justify-between gap-4 rounded-[14px] brand-gradient px-6 py-4 text-white shadow-[var(--shadow-cta)] hover:opacity-95"
-      >
-        <div className="flex items-center gap-3">
-          <Sparkles size={18} />
-          <div>
-            <div className="text-[15px] font-semibold">Talk to George</div>
-            <div className="text-[13px] text-white/85">Drop a contract, forward an email, or ask about any partner.</div>
-          </div>
-        </div>
-        <ArrowRight size={18} />
-      </Link>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarDays,
   Inbox,
   LayoutDashboard,
   MessageSquare,
@@ -20,6 +21,7 @@ const nav = [
   { href: "/chat", label: "Agent George", icon: MessageSquare },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/customers", label: "Partners", icon: Users },
+  { href: "/meetings", label: "Meetings", icon: CalendarDays },
 ];
 
 export type SidebarUser = { fullName: string; email: string | null; orgName: string };

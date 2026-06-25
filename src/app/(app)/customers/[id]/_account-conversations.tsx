@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import Link from "next/link";
-import { ChevronLeft, Clock, Loader2, Mail, MessageSquare, Sparkles } from "lucide-react";
-import { ChatClient } from "../../chat/_chat-client";
+import { Clock, Loader2, Mail, MessageSquare, Sparkles } from "lucide-react";
 import { startAccountChatAction } from "../../chat/actions";
 
 type Session = {
@@ -13,10 +12,11 @@ type Session = {
   updated_at: string;
 };
 
-// Account-scoped conversations: every chat/email thread about this partner,
-// plus an inline "Ask George about <partner>" that opens a fresh, account-aware
-// chat right here (no navigating away). Existing threads open in the full chat
-// view (they carry history); a new thread starts empty, so it embeds inline.
+// Account conversations: lists every thread about this partner and starts new
+// ones. There's one chat surface in the app — the floating bubble — so "Ask
+// George about <partner>" creates an account-scoped session and opens the
+// bubble with it (George is account-aware via the chat prompt's account block).
+// Past threads open in the full chat view, which carries their history.
 export function AccountConversations({
   customerId,
   customerName,
@@ -26,37 +26,15 @@ export function AccountConversations({
   customerName: string;
   sessions: Session[];
 }) {
-  const [openId, setOpenId] = useState<string | null>(null);
   const [starting, startTransition] = useTransition();
 
-  function startNew() {
+  function ask() {
     startTransition(async () => {
       const id = await startAccountChatAction(customerId);
-      setOpenId(id);
+      window.dispatchEvent(
+        new CustomEvent("george:open-session", { detail: { sessionId: id } }),
+      );
     });
-  }
-
-  if (openId) {
-    return (
-      <section className="flex h-[min(70vh,640px)] flex-col overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border-subtle)] px-4 py-2.5">
-          <button
-            type="button"
-            onClick={() => setOpenId(null)}
-            className="inline-flex items-center gap-1 text-[12px] text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"
-          >
-            <ChevronLeft size={13} />
-            Conversations
-          </button>
-          <span className="truncate text-[12px] font-medium text-[var(--color-fg-muted)]">
-            About {customerName}
-          </span>
-        </div>
-        <div className="min-h-0 flex-1">
-          <ChatClient sessionId={openId} initialMessages={[]} embedded />
-        </div>
-      </section>
-    );
   }
 
   return (
@@ -68,7 +46,7 @@ export function AccountConversations({
 
       <button
         type="button"
-        onClick={startNew}
+        onClick={ask}
         disabled={starting}
         className="flex w-full items-center justify-center gap-2 rounded-md brand-gradient px-3 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:opacity-95 disabled:opacity-70"
       >
@@ -130,8 +108,5 @@ function timeAgo(iso: string) {
   }
   if (days === 1) return "yesterday";
   if (days < 14) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
