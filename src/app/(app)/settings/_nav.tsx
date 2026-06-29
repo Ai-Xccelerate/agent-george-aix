@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bot,
+  BrainCircuit,
   Building2,
   BookOpen,
   Clock,
+  Network,
   Puzzle,
   ScrollText,
   ShieldCheck,
@@ -30,6 +32,8 @@ const SECTIONS: Section[] = [
     items: [
       { href: "/settings/agent", label: "Identity", icon: Bot, adminOnly: true },
       { href: "/settings/agent/policy", label: "Operating model", icon: ScrollText, adminOnly: true },
+      { href: "/settings/agent/knowledge", label: "Knowledge review", icon: BrainCircuit, adminOnly: true },
+      { href: "/settings/agent/graph", label: "Knowledge graph", icon: Network, adminOnly: true },
       { href: "/settings/integrations", label: "Integrations", icon: Puzzle, adminOnly: true },
       { href: "/settings/knowledge", label: "Knowledge", icon: BookOpen, adminOnly: true },
       { href: "/settings/jobs", label: "Standing jobs", icon: Clock, adminOnly: true },

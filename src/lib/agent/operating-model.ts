@@ -179,6 +179,19 @@ export const POLICY_CATALOG: Policy[] = [
       "Do not auto-draft meeting recaps. Only draft a recap when the user explicitly asks.",
   },
   {
+    id: "knowledge_capture",
+    group: "behavior",
+    kind: "toggle",
+    label: "Continuous knowledge capture",
+    description:
+      "Propose durable, reusable knowledge from conversations, emails, and meetings — staged for human review, never published autonomously.",
+    default: true,
+    promptOn:
+      "Continuous knowledge development is ON. When a conversation, email, or meeting surfaces something durable and reusable that isn't already in your knowledge base — a process, a partner fact, a product detail, a recurring answer, a decision — call `propose_knowledge` to stage it for human review. Search the knowledge base first to avoid duplicates; propose one concept at a time; put new learnings under a `supplemental/...` path; never overwrite a `core/...` concept unless explicitly told. Proposing is staging only — a human reviews and approves before anything enters your knowledge.",
+    promptOff:
+      "Continuous knowledge capture is OFF. Do not proactively propose new knowledge concepts; only use `propose_knowledge` when a human explicitly asks you to capture something.",
+  },
+  {
     id: "report_daily_rollup",
     group: "behavior",
     kind: "toggle",

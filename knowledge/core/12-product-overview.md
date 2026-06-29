@@ -1,3 +1,10 @@
+---
+type: reference
+title: Onyx — Product Overview
+description: Transition Hub, Support Hub, and the platform George supports.
+tags: [product, transition-hub, support-hub]
+links: [/core/10-company-overview.md]
+---
 # Onyx — Product Overview
 
 Onyx is a platform for Microsoft partners. It runs the assessments and licensing analysis that a partner needs to win an Enterprise Agreement to CSP transition, and it answers the licensing questions that arrive once the customer is on. The platform is delivered to the partner as partner-branded software; the partner's customers experience it as the partner's tool, not as Onyx. A human "coach" (program manager) sits on top of the platform to teach partners how to use it well.

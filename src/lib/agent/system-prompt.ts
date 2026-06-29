@@ -38,6 +38,8 @@ type KnowledgeDoc = {
   path: string;
   title: string | null;
   is_core: boolean;
+  concept_type: string | null;
+  tags: string[] | null;
 };
 
 export type BuildSystemPromptOptions = {
@@ -64,8 +66,9 @@ export async function buildGeorgeSystemPrompt(
       .maybeSingle(),
     admin
       .from("knowledge_docs")
-      .select("path, title, is_core")
+      .select("path, title, is_core, concept_type, tags")
       .eq("org_id", orgId)
+      .eq("status", "active") // never surface pending_review proposals in retrieval
       .order("is_core", { ascending: false })
       .order("path"),
     getAgentSettings(admin, orgId),
@@ -135,6 +138,11 @@ async function buildIdentityBlock(
         : " (execute end-to-end and report back; a human post-reviews on cadence)"),
   );
   lines.push(`- Tone preset: ${personalityPrompt(agent.personality)}`);
+  if (agent.knowledge_reviewers.length) {
+    lines.push(
+      `- Knowledge reviewers: ${agent.knowledge_reviewers.join(", ")}. These people review your proposed knowledge on a weekly cadence; address the weekly knowledge-review digest to them.`,
+    );
+  }
 
   return (
     "\n\n# Agent identity (configured for this org)\n\n" +
@@ -223,8 +231,13 @@ export function buildOrgBlock(org: OrgProfile | null): string {
 
 export function buildKnowledgeBlock(docs: KnowledgeDoc[]): string {
   if (docs.length === 0) return "";
-  const fmt = (d: KnowledgeDoc) =>
-    `- \`${d.path}\` — ${d.title ?? "(untitled)"}`;
+  const fmt = (d: KnowledgeDoc) => {
+    const meta: string[] = [];
+    if (d.concept_type) meta.push(d.concept_type);
+    if (d.tags && d.tags.length) meta.push(d.tags.map((t) => `#${t}`).join(" "));
+    const suffix = meta.length ? `  _(${meta.join(" · ")})_` : "";
+    return `- \`${d.path}\` — ${d.title ?? "(untitled)"}${suffix}`;
+  };
   const core = docs.filter((d) => d.is_core);
   const supp = docs.filter((d) => !d.is_core);
   const sections: string[] = [

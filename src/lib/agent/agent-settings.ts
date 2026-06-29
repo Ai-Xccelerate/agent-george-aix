@@ -27,6 +27,8 @@ export type AgentSettings = {
   avatar_path: string | null;
   /** Sparse Tier-2/3 policy overrides; merged over the code catalog at use. */
   operating_policy: PolicyOverrides;
+  /** Emails that review George's knowledge proposals weekly (e.g. Nawaz, John). */
+  knowledge_reviewers: string[];
 };
 
 /** Matches the in-code prompt defaults so an unconfigured org reads identically. */
@@ -39,6 +41,7 @@ export const AGENT_DEFAULTS: AgentSettings = {
   owner_user_id: null,
   avatar_path: null,
   operating_policy: {},
+  knowledge_reviewers: [],
 };
 
 export const PERSONALITY_OPTIONS: {
@@ -110,7 +113,7 @@ export async function getAgentSettings(
   const { data } = await admin
     .from("agent_settings")
     .select(
-      "name, title, bio, personality, operating_mode, owner_user_id, avatar_path, operating_policy",
+      "name, title, bio, personality, operating_mode, owner_user_id, avatar_path, operating_policy, knowledge_reviewers",
     )
     .eq("org_id", orgId)
     .eq("agent_slug", AGENT_SLUG)
@@ -127,5 +130,6 @@ export async function getAgentSettings(
     owner_user_id: data.owner_user_id ?? null,
     avatar_path: data.avatar_path ?? null,
     operating_policy: (data.operating_policy as PolicyOverrides) ?? {},
+    knowledge_reviewers: (data.knowledge_reviewers as string[]) ?? [],
   };
 }

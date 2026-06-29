@@ -1370,6 +1370,94 @@ export function buildGeorgeMcpServer(
     },
   );
 
+  // ---- propose_knowledge ------------------------------------------
+  const proposeKnowledge = tool(
+    "propose_knowledge",
+    "Propose a durable knowledge concept for the org's knowledge base, learned from a conversation, email, meeting, or instruction. This does NOT publish — it stages the concept for human review (like drafting an email instead of sending). Use it when you learn something reusable that isn't already captured: a process, a partner fact, a product detail, a decision, a recurring answer. Do NOT propose ephemeral or customer-record data (that goes through the customer tools), and don't duplicate what's already in the knowledge manifest — search first. Keep one concept per proposal.",
+    {
+      path: z
+        .string()
+        .min(3)
+        .describe(
+          "Concept path, e.g. 'supplemental/zoho-renewal-quirks.md'. Use 'supplemental/...' for new learnings; never overwrite a 'core/...' path unless explicitly told to.",
+        ),
+      type: z
+        .string()
+        .min(1)
+        .describe("OKF concept type: e.g. 'process', 'reference', 'playbook', 'faq', 'decision'."),
+      title: z.string().min(1),
+      description: z.string().min(1).describe("One-sentence summary."),
+      content_md: z
+        .string()
+        .min(1)
+        .describe("The concept body in markdown (no frontmatter — just the content)."),
+      tags: z.array(z.string()).optional(),
+      links: z
+        .array(z.string())
+        .optional()
+        .describe("Paths of related concepts, e.g. ['/core/02-agent-george-role.md']."),
+      source: z
+        .enum(["chat", "email", "meeting", "instruction", "manual"])
+        .describe("Where this knowledge came from."),
+      rationale: z
+        .string()
+        .min(1)
+        .describe("Why this is worth keeping and reviewing — what gap it fills."),
+    },
+    async ({ path, type, title, description, content_md, tags, links, source, rationale }) => {
+      const existing = await db
+        .from("knowledge_docs")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("path", path)
+        .maybeSingle();
+      const kind = existing.data ? "update" : "create";
+
+      const { data, error } = await db
+        .from("knowledge_proposals")
+        .insert({
+          org_id: orgId,
+          path,
+          kind,
+          concept_type: type,
+          title,
+          description,
+          tags: tags ?? [],
+          links: links ?? [],
+          content_md,
+          source,
+          source_ref: ctx.sessionId ?? null,
+          rationale,
+          proposed_by: ctx.userId,
+          status: "pending",
+        })
+        .select("id, path, kind, status")
+        .single();
+      if (error) return fail(error.message);
+      return ok({
+        proposal: data,
+        note: "Staged for human review. It will NOT enter George's knowledge until a reviewer approves it in Settings → Agent George → Knowledge.",
+      });
+    },
+  );
+
+  // ---- list_pending_knowledge -------------------------------------
+  const listPendingKnowledge = tool(
+    "list_pending_knowledge",
+    "List knowledge proposals awaiting human review for this org. Use this for the weekly knowledge-review digest — to compile what you've proposed since the last review so a human can approve or reject it. Read-only.",
+    {},
+    async () => {
+      const { data, error } = await db
+        .from("knowledge_proposals")
+        .select("id, path, kind, concept_type, title, description, source, rationale, created_at")
+        .eq("org_id", orgId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) return fail(error.message);
+      return ok({ pending: data ?? [], count: (data ?? []).length });
+    },
+  );
+
   const supabaseTools = [
     findCustomer,
     listCustomers,
@@ -1392,6 +1480,8 @@ export function buildGeorgeMcpServer(
     searchKnowledge,
     readKnowledgeDoc,
     readDocument,
+    proposeKnowledge,
+    listPendingKnowledge,
   ];
 
   const composioTools = buildComposioTools({

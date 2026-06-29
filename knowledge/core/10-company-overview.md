@@ -1,3 +1,10 @@
+---
+type: reference
+title: Onyx — Company Overview
+description: What Onyx is, who it serves, and the partner-led business model.
+tags: [company, onyx]
+links: [/core/12-product-overview.md, /core/14-icp-and-personas.md]
+---
 # Onyx — Company Overview
 
 Onyx (getonyx.ai) builds software that helps Microsoft partners — MSPs and CSPs — win, support, and grow enterprise Microsoft customers. The lead product, Transition Hub, helps a partner price and win an Enterprise Agreement to CSP transition; the second, Support Hub, gives that partner a scalable way to answer the licensing questions that arrive once the customer is on. Onyx ships software, not a service, and pairs the platform with a human program-management ("coaching") layer that teaches partners how to use it.

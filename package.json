@@ -17,6 +17,7 @@
     "lint": "eslint",
     "sync:knowledge": "tsx scripts/sync-knowledge.ts",
     "seed:reporting-job": "tsx scripts/seed-reporting-job.ts",
+    "seed:knowledge-review-job": "tsx scripts/seed-knowledge-review-job.ts",
     "db:migrate": "bash scripts/db-migrate.sh"
   },
   "dependencies": {

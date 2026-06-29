@@ -1,3 +1,9 @@
+---
+type: reference
+title: Agent George — Knowledge Base (Core)
+description: Orientation for the core knowledge bundle.
+tags: [meta]
+---
 # Agent George — Knowledge Base (Core)
 
 Canonical knowledge for Agent George. Synthesized from Onyx working sessions (Seattle workshop, May 2026) and supersedes any earlier draft. Files marked core ship in George's session manifest; he fetches them in full on demand.

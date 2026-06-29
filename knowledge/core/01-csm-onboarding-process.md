@@ -1,3 +1,10 @@
+---
+type: process
+title: Onyx — CSM Onboarding Process
+description: How Onyx onboards a newly signed partner from contract to running assessments.
+tags: [onboarding, csm, process]
+links: [/core/02-agent-george-role.md, /core/03-agent-george-lifecycle-steps.md]
+---
 # Onyx — CSM Onboarding Process
 
 This file describes how Onyx onboards a new partner and where the value is. The process is **partner-centric**, not end-customer-centric: Onyx onboards the partner (the MSP / CSP), and the partner then runs assessments on their own customers using Transition Hub. The bottleneck is the human coaching layer — a coach can only carry so many active onboardings at once. The work in flight is to lift that cap without losing the coaching quality the partner is buying.

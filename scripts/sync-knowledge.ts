@@ -25,6 +25,10 @@ import {
   chunkMarkdown,
   extractTitle,
 } from "../src/lib/knowledge/chunk";
+import { parseFrontmatter } from "../src/lib/knowledge/frontmatter";
+
+// OKF reserved filenames — navigation / change-history, not concepts.
+const RESERVED = new Set(["index.md", "log.md"]);
 
 loadEnv({ path: path.resolve(process.cwd(), ".env.local") });
 
@@ -64,10 +68,21 @@ async function main() {
 
   for (const absPath of files) {
     const relPath = path.relative(KNOWLEDGE_DIR, absPath).split(path.sep).join("/");
+
+    // Skip OKF reserved files (index.md / log.md) — they're navigation and
+    // change-history, not retrievable concepts. Leaving them out of seenPaths
+    // is fine: they were never inserted as docs, so the prune step ignores them.
+    if (RESERVED.has(path.basename(relPath))) {
+      console.log(`  · skipped (reserved)  ${relPath}`);
+      continue;
+    }
     seenPaths.push(relPath);
 
     const content = await fs.readFile(absPath, "utf8");
-    const title = extractTitle(content) ?? path.basename(absPath, ".md");
+    const { data: fm, body } = parseFrontmatter(content);
+
+    // Frontmatter title wins; fall back to the body's H1, then the filename.
+    const title = fm.title ?? extractTitle(body) ?? path.basename(absPath, ".md");
 
     const { data: existing } = await supabase
       .from("knowledge_docs")
@@ -89,10 +104,17 @@ async function main() {
       org_id: ONYX_ORG_ID,
       path: relPath,
       title,
-      content_md: content,
+      content_md: content, // full raw file (incl. frontmatter) for round-trip
       source: "manual",
       is_core: isCore,
       version: (existing?.version ?? 0) + 1,
+      // OKF fields from frontmatter (sensible default type if missing).
+      concept_type: fm.type ?? (isCore ? "playbook" : "reference"),
+      description: fm.description ?? null,
+      tags: fm.tags ?? [],
+      resource: fm.resource ?? null,
+      links: fm.links ?? [],
+      status: "active",
     };
 
     const { data: doc, error: docErr } = await supabase
@@ -106,7 +128,8 @@ async function main() {
     const del = await supabase.from("knowledge_chunks").delete().eq("doc_id", doc.id);
     if (del.error) throw del.error;
 
-    const chunks = chunkMarkdown(content, CHUNK_TARGET, CHUNK_OVERLAP);
+    // Chunk the body only — the YAML frontmatter is metadata, not retrievable prose.
+    const chunks = chunkMarkdown(body, CHUNK_TARGET, CHUNK_OVERLAP);
     if (chunks.length > 0) {
       const embeddings = embeddingsEnabled ? await embedBatch(chunks) : [];
       const rows = chunks.map((c, i) => ({

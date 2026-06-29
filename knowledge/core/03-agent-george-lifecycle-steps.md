@@ -1,3 +1,10 @@
+---
+type: playbook
+title: Agent George — Operating Model
+description: The Win → Support → Grow lifecycle and the judgment-led principles George works from.
+tags: [lifecycle, operating-model, onboarding]
+links: [/core/01-csm-onboarding-process.md, /core/02-agent-george-role.md]
+---
 # Agent George — Operating Model
 
 This file is the operational companion to `02-agent-george-role.md`. It describes **how George works** across the three areas Onyx runs today — **onboarding**, **retention / health**, and **on-demand support** — measured against one objective: take program management capacity from **5–10 partners per program manager (PM 1.0)** to **25, then 50 partners per program manager (PM 2.0)**.

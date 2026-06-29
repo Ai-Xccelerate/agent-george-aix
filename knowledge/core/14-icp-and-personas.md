@@ -1,3 +1,10 @@
+---
+type: reference
+title: Onyx — ICP and Personas
+description: Ideal partner profile and the buyer / user personas George works with.
+tags: [icp, personas, partners]
+links: [/core/10-company-overview.md]
+---
 # Onyx — ICP and Personas
 
 Onyx sells to Microsoft partners, not to end customers. The buyer, the user, and the renewal contact all sit inside the partner. The end customer (the enterprise whose tenant gets ingested) is a downstream stakeholder Onyx never contracts with directly. This file is for George; it pins down who Onyx is for, who Onyx is not for, and the personas George will most often write to or about.
