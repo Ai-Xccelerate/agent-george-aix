@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
+  Bell,
   Building2,
   CalendarClock,
   CheckCircle2,
@@ -21,6 +22,7 @@ import {
   Users,
 } from "lucide-react";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { resolveEscalationAction } from "../../dashboard/actions";
 import {
   HealthBadge,
   KindBadge,
@@ -287,6 +289,23 @@ export default async function CustomerPage(
   const sessions = (sessionsRes.data ?? []) as Session[];
   const activity = (activityRes.data ?? []) as Activity[];
 
+  // Open decisions George raised about this partner — surfaced here so
+  // customer-specific actions live on the partner, not buried in /actions.
+  const { data: escRows } = await supabase
+    .from("escalations")
+    .select("id, title, urgency, session_id, created_at")
+    .eq("customer_id", customer.id)
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(10);
+  const openDecisions = (escRows ?? []) as Array<{
+    id: string;
+    title: string;
+    urgency: string;
+    session_id: string | null;
+    created_at: string;
+  }>;
+
   const docsRaw = (docsRes.data ?? []) as Array<{
     id: string;
     original_name: string;
@@ -374,6 +393,51 @@ export default async function CustomerPage(
               isn't a tall single column of scrolling; collapses to one
               column on laptops and stacks on mobile. ─────────────────── */}
         <div className="gap-6 [column-fill:balance] columns-1 xl:columns-2 [&>*]:mb-6 [&>*]:break-inside-avoid">
+          {openDecisions.length > 0 && (
+            <Section
+              title="Needs you"
+              icon={<Bell size={14} className="text-[var(--color-accent)]" />}
+              right={
+                <span className="text-[12px] text-[var(--color-fg-muted)]">
+                  {openDecisions.length}
+                </span>
+              }
+            >
+              <ul className="space-y-1.5">
+                {openDecisions.map((d) => (
+                  <li
+                    key={d.id}
+                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-[var(--color-surface-2)]"
+                  >
+                    <Link
+                      href={d.session_id ? `/chat/${d.session_id}` : "/actions"}
+                      className="min-w-0 flex-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        {d.urgency === "high" && (
+                          <span className="shrink-0 rounded-full bg-[var(--color-error)]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--color-error)]">
+                            high
+                          </span>
+                        )}
+                        <span className="truncate text-[13px] font-medium text-[var(--color-fg)]">
+                          {d.title}
+                        </span>
+                      </div>
+                    </Link>
+                    <form action={resolveEscalationAction} className="shrink-0">
+                      <input type="hidden" name="id" value={d.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2 py-1 text-[12px] font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+                      >
+                        Resolve
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
           <ObjectivesSection objectives={objectives} customerId={customer.id} />
 
           <Section
