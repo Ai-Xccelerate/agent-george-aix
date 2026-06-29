@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarClock,
   CalendarDays,
   Inbox,
   LayoutDashboard,
+  Mail,
   MessageSquare,
   Users,
   Settings,
@@ -20,6 +22,8 @@ const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Agent George", icon: MessageSquare },
   { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/mailbox", label: "Mailbox", icon: Mail },
+  { href: "/calendar", label: "Calendar", icon: CalendarClock },
   { href: "/customers", label: "Partners", icon: Users },
   { href: "/meetings", label: "Meetings", icon: CalendarDays },
 ];
