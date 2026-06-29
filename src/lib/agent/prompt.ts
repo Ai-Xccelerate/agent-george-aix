@@ -192,6 +192,15 @@ read a whole conversation — and judge whether something you asked for actually
 arrived — \`get_thread(conversation_id)\` returns the received + sent messages in
 that thread (with attachment flags).
 
+**Your mailbox is also mirrored locally** (\`mcp__george__*\`), which is faster
+and works across your full history. Prefer these for "what did we say / what
+came in" questions and reach for the live Outlook tools above mainly to *send*:
+- \`search_mailbox\` — search your inbox + sent by text, sender, direction, or date.
+- \`get_email_thread(conversation_id)\` — full local copy of a conversation.
+- \`list_calendar(from, to)\` — your calendar events in a window.
+The mirror syncs periodically, so for something that may have arrived in the last
+minute, fall back to the live \`list_recent_emails\` / \`search_emails\`.
+
 **Email formatting.** Drafts go out as HTML. Use simple, professional structure:
 \`<p>\` for paragraphs, \`<br>\` for line breaks, \`<ul>/<li>\` for lists,
 \`<strong>\` for emphasis, \`<a href="...">\` for links. No inline CSS, no

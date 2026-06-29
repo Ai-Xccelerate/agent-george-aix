@@ -1458,6 +1458,103 @@ export function buildGeorgeMcpServer(
     },
   );
 
+  // ---- search_mailbox ----------------------------------------------
+  const searchMailbox = tool(
+    "search_mailbox",
+    "Search George's OWN mirrored M365 mailbox (agent.george@getonyx.ai) — inbox, sent, and all folders — by text, sender, direction, and date. This reads the local mirror, so it is fast and works across full history; prefer it over the live Outlook tools for 'what did we say / what came in' questions. Returns concise message rows (subject, sender, preview, dates, conversation_id). Use get_email_thread(conversation_id) to read a full exchange.",
+    {
+      query: z
+        .string()
+        .optional()
+        .describe("Text to match in subject, preview, or sender. Omit to filter by sender/date only."),
+      from: z.string().optional().describe("Filter to a sender email (substring match)."),
+      direction: z
+        .enum(["inbound", "outbound"])
+        .optional()
+        .describe("inbound = received, outbound = sent/drafted by George."),
+      since: z
+        .string()
+        .optional()
+        .describe("ISO date/time; only messages received on or after this."),
+      limit: z.number().int().min(1).max(50).default(20).optional(),
+    },
+    async ({ query, from, direction, since, limit }) => {
+      let q = db
+        .from("email_messages")
+        .select(
+          "external_id, conversation_id, direction, subject, body_preview, from_address, from_name, to_recipients, received_at, sent_at, is_read, has_attachments",
+        )
+        .eq("org_id", orgId);
+      if (query) {
+        // Strip PostgREST filter-syntax chars so user text can't break the .or().
+        const safe = query.replace(/[,()%*]/g, " ").trim();
+        if (safe) {
+          q = q.or(
+            `subject.ilike.%${safe}%,body_preview.ilike.%${safe}%,from_address.ilike.%${safe}%,from_name.ilike.%${safe}%`,
+          );
+        }
+      }
+      if (from) q = q.ilike("from_address", `%${from}%`);
+      if (direction) q = q.eq("direction", direction);
+      if (since) q = q.gte("received_at", since);
+      const { data, error } = await q
+        .order("received_at", { ascending: false })
+        .limit(limit ?? 20);
+      if (error) return fail(error.message);
+      return ok({ messages: data ?? [], count: (data ?? []).length });
+    },
+  );
+
+  // ---- get_email_thread --------------------------------------------
+  const getEmailThread = tool(
+    "get_email_thread",
+    "Return every mirrored message in one conversation (thread), oldest first, with full bodies. Get the conversation_id from search_mailbox results.",
+    {
+      conversation_id: z.string().min(1),
+    },
+    async ({ conversation_id }) => {
+      const { data, error } = await db
+        .from("email_messages")
+        .select(
+          "external_id, direction, subject, from_address, from_name, to_recipients, cc_recipients, received_at, sent_at, is_read, has_attachments, body_preview, body_html",
+        )
+        .eq("org_id", orgId)
+        .eq("conversation_id", conversation_id)
+        .order("received_at", { ascending: true });
+      if (error) return fail(error.message);
+      if (!data || data.length === 0)
+        return fail("No mirrored messages for that conversation_id.");
+      return ok({ conversation_id, messages: data, count: data.length });
+    },
+  );
+
+  // ---- list_calendar -----------------------------------------------
+  const listCalendar = tool(
+    "list_calendar",
+    "List events from George's mirrored M365 calendar in a time window. Reads the local mirror (fast, no API call). Defaults to the next 14 days.",
+    {
+      from: z.string().optional().describe("ISO start of window. Defaults to now."),
+      to: z.string().optional().describe("ISO end of window. Defaults to 14 days out."),
+      limit: z.number().int().min(1).max(100).default(50).optional(),
+    },
+    async ({ from, to, limit }) => {
+      const start = from ?? new Date().toISOString();
+      const end = to ?? new Date(Date.now() + 14 * 86400000).toISOString();
+      const { data, error } = await db
+        .from("calendar_events")
+        .select(
+          "external_id, subject, start_at, end_at, location, organizer_name, organizer_address, attendees, online_meeting_url, is_all_day, is_cancelled, web_link",
+        )
+        .eq("org_id", orgId)
+        .gte("start_at", start)
+        .lte("start_at", end)
+        .order("start_at", { ascending: true })
+        .limit(limit ?? 50);
+      if (error) return fail(error.message);
+      return ok({ events: data ?? [], count: (data ?? []).length });
+    },
+  );
+
   const supabaseTools = [
     findCustomer,
     listCustomers,
@@ -1482,6 +1579,9 @@ export function buildGeorgeMcpServer(
     readDocument,
     proposeKnowledge,
     listPendingKnowledge,
+    searchMailbox,
+    getEmailThread,
+    listCalendar,
   ];
 
   const composioTools = buildComposioTools({
