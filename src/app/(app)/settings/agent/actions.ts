@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/current-user";
-import { AGENT_SLUG } from "@/lib/agent/agent-settings";
+import { AGENT_SLUG, TIMEZONE_OPTIONS } from "@/lib/agent/agent-settings";
+
+const TIMEZONE_VALUES = TIMEZONE_OPTIONS.map((o) => o.value) as [string, ...string[]];
 
 export type ActionResult = { error?: string; info?: string };
 
@@ -24,6 +26,7 @@ const AgentSchema = z.object({
     .trim()
     .optional()
     .transform((v) => (v && v.length ? v : null)),
+  timezone: z.enum(TIMEZONE_VALUES),
 });
 
 async function requireAdmin() {
@@ -49,6 +52,7 @@ export async function updateAgentSettingsAction(
     personality: formData.get("personality"),
     operating_mode: formData.get("operating_mode"),
     owner_user_id: formData.get("owner_user_id"),
+    timezone: formData.get("timezone"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -84,7 +88,16 @@ export async function updateAgentSettingsAction(
   );
   if (error) return { error: error.message };
 
+  // Timezone is stored on the org (the column cron scheduling reads), surfaced
+  // here as part of George's identity. Keep one source of truth.
+  const { error: tzError } = await admin
+    .from("orgs")
+    .update({ default_timezone: parsed.data.timezone })
+    .eq("id", user.orgId);
+  if (tzError) return { error: tzError.message };
+
   revalidatePath("/settings/agent");
+  revalidatePath("/calendar");
   return { info: "Agent identity updated." };
 }
 

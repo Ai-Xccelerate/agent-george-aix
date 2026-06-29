@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarClock,
-  CalendarDays,
+  FileText,
   LayoutDashboard,
   Mail,
   MessageSquare,
@@ -17,13 +17,17 @@ import { cn, initials } from "@/lib/utils";
 import { signOutAction } from "@/app/(auth)/actions";
 import { BrandLogo } from "@/components/brand-logo";
 
-const nav = [
+const primaryNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Agent George", icon: MessageSquare },
+  { href: "/customers", label: "Partners", icon: Users },
+];
+
+// George's communication channels — the surfaces he operates across.
+const channelNav = [
   { href: "/mailbox", label: "Mailbox", icon: Mail },
   { href: "/calendar", label: "Calendar", icon: CalendarClock },
-  { href: "/customers", label: "Partners", icon: Users },
-  { href: "/meetings", label: "Meetings", icon: CalendarDays },
+  { href: "/transcripts", label: "Transcripts", icon: FileText },
 ];
 
 export type SidebarUser = { fullName: string; email: string | null; orgName: string };
@@ -45,35 +49,58 @@ export function Sidebar({
         </Link>
 
         <nav className="space-y-0.5">
-          {nav.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + "/");
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={onNavigate}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
-                  active
-                    ? "bg-[var(--color-accent-light)] text-[var(--color-accent)] font-semibold"
-                    : "text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-2)]",
-                )}
-              >
-                <Icon
-                  size={18}
-                  className={cn(
-                    active ? "text-[var(--color-accent)]" : "text-[var(--color-fg-muted)]",
-                  )}
-                />
-                {label}
-              </Link>
-            );
-          })}
+          {primaryNav.map((item) => (
+            <NavLink key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
+          ))}
+
+          <div className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
+            Channels
+          </div>
+          {channelNav.map((item) => (
+            <NavLink key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
+          ))}
         </nav>
       </div>
 
       <UserFooter user={user} onNavigate={onNavigate} pathname={pathname} />
     </aside>
+  );
+}
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+};
+
+function NavLink({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const { href, label, icon: Icon } = item;
+  const active = pathname === href || pathname.startsWith(href + "/");
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+        active
+          ? "bg-[var(--color-accent-light)] text-[var(--color-accent)] font-semibold"
+          : "text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-2)]",
+      )}
+    >
+      <Icon
+        size={18}
+        className={cn(active ? "text-[var(--color-accent)]" : "text-[var(--color-fg-muted)]")}
+      />
+      {label}
+    </Link>
   );
 }
 

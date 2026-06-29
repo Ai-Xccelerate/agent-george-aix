@@ -16,6 +16,8 @@ import { processAgentEvent } from "./process-event";
 import { computeNextRun } from "./cron";
 import { runObjectivesScan, type ObjectivesScanResult } from "./run-objectives-scan";
 import { syncMailbox, type MailboxSyncResult } from "./mailbox-sync";
+import { syncTranscripts, type TranscriptSyncResult } from "./transcript-sync";
+import { isScribeAvailable } from "@/lib/scribe/client";
 
 // Per-tick wall budget. Bounded so a tick can't run forever; leaves headroom
 // for the last job to finalize.
@@ -28,6 +30,9 @@ const STUCK_THRESHOLD_MS = 5 * 60_000; // process anything pending > 5 min
 // Mailbox mirror is throttled: the OUTLOOK webhook handles real-time arrival,
 // so the delta-based catch-up only needs to run periodically, not every tick.
 const MAILBOX_SYNC_INTERVAL_MS = 10 * 60_000;
+// Transcript mirror: Scribe finishes processing a meeting a few minutes after
+// it ends, so a periodic pull is the right cadence — no real-time webhook.
+const TRANSCRIPT_SYNC_INTERVAL_MS = 10 * 60_000;
 
 type DueJob = {
   id: string;
@@ -56,6 +61,7 @@ export type CronTickResult = {
   }>;
   objectives_scan: ObjectivesScanResult;
   mailbox_sync: MailboxSyncResult[];
+  transcript_sync: TranscriptSyncResult[];
 };
 
 export async function runCronTick(): Promise<CronTickResult> {
@@ -171,6 +177,16 @@ export async function runCronTick(): Promise<CronTickResult> {
     }
   }
 
+  // Scribe transcript mirror — throttled catch-up sync per org.
+  let transcriptSync: TranscriptSyncResult[] = [];
+  if (isScribeAvailable() && TICK_BUDGET_MS - (Date.now() - startedAt) > 20_000) {
+    try {
+      transcriptSync = await runDueTranscriptSyncs(admin);
+    } catch (err) {
+      console.error("[cron tick] transcript sync failed", err);
+    }
+  }
+
   return {
     started_at: new Date(startedAt).toISOString(),
     elapsed_ms: Date.now() - startedAt,
@@ -180,7 +196,34 @@ export async function runCronTick(): Promise<CronTickResult> {
     event_sweep: eventSweep,
     objectives_scan: objectivesScan,
     mailbox_sync: mailboxSync,
+    transcript_sync: transcriptSync,
   };
+}
+
+/**
+ * Runs a Scribe transcript sync for each org whose last sync is older than the
+ * throttle interval. Throttle keys on the newest meeting_transcripts.synced_at
+ * (0 when none, so a fresh org syncs on the next tick).
+ */
+async function runDueTranscriptSyncs(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+): Promise<TranscriptSyncResult[]> {
+  const { data: orgs } = await admin.from("orgs").select("id");
+  const out: TranscriptSyncResult[] = [];
+  for (const org of orgs ?? []) {
+    const orgId = org.id as string;
+    const { data: latest } = await admin
+      .from("meeting_transcripts")
+      .select("synced_at")
+      .eq("org_id", orgId)
+      .order("synced_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastMs = latest?.synced_at ? Date.parse(latest.synced_at as string) : 0;
+    if (Date.now() - lastMs < TRANSCRIPT_SYNC_INTERVAL_MS) continue;
+    out.push(await syncTranscripts(orgId));
+  }
+  return out;
 }
 
 /**

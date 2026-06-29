@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getAgentSettings } from "@/lib/agent/agent-settings";
 import { getScribeConnection } from "@/lib/agent/scribe";
+import { DEFAULT_TIMEZONE } from "@/lib/agent/agent-settings";
 import {
   listOrgIntegrations,
   type IntegrationSummary,
@@ -26,6 +27,13 @@ export default async function AgentSettingsPage() {
 
   const admin = createSupabaseAdmin();
   const agent = await getAgentSettings(admin, user.orgId);
+
+  const { data: orgRow } = await admin
+    .from("orgs")
+    .select("default_timezone")
+    .eq("id", user.orgId)
+    .maybeSingle();
+  const timezone = (orgRow?.default_timezone as string | null) ?? DEFAULT_TIMEZONE;
 
   const { data: memberRows } = await admin
     .from("org_members")
@@ -97,6 +105,7 @@ export default async function AgentSettingsPage() {
             personality: agent.personality,
             operating_mode: agent.operating_mode,
             owner_user_id: agent.owner_user_id ?? "",
+            timezone,
           }}
         />
       </section>

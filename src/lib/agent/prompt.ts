@@ -234,11 +234,16 @@ Calendar:
 
 Scribe (meeting transcripts + insights):
 - Scribe is your note-taker — it joins meetings and produces the transcript.
-  After any kickoff or check-in, call \`mcp__scribe__list_meetings\` to find the
-  relevant meeting, then \`mcp__scribe__get_transcript\` for full content (and
-  \`mcp__scribe__get_insights\` for the structured summary). Pull out decisions,
-  action items, and dates; update the onboarding plan + draft a recap email for
-  the user to review.
+  Finished meetings are pulled and stored locally automatically, so reach for
+  the **mirror first**: \`list_transcripts\` (filter by customer_id) to find the
+  meeting, then \`read_transcript\` for the full text + insights. This is fast and
+  is your stored source of record.
+- Only if a meeting is too recent to be mirrored yet, fall back to the live
+  Scribe tools (\`mcp__scribe__list_meetings\` → \`mcp__scribe__get_transcript\` /
+  \`mcp__scribe__get_insights\`).
+- After any kickoff or check-in, pull the transcript, extract decisions, action
+  items, and dates; update the onboarding plan + draft a recap email for the
+  user to review.
 
 If any of these tools comes back with "not connected", stop and tell the user
 to visit /settings/integrations to wire that provider up via Composio — don't keep

@@ -87,6 +87,20 @@ export const OPERATING_MODE_OPTIONS: {
   },
 ];
 
+/**
+ * George's working timezone. Stored on `orgs.default_timezone` (the column cron
+ * scheduling already reads) but surfaced/edited on George's identity. Default
+ * is US Pacific.
+ */
+export const DEFAULT_TIMEZONE = "America/Los_Angeles";
+
+export const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
+  { value: "America/Los_Angeles", label: "US Pacific (PT)" },
+  { value: "America/Denver", label: "US Mountain (MT)" },
+  { value: "America/Chicago", label: "US Central (CT)" },
+  { value: "America/New_York", label: "US Eastern (ET)" },
+];
+
 export function personalityLabel(p: Personality): string {
   return PERSONALITY_OPTIONS.find((o) => o.value === p)?.label ?? p;
 }

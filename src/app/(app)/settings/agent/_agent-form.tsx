@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import {
   OPERATING_MODE_OPTIONS,
   PERSONALITY_OPTIONS,
+  TIMEZONE_OPTIONS,
 } from "@/lib/agent/agent-settings";
 import type { ActionResult } from "./actions";
 
@@ -21,6 +22,7 @@ type Props = {
     personality: string;
     operating_mode: string;
     owner_user_id: string;
+    timezone: string;
   };
 };
 
@@ -81,17 +83,29 @@ export function AgentForm({ action, members, defaults }: Props) {
         </Field>
       </div>
 
-      <Field label="Human owner / escalation contact">
-        <select name="owner_user_id" defaultValue={defaults.owner_user_id} className={inputClass}>
-          <option value="">— None —</option>
-          {members.map((m) => (
-            <option key={m.user_id} value={m.user_id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        <Hint>Who George escalates to and drafts under when a human needs to sign.</Hint>
-      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Human owner / escalation contact">
+          <select name="owner_user_id" defaultValue={defaults.owner_user_id} className={inputClass}>
+            <option value="">— None —</option>
+            {members.map((m) => (
+              <option key={m.user_id} value={m.user_id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <Hint>Who George escalates to and drafts under when a human needs to sign.</Hint>
+        </Field>
+        <Field label="Timezone">
+          <select name="timezone" defaultValue={defaults.timezone} className={inputClass}>
+            {TIMEZONE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <Hint>Drives George&apos;s calendar view and scheduling.</Hint>
+        </Field>
+      </div>
 
       <Status state={state} />
 

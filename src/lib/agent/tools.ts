@@ -230,6 +230,15 @@ export function buildGeorgeMcpServer(
             : Promise.resolve({ data: null, error: null } as const),
         ]);
 
+      // Recent meeting transcripts (metadata only — read_transcript for full text).
+      const transcripts = await db
+        .from("meeting_transcripts")
+        .select("id, title, ended_at, duration_min, summary, status")
+        .eq("org_id", orgId)
+        .eq("customer_id", customer_id)
+        .order("ended_at", { ascending: false, nullsFirst: false })
+        .limit(5);
+
       return ok({
         customer: customerRes.data,
         owner: owner.data ?? null,
@@ -241,6 +250,7 @@ export function buildGeorgeMcpServer(
         latest_health: health.data ?? null,
         cadence: cadence.data ?? null,
         objectives: objectives.data ?? [],
+        recent_transcripts: transcripts.data ?? [],
       });
     },
   );
@@ -1555,6 +1565,50 @@ export function buildGeorgeMcpServer(
     },
   );
 
+  const listTranscripts = tool(
+    "list_transcripts",
+    "List meeting transcripts from George's note-taker (Scribe), mirrored locally. Newest first. Filter by customer_id to get a partner's meetings. Returns metadata + summary, not the full transcript — call read_transcript for that.",
+    {
+      customer_id: z.string().uuid().optional().describe("Limit to one customer's meetings."),
+      limit: z.number().int().min(1).max(50).default(20).optional(),
+    },
+    async ({ customer_id, limit }) => {
+      let q = db
+        .from("meeting_transcripts")
+        .select(
+          "id, title, status, started_at, ended_at, duration_min, attendees, summary, customer_id",
+        )
+        .eq("org_id", orgId)
+        .order("ended_at", { ascending: false, nullsFirst: false })
+        .limit(limit ?? 20);
+      if (customer_id) q = q.eq("customer_id", customer_id);
+      const { data, error } = await q;
+      if (error) return fail(error.message);
+      return ok({ transcripts: data ?? [], count: (data ?? []).length });
+    },
+  );
+
+  const readTranscript = tool(
+    "read_transcript",
+    "Read the full transcript + insights for one meeting. Pass the id from list_transcripts. Use to pull decisions, action items, and who-said-what after a kickoff or check-in — e.g. to draft a success plan or recap.",
+    {
+      transcript_id: z.string().uuid(),
+    },
+    async ({ transcript_id }) => {
+      const { data, error } = await db
+        .from("meeting_transcripts")
+        .select(
+          "id, title, status, started_at, ended_at, duration_min, attendees, transcript_text, insights, summary, customer_id, meeting_url",
+        )
+        .eq("org_id", orgId)
+        .eq("id", transcript_id)
+        .maybeSingle();
+      if (error) return fail(error.message);
+      if (!data) return fail("Transcript not found in this org.");
+      return ok({ transcript: data });
+    },
+  );
+
   const supabaseTools = [
     findCustomer,
     listCustomers,
@@ -1582,6 +1636,8 @@ export function buildGeorgeMcpServer(
     searchMailbox,
     getEmailThread,
     listCalendar,
+    listTranscripts,
+    readTranscript,
   ];
 
   const composioTools = buildComposioTools({
