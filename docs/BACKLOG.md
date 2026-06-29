@@ -386,6 +386,34 @@ keeping `full_name` and parsing on display.
 
 ---
 
+## Microsoft Teams surface
+
+### 31. Agent George as a Microsoft Teams bot (for the Onyx team)
+**What:** Expose George as a bot inside the Onyx team's Microsoft Teams so members chat with him 1:1, @mention him in group chats, and @mention him in meeting chats — all text. George reuses the existing `query()` pipeline, prompt, and tools; Teams is just a new inbound surface alongside `/api/chat`. This is an integration project, not a rebuild.
+
+**Meeting-scope fork (decide first — order-of-magnitude difference):**
+- **A. Text-in-meeting-chat (intended path):** George replies in the meeting's text chat when @mentioned — same mechanism as group chat. Small build. Scribe already covers transcripts/recall, so George does not need to "hear" the call.
+- **B. Live media meeting bot:** joins the call, processes real-time audio. Requires Calls/Online Meetings media API, tenant RSC consent, separate media-capable host. Large separate project — explicitly out of scope unless revisited.
+
+**Architecture:** Teams → Azure Bot Service → new `POST /api/messages` on `cs.getonyx.ai` → tenant gate → resolve user → existing George pipeline → reply (with typing indicator while it works; ack fast, don't block).
+
+**Build (in-repo, mine):**
+- `src/app/api/messages/route.ts` — Bot Framework messaging endpoint via the `botbuilder` npm package (`CloudAdapter`). Chosen over the newer M365 Agents SDK: mature, Node-native, drops into the existing server; matches "don't introduce alternative stacks." M365 Agents SDK noted as the forward migration, not today's path.
+- Tenant gate: reject anything where `activity.conversation.tenantId !== <Onyx tenant id>` — that *is* the allowlist on this surface, stronger than email-domain parsing. Note: the activity payload does NOT reliably include email/UPN — fetch via `TeamsInfo.getMember()` / Graph only when mapping to a contact. No Supabase auth session on this path — runs service-role, org-scoped by tenant (like the webhook path).
+- Teams app manifest (`manifest.json` + 2 icons, zipped): `"bots"` with scopes `["personal","groupChat","team"]`. In group/meeting chats George only receives @mentions (by design); in personal scope he sees all DMs.
+
+**Provision (Azure, AIXccelerate tenant — not in-repo):**
+- Entra app registration → App ID + secret (recommend multi-tenant so Onyx users can reach it; restrict to Onyx in code via tenantId).
+- Azure Bot resource, Teams channel enabled, messaging endpoint = `https://cs.getonyx.ai/api/messages`. App ID/secret go into Railway env.
+
+**Distribute to Onyx (their Teams admin, not us):** hand them the `.zip` → Teams Admin Center → Manage apps → Upload new app → Submit to your org (org catalog, not public store). Optionally pin via a setup policy. No Microsoft Partner Center / AppSource submission — that's only for public multi-org distribution.
+
+**Where:** new `src/app/api/messages/route.ts`; reuses `src/lib/agent/{prompt,tools,composio-tools}.ts`; new `teams/` manifest folder.
+
+**Status:** Backlogged 2026-06-29 (deferred by Rahul — focus on Composio first). Research complete; meeting-scope fork (A vs B) is the gating decision. `cs.getonyx.ai` domain already live, so the messaging endpoint is ready when we build.
+
+---
+
 ## Open questions from HLR §13 (decisions to make)
 
 These aren't todos in the build sense — they're decisions we owe ourselves before certain features can ship.
