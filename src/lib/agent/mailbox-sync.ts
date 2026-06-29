@@ -4,7 +4,7 @@ import { callAction } from "@/lib/composio/client";
 /**
  * Mirrors George's M365 mailbox + calendar into Supabase (mail_folders,
  * email_messages, calendars, calendar_events). The mirror is the source
- * George reasons over and the data the /inbox + calendar UI render from.
+ * George reasons over and the data the /mailbox + /calendar UI render from.
  *
  * Mechanism (all via Composio's Outlook toolkit, verified against the live
  * account):
