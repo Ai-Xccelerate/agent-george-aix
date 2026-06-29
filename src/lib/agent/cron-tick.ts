@@ -15,6 +15,7 @@ import { runGeorgeJob } from "./run-job";
 import { processAgentEvent } from "./process-event";
 import { computeNextRun } from "./cron";
 import { runObjectivesScan, type ObjectivesScanResult } from "./run-objectives-scan";
+import { syncMailbox, type MailboxSyncResult } from "./mailbox-sync";
 
 // Per-tick wall budget. Bounded so a tick can't run forever; leaves headroom
 // for the last job to finalize.
@@ -24,6 +25,9 @@ const PER_JOB_BUDGET_MS = 180_000;
 // Belt-and-braces event sweep tuning.
 const SWEEP_MAX_PER_TICK = 5;
 const STUCK_THRESHOLD_MS = 5 * 60_000; // process anything pending > 5 min
+// Mailbox mirror is throttled: the OUTLOOK webhook handles real-time arrival,
+// so the delta-based catch-up only needs to run periodically, not every tick.
+const MAILBOX_SYNC_INTERVAL_MS = 10 * 60_000;
 
 type DueJob = {
   id: string;
@@ -51,6 +55,7 @@ export type CronTickResult = {
     error?: string | null;
   }>;
   objectives_scan: ObjectivesScanResult;
+  mailbox_sync: MailboxSyncResult[];
 };
 
 export async function runCronTick(): Promise<CronTickResult> {
@@ -156,6 +161,16 @@ export async function runCronTick(): Promise<CronTickResult> {
     }
   }
 
+  // Mailbox + calendar mirror — throttled catch-up sync per org.
+  let mailboxSync: MailboxSyncResult[] = [];
+  if (TICK_BUDGET_MS - (Date.now() - startedAt) > 20_000) {
+    try {
+      mailboxSync = await runDueMailboxSyncs(admin);
+    } catch (err) {
+      console.error("[cron tick] mailbox sync failed", err);
+    }
+  }
+
   return {
     started_at: new Date(startedAt).toISOString(),
     elapsed_ms: Date.now() - startedAt,
@@ -164,7 +179,34 @@ export async function runCronTick(): Promise<CronTickResult> {
     results,
     event_sweep: eventSweep,
     objectives_scan: objectivesScan,
+    mailbox_sync: mailboxSync,
   };
+}
+
+/**
+ * Runs a mailbox mirror sync for each org whose last sync is older than the
+ * throttle interval. Orgs with no connected mailbox surface an error inside
+ * the result and are skipped next tick by the same throttle.
+ */
+async function runDueMailboxSyncs(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+): Promise<MailboxSyncResult[]> {
+  const { data: orgs } = await admin.from("orgs").select("id");
+  const out: MailboxSyncResult[] = [];
+  for (const org of orgs ?? []) {
+    const orgId = org.id as string;
+    const { data: latest } = await admin
+      .from("mail_folders")
+      .select("synced_at")
+      .eq("org_id", orgId)
+      .order("synced_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastMs = latest?.synced_at ? Date.parse(latest.synced_at as string) : 0;
+    if (Date.now() - lastMs < MAILBOX_SYNC_INTERVAL_MS) continue;
+    out.push(await syncMailbox(orgId));
+  }
+  return out;
 }
 
 async function resolveTimezone(

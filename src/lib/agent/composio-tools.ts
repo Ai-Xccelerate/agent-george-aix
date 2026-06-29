@@ -319,7 +319,10 @@ export function buildComposioTools(ctx: Ctx) {
       const start = start_iso ?? new Date().toISOString();
       const end =
         end_iso ?? new Date(Date.now() + 14 * 86400000).toISOString();
-      const res = await callAction("OUTLOOK_CALENDAR_LIST_EVENTS", ctx.orgId, {
+      // OUTLOOK_LIST_EVENTS is the slug that actually resolves; the older
+      // OUTLOOK_CALENDAR_LIST_EVENTS no longer exists in the toolkit and
+      // errored on every call.
+      const res = await callAction("OUTLOOK_LIST_EVENTS", ctx.orgId, {
         startDateTime: start,
         endDateTime: end,
         top: limit ?? 50,
