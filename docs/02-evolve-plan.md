@@ -1,7 +1,7 @@
 # Agent George — V2 Evolve Plan
 
 **Evolve-track against the live V1 codebase. Supersedes the from-scratch "V2 rebuild" spec.**
-Last updated: 2026-06-24.
+Last updated: 2026-06-29.
 
 ---
 
@@ -90,7 +90,8 @@ The **one** thing worth importing from the rebuild spec: a **durable queue (Bull
 
 > Simplify by deletion. One email identity, one inbound webhook spine. Drop AgentMail.
 >
-> **Status: ✅ done 2026-06-24.** Deleted the agentmail route, client, register script, and the `processAgentmailEvent` branch in `process-event.ts` (kept the shared `resolveSenderToCustomer`). Dropped `agentmail` + `svix` from `package.json` (svix was agentmail-only). Clean `pnpm build` green; `/api/webhooks/agentmail` now 404s, Composio spine (`/api/webhooks/composio`) intact. *Open: remove `AGENTMAIL_*` vars from `.env.local` + Railway (live secrets — left for you).*
+> **Status: ✅ done 2026-06-24.** Deleted the agentmail route, client, register script, and the `processAgentmailEvent` branch in `process-event.ts` (kept the shared `resolveSenderToCustomer`). Dropped `agentmail` + `svix` from `package.json` (svix was agentmail-only). Clean `pnpm build` green; `/api/webhooks/agentmail` now 404s, Composio spine (`/api/webhooks/composio`) intact.
+> **✅ fully closed 2026-06-29.** `AGENTMAIL_*` vars removed from `.env.local` (Railway prod was already clean); stale "Agentmail and Composio" comment in `sender-allowlist.ts` corrected to the Composio-only spine. Onyx confirmed they're standardizing inbound on `getonyx.ai` mailboxes via Composio M365 — AgentMail account can be cancelled (no code reads it).
 
 **Outcome:** Composio/M365 Outlook is the single, unambiguous path for inbound email, outbound email, and calendar. AgentMail is removed.
 
@@ -189,3 +190,14 @@ The **one** thing worth importing from the rebuild spec: a **durable queue (Bull
 5. **Phase 4** — polish; valuable but not blocking.
 
 **Net:** weeks of additive/subtractive work on a foundation you already trust — versus months to rebuild to roughly where V1 already is. The rebuild instinct was the right *diagnosis* (scope drift, over-building) with the wrong *cure*. We delete the drift, not the foundation.
+
+---
+
+## Operational changes (outside the phase plan)
+
+> **✅ Production domain cutover → `cs.getonyx.ai` (2026-06-29).** George's public URL moved off the old Railway/Vercel hosts to the custom domain `cs.getonyx.ai` (Railway custom domain ACTIVE, cert issued). Everything that builds a redirect/callback URL keys off one env var, so the cutover was config-only — no code change:
+> - **Railway** — `NEXT_PUBLIC_APP_URL=https://cs.getonyx.ai`, redeployed (the var is inlined at build, so a rebuild was required).
+> - **Supabase Auth** — Site URL + Redirect URL allowlist repointed to `https://cs.getonyx.ai/**` (were stale on the long-dead `george-onyx.vercel.app` from the original Vercel design — never updated at the Railway move).
+> - **Composio** — project webhook → `https://cs.getonyx.ai/api/webhooks/composio`. The OAuth connect callback is built at runtime from `NEXT_PUBLIC_APP_URL`, so it followed automatically (re-test one M365 reconnect to confirm).
+>
+> *Future: when George ships as a Teams bot, the Azure Bot messaging endpoint will be `https://cs.getonyx.ai/api/messages` — keep the domain consistent.*

@@ -1,8 +1,8 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 /**
- * Domain allowlist gate for inbound email. Both the Agentmail and Composio
- * webhooks pass each delivery through this — if the sender isn't on the
+ * Domain allowlist gate for inbound email. The Composio M365 webhook passes
+ * each delivery through this — if the sender isn't on the
  * allowlist, we acknowledge with 200 (so the provider stops retrying) but
  * we DON'T create an agent_events row, so the inbox stays signal-only.
  *
