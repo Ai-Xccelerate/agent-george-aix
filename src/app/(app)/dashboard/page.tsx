@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowRight, Flag, Mail } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { listOrgIntegrations } from "@/lib/composio/connections";
+import { getScribeConnection } from "@/lib/agent/scribe";
 import { LifecycleBadge } from "@/components/ui/badge";
 import { Greeting } from "./_greeting";
 import { ActivityStats } from "./_activity-stats";
@@ -97,6 +98,9 @@ export default async function DashboardPage() {
   // unreachable; we render that distinctly rather than implying "connected".
   const integrationsOk = integrationsRes.ok;
   const integrations = integrationsRes.ok ? integrationsRes.integrations : [];
+  // Scribe is a direct MCP server, not a Composio integration — its status is
+  // env-derived and independent of whether Composio could be reached.
+  const scribe = getScribeConnection();
 
   const needsYouCount = recentDrafts.length + atRisk.length + escalated.length;
   const firstName = user.fullName?.split(" ")[0] ?? null;
@@ -189,33 +193,36 @@ export default async function DashboardPage() {
             title="George's connections"
             right={<Link href="/settings/integrations" className="text-[12px] font-medium text-[var(--color-accent)] hover:underline">Manage →</Link>}
           >
-            {!integrationsOk ? (
-              <Empty text="Couldn't check connections — Composio was unreachable." />
-            ) : integrations.length === 0 ? (
-              <Empty text="No integrations configured yet." />
-            ) : (
-              <ul className="space-y-1.5">
-                {integrations.map((i) => {
-                  const connected = i.status === "connected";
-                  return (
-                    <li key={i.authConfigId} className="flex items-center justify-between text-[13px]">
-                      <span className="text-[var(--color-fg)]">{i.label}</span>
-                      <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--color-fg-muted)]">
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: connected ? "var(--color-success)" : "var(--color-fg-muted)" }}
-                        />
-                        {connected ? "Connected" : "Not connected"}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+            <ul className="space-y-1.5">
+              <ConnectionLi label="Scribe (note-taker)" connected={scribe.connected} />
+              {integrations.map((i) => (
+                <ConnectionLi key={i.authConfigId} label={i.label} connected={i.status === "connected"} />
+              ))}
+            </ul>
+            {!integrationsOk && (
+              <p className="mt-2 text-[12px] text-[var(--color-fg-muted)]">
+                Couldn&apos;t reach Composio for the rest — check back shortly.
+              </p>
             )}
           </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+function ConnectionLi({ label, connected }: { label: string; connected: boolean }) {
+  return (
+    <li className="flex items-center justify-between text-[13px]">
+      <span className="text-[var(--color-fg)]">{label}</span>
+      <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--color-fg-muted)]">
+        <span
+          className="h-2 w-2 rounded-full"
+          style={{ backgroundColor: connected ? "var(--color-success)" : "var(--color-fg-muted)" }}
+        />
+        {connected ? "Connected" : "Not connected"}
+      </span>
+    </li>
   );
 }
 

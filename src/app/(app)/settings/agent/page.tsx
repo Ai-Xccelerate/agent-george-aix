@@ -3,6 +3,7 @@ import { CalendarClock, Lock, Mail, Mic, Plug } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getAgentSettings } from "@/lib/agent/agent-settings";
+import { getScribeConnection } from "@/lib/agent/scribe";
 import {
   listOrgIntegrations,
   type IntegrationSummary,
@@ -44,7 +45,8 @@ export default async function AgentSettingsPage() {
   const integrationsResult = await listOrgIntegrations(user.orgId);
   const integrations = integrationsResult.ok ? integrationsResult.integrations : [];
   const mailbox = connectedAccountLabel(integrations, ["OUTLOOK", "MICROSOFTOUTLOOK", "GMAIL"]);
-  const noteTaker = connectedAccountLabel(integrations, ["FIREFLIES", "FIREFLIESAI"]);
+  // Scribe is a direct remote MCP server (not Composio) — status from env only.
+  const scribe = getScribeConnection();
 
   return (
     <div className="space-y-6">
@@ -155,8 +157,8 @@ export default async function AgentSettingsPage() {
           <AccountRow
             icon={Mic}
             label="Note-taker (Scribe)"
-            value={noteTaker ?? "Not connected"}
-            connected={Boolean(noteTaker)}
+            value={scribe.account ?? "Not connected"}
+            connected={scribe.connected}
           />
         </div>
       </section>

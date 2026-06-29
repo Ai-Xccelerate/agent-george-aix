@@ -12,6 +12,11 @@
  */
 import type { McpHttpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 
+// The Scribe account George's note-taker runs under. Scribe's MCP exposes no
+// whoami, so the bound account isn't discoverable at runtime — it's the mailbox
+// the workspace token (SCRIBE_MCP_TOKEN) was minted for. Single-tenant (Onyx).
+export const SCRIBE_ACCOUNT_EMAIL = "agent.george@getonyx.ai";
+
 // Curated allowlist — only what George needs for the kickoff / health flows.
 // Deliberately excludes `get_chat` (in-meeting chat is noise for our use).
 export const SCRIBE_TOOL_NAMES = [
@@ -41,5 +46,33 @@ export function buildScribeMcpServer(): {
       headers: { Authorization: `Bearer ${token}` },
     },
     toolNames: [...SCRIBE_TOOL_NAMES],
+  };
+}
+
+/** True when Scribe is wired (same condition the agent runtime uses to load it). */
+export function isScribeConfigured(): boolean {
+  return buildScribeMcpServer() !== null;
+}
+
+export type ScribeConnection = {
+  connected: boolean;
+  /** The Scribe account George's note-taker runs under, when connected. */
+  account: string | null;
+  description: string;
+};
+
+/**
+ * Scribe's connection status for the UI. Unlike the Composio integrations,
+ * this is derived purely from env (the same check the runtime uses) — it does
+ * NOT depend on Composio being reachable, so the status stays correct even
+ * during a Composio outage.
+ */
+export function getScribeConnection(): ScribeConnection {
+  const connected = isScribeConfigured();
+  return {
+    connected,
+    account: connected ? SCRIBE_ACCOUNT_EMAIL : null,
+    description:
+      "Meeting note-taker — joins calls and produces transcripts + insights. Wired as a direct MCP server, not through Composio.",
   };
 }

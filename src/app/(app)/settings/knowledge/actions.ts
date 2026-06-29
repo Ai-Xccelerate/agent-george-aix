@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { chunkMarkdown, extractTitle } from "@/lib/knowledge/chunk";
 import { embedBatch, hasEmbeddingProvider } from "@/lib/knowledge/embeddings";
+import { parseFrontmatter } from "@/lib/knowledge/frontmatter";
 
 function toVectorLiteral(v: number[]): string {
   return `[${v.join(",")}]`;
@@ -98,6 +99,86 @@ export async function createDocAction(formData: FormData) {
 
   revalidatePath("/settings/knowledge");
   redirect(`/settings/knowledge/${doc.id}`);
+}
+
+export type UploadResult = {
+  created: { path: string; title: string }[];
+  failed: { name: string; reason: string }[];
+};
+
+const MAX_UPLOAD_FILES = 50;
+const MAX_FILE_BYTES = 1_000_000; // 1 MB per markdown file
+
+function fmFlag(value: string | string[] | undefined): boolean {
+  return value === "true" || value === "yes" || value === "1";
+}
+
+export async function uploadDocsAction(formData: FormData): Promise<UploadResult> {
+  const user = await requireAdmin();
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File);
+  const pinAll = formData.get("is_core") === "on";
+
+  if (files.length === 0) throw new Error("Choose at least one .md file to upload.");
+  if (files.length > MAX_UPLOAD_FILES) {
+    throw new Error(`Too many files — upload up to ${MAX_UPLOAD_FILES} at a time.`);
+  }
+
+  const admin = createSupabaseAdmin();
+  const result: UploadResult = { created: [], failed: [] };
+
+  for (const file of files) {
+    try {
+      if (!/\.(md|markdown)$/i.test(file.name)) {
+        throw new Error("Not a Markdown file (.md / .markdown).");
+      }
+      if (file.size > MAX_FILE_BYTES) {
+        throw new Error("File is larger than 1 MB.");
+      }
+
+      const raw = await file.text();
+      if (!raw.trim()) throw new Error("File is empty.");
+
+      // Mirror sync:knowledge — store the raw file (frontmatter round-trips),
+      // but chunk the body only and let frontmatter supply title / is_core.
+      const { data: fm, body } = parseFrontmatter(raw);
+      const path = normalisePath(file.name);
+      const title =
+        (typeof fm.title === "string" && fm.title.trim()) ||
+        extractTitle(body) ||
+        path.replace(/\.md$/, "");
+      const isCore = pinAll || fmFlag(fm.is_core);
+
+      const { data: doc, error } = await admin
+        .from("knowledge_docs")
+        .insert({
+          org_id: user.orgId,
+          path,
+          title,
+          content_md: raw,
+          source: "ui",
+          is_core: isCore,
+          updated_by: user.id,
+          version: 1,
+        })
+        .select("id")
+        .single();
+      if (error) {
+        if (error.code === "23505") throw new Error(`A doc at "${path}" already exists.`);
+        throw error;
+      }
+
+      await rechunk(admin, { docId: doc.id, orgId: user.orgId, path, title, content: body });
+      result.created.push({ path, title });
+    } catch (err) {
+      result.failed.push({
+        name: file.name,
+        reason: err instanceof Error ? err.message : "Upload failed.",
+      });
+    }
+  }
+
+  if (result.created.length > 0) revalidatePath("/settings/knowledge");
+  return result;
 }
 
 export async function updateDocAction(formData: FormData) {

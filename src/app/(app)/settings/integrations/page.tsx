@@ -29,6 +29,7 @@ import {
   listOrgIntegrations,
   type IntegrationSummary,
 } from "@/lib/composio/connections";
+import { getScribeConnection } from "@/lib/agent/scribe";
 import { Badge } from "@/components/ui/badge";
 import { connectToolkitAction, disconnectToolkitAction } from "./actions";
 
@@ -90,6 +91,7 @@ export default async function IntegrationsPage({
   if (user.role !== "owner" && user.role !== "admin") redirect("/settings/profile");
 
   const result = await listOrgIntegrations(user.orgId);
+  const scribe = getScribeConnection();
   const sp = await searchParams;
 
   return (
@@ -118,17 +120,17 @@ export default async function IntegrationsPage({
         </Banner>
       )}
 
-      {!result.ok ? (
-        <ConnectionError message={result.error} />
-      ) : result.integrations.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="space-y-3">
-          {result.integrations.map((c) => (
-            <IntegrationRow key={c.authConfigId} c={c} />
-          ))}
-        </div>
-      )}
+      <div className="space-y-3">
+        <ScribeRow scribe={scribe} />
+
+        {!result.ok ? (
+          <ConnectionError message={result.error} />
+        ) : result.integrations.length === 0 ? (
+          <EmptyState />
+        ) : (
+          result.integrations.map((c) => <IntegrationRow key={c.authConfigId} c={c} />)
+        )}
+      </div>
     </div>
   );
 }
@@ -158,6 +160,42 @@ function IntegrationRow({ c }: { c: IntegrationSummary }) {
       </div>
 
       <ConnectOrDisconnect c={c} />
+    </div>
+  );
+}
+
+function ScribeRow({
+  scribe,
+}: {
+  scribe: { connected: boolean; account: string | null; description: string };
+}) {
+  return (
+    <div className="flex min-h-[84px] items-center justify-between gap-4 rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-4">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-accent-light)]">
+          <Mic size={18} className="text-[var(--color-accent)]" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[15px] font-semibold text-[var(--color-fg)]">Scribe</span>
+            <StatusPill status={scribe.connected ? "connected" : "disconnected"} />
+          </div>
+          <p
+            className="mt-0.5 truncate text-[13px] text-[var(--color-fg-secondary)]"
+            title={scribe.description}
+          >
+            {scribe.description}
+            {scribe.account ? ` · ${scribe.account}` : ""}
+          </p>
+        </div>
+      </div>
+
+      <span
+        className="shrink-0 text-[12px] text-[var(--color-fg-muted)]"
+        title="Scribe is configured via SCRIBE_MCP_URL / SCRIBE_MCP_TOKEN in the server environment, not through Composio."
+      >
+        Managed in environment
+      </span>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen, FileText, Plus, Sparkles } from "lucide-react";
+import { BookOpen, FileText, Plus, Sparkles, Upload } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -57,13 +57,22 @@ export default async function KnowledgePage() {
             the top of the manifest as &ldquo;read these first&rdquo;.
           </p>
         </div>
-        <Link
-          href="/settings/knowledge/new"
-          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
-        >
-          <Plus size={14} />
-          New doc
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/settings/knowledge/upload"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+          >
+            <Upload size={14} />
+            Upload .md
+          </Link>
+          <Link
+            href="/settings/knowledge/new"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
+          >
+            <Plus size={14} />
+            New doc
+          </Link>
+        </div>
       </header>
 
       {rows.length === 0 ? (
@@ -217,13 +226,22 @@ function EmptyState() {
         chat starts with a manifest of these docs; George reads them in full on demand.
         Mark a doc as <em>core</em> to pin it to the top of the manifest.
       </p>
-      <Link
-        href="/settings/knowledge/new"
-        className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 py-2 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
-      >
-        <Plus size={14} />
-        Create the first doc
-      </Link>
+      <div className="mt-2 flex items-center gap-2">
+        <Link
+          href="/settings/knowledge/upload"
+          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 py-2 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+        >
+          <Upload size={14} />
+          Upload .md files
+        </Link>
+        <Link
+          href="/settings/knowledge/new"
+          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 py-2 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
+        >
+          <Plus size={14} />
+          Create the first doc
+        </Link>
+      </div>
     </div>
   );
 }
