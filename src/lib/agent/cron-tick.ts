@@ -17,6 +17,7 @@ import { computeNextRun } from "./cron";
 import { runObjectivesScan, type ObjectivesScanResult } from "./run-objectives-scan";
 import { syncMailbox, type MailboxSyncResult } from "./mailbox-sync";
 import { syncTranscripts, type TranscriptSyncResult } from "./transcript-sync";
+import { runProactiveScan, type ProactiveScanResult } from "./run-proactive-scan";
 import { isScribeAvailable } from "@/lib/scribe/client";
 
 // Per-tick wall budget. Bounded so a tick can't run forever; leaves headroom
@@ -33,6 +34,8 @@ const MAILBOX_SYNC_INTERVAL_MS = 10 * 60_000;
 // Transcript mirror: Scribe finishes processing a meeting a few minutes after
 // it ends, so a periodic pull is the right cadence — no real-time webhook.
 const TRANSCRIPT_SYNC_INTERVAL_MS = 10 * 60_000;
+// Proactive book sweep — heavy (a full autonomous run per org), so infrequent.
+const PROACTIVE_SCAN_INTERVAL_MS = 6 * 60 * 60_000;
 
 type DueJob = {
   id: string;
@@ -62,6 +65,7 @@ export type CronTickResult = {
   objectives_scan: ObjectivesScanResult;
   mailbox_sync: MailboxSyncResult[];
   transcript_sync: TranscriptSyncResult[];
+  proactive_scan: ProactiveScanResult[];
 };
 
 export async function runCronTick(): Promise<CronTickResult> {
@@ -187,6 +191,20 @@ export async function runCronTick(): Promise<CronTickResult> {
     }
   }
 
+  // Proactive book sweep — heavy; only with a full job's worth of budget left.
+  // One org per tick at most; the throttle keeps the rest due for later ticks.
+  let proactiveScan: ProactiveScanResult[] = [];
+  if (TICK_BUDGET_MS - (Date.now() - startedAt) > PER_JOB_BUDGET_MS) {
+    try {
+      proactiveScan = await runDueProactiveScans(
+        admin,
+        TICK_BUDGET_MS - (Date.now() - startedAt),
+      );
+    } catch (err) {
+      console.error("[cron tick] proactive scan failed", err);
+    }
+  }
+
   return {
     started_at: new Date(startedAt).toISOString(),
     elapsed_ms: Date.now() - startedAt,
@@ -197,7 +215,43 @@ export async function runCronTick(): Promise<CronTickResult> {
     objectives_scan: objectivesScan,
     mailbox_sync: mailboxSync,
     transcript_sync: transcriptSync,
+    proactive_scan: proactiveScan,
   };
+}
+
+/**
+ * Runs the proactive scan for at most one due org per tick (it's a full
+ * autonomous run). Throttle keyed on agent_scan_state(kind='proactive').
+ */
+async function runDueProactiveScans(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  budgetMsLeft: number,
+): Promise<ProactiveScanResult[]> {
+  const { data: orgs } = await admin.from("orgs").select("id");
+  for (const org of orgs ?? []) {
+    const orgId = org.id as string;
+    const { data: state } = await admin
+      .from("agent_scan_state")
+      .select("last_run_at")
+      .eq("org_id", orgId)
+      .eq("kind", "proactive")
+      .maybeSingle();
+    const lastMs = state?.last_run_at ? Date.parse(state.last_run_at as string) : 0;
+    if (Date.now() - lastMs < PROACTIVE_SCAN_INTERVAL_MS) continue;
+
+    // Claim the slot first so a crashing run doesn't respin every tick.
+    await admin
+      .from("agent_scan_state")
+      .upsert(
+        { org_id: orgId, kind: "proactive", last_run_at: new Date().toISOString() },
+        { onConflict: "org_id,kind" },
+      );
+    const result = await runProactiveScan(orgId, {
+      timeBudgetMs: Math.min(PER_JOB_BUDGET_MS, budgetMsLeft),
+    });
+    return [result]; // one org per tick
+  }
+  return [];
 }
 
 /**

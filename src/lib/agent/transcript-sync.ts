@@ -17,6 +17,8 @@ import { callScribeTool, isScribeAvailable } from "@/lib/scribe/client";
 export type TranscriptSyncResult = {
   meetings_seen: number;
   transcripts_upserted: number;
+  /** Newly-transcribed meetings handed to George to act on. */
+  transcripts_enqueued: number;
   skipped: number;
   errors: string[];
 };
@@ -171,12 +173,36 @@ async function syncOneMeeting(
     return;
   }
   result.transcripts_upserted++;
+
+  // Hand a newly-transcribed meeting to George (recap + plan/objective update).
+  // Only when there's real transcript text. Dedup on (org, source, meeting id);
+  // the cron sweep picks the pending event up and runs George.
+  if (text) {
+    const ins = await admin
+      .from("agent_events")
+      .insert({
+        org_id: orgId,
+        source: "transcript_sync",
+        source_event_id: extId,
+        event_type: "TRANSCRIPT_READY",
+        payload: { data: { id: extId }, source: "transcript_sync" },
+        status: "pending",
+      })
+      .select("id")
+      .maybeSingle();
+    if (ins.error && ins.error.code !== "23505") {
+      result.errors.push(`enqueue ${extId}: ${ins.error.message}`);
+    } else if (!ins.error) {
+      result.transcripts_enqueued++;
+    }
+  }
 }
 
 export async function syncTranscripts(orgId: string): Promise<TranscriptSyncResult> {
   const result: TranscriptSyncResult = {
     meetings_seen: 0,
     transcripts_upserted: 0,
+    transcripts_enqueued: 0,
     skipped: 0,
     errors: [],
   };

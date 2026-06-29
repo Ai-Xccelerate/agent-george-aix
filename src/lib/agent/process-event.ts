@@ -76,6 +76,11 @@ export async function processAgentEvent(
   }
   const event = claim.data as EventRow;
 
+  // Transcript-ready events have their own flow (no Outlook fetch / allowlist).
+  if (event.event_type === "TRANSCRIPT_READY") {
+    return await handleTranscriptReady(admin, event);
+  }
+
   // Resolve framing for Composio-sourced events. Outlook "new mail" triggers
   //    today; everything else gets marked 'skipped' so we don't leave rows hanging.
   //    OUTLOOK_MESSAGE_TRIGGER is the current Composio slug; OUTLOOK_NEW_MESSAGE
@@ -488,10 +493,10 @@ function renderInboundForChat(email: OutlookMessageFields): string {
   return parts.join("\n");
 }
 
-type ManagerContact = { name: string | null; email: string | null };
+export type ManagerContact = { name: string | null; email: string | null };
 
 /** George's escalation contact — the agent's configured human owner. */
-async function getManagerContact(
+export async function getManagerContact(
   admin: ReturnType<typeof createSupabaseAdmin>,
   orgId: string,
 ): Promise<ManagerContact | null> {
@@ -514,6 +519,142 @@ async function getManagerContact(
     name: (member.data.full_name as string | null) ?? null,
     email: (member.data.email as string | null) ?? null,
   };
+}
+
+/**
+ * Transcript-ready flow: a meeting George's note-taker recorded just landed in
+ * the mirror. Wake George to pull decisions / action items, update the plan +
+ * objectives, and draft a recap. Recipient trust boundary is the same as email
+ * (internal send ok, external draft-only).
+ */
+async function handleTranscriptReady(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  event: EventRow,
+): Promise<ProcessEventResult> {
+  const meetingExtId =
+    ((event.payload?.data as Record<string, unknown> | undefined)?.id as string) ??
+    event.source_event_id ??
+    null;
+  const { data: t } = await admin
+    .from("meeting_transcripts")
+    .select("id, title, summary, customer_id, ended_at")
+    .eq("org_id", event.org_id)
+    .eq("external_id", meetingExtId ?? "")
+    .maybeSingle();
+
+  if (!t) {
+    await admin
+      .from("agent_events")
+      .update({
+        status: "skipped",
+        error: "transcript row not found",
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", event.id);
+    return { skipped: true, reason: "not_found" };
+  }
+  const transcript = t as {
+    id: string;
+    title: string | null;
+    summary: string | null;
+    customer_id: string | null;
+    ended_at: string | null;
+  };
+
+  const manager = await getManagerContact(admin, event.org_id);
+  const framing = buildTranscriptFramingPrompt(transcript, manager);
+  const sessionTitle = `Meeting recap: ${transcript.title ?? "(untitled)"}`.slice(0, 120);
+
+  const sessionInsert = await admin
+    .from("agent_sessions")
+    .insert({
+      org_id: event.org_id,
+      user_id: null,
+      channel: "cron",
+      title: sessionTitle,
+      customer_id: transcript.customer_id,
+    })
+    .select("id")
+    .single();
+  if (sessionInsert.error || !sessionInsert.data) {
+    const errMsg = sessionInsert.error?.message ?? "could not create session";
+    await admin
+      .from("agent_events")
+      .update({ status: "failed", error: errMsg, processed_at: new Date().toISOString() })
+      .eq("id", event.id);
+    return { skipped: false, sessionId: null, status: "failed", error: errMsg };
+  }
+  const sessionId = sessionInsert.data.id as string;
+
+  await admin.from("agent_messages").insert({
+    session_id: sessionId,
+    role: "user",
+    content: `**Meeting transcript ready** — ${transcript.title ?? "(untitled)"}${
+      transcript.summary ? `\n\n${transcript.summary}` : ""
+    }`,
+  });
+
+  const result = await runGeorgeAutonomous({
+    orgId: event.org_id,
+    userPrompt: framing,
+    timeBudgetMs: PROCESS_TIME_BUDGET_MS,
+    clientAppTag: "agent-george-transcript/0.1",
+    sessionId,
+    emailSendPolicy: "internal_only",
+  });
+
+  if (result.summary) {
+    await admin.from("agent_messages").insert({
+      session_id: sessionId,
+      role: "assistant",
+      content: result.summary,
+    });
+  }
+  if (result.sdkSessionId) {
+    await admin
+      .from("agent_sessions")
+      .update({ sdk_session_id: result.sdkSessionId })
+      .eq("id", sessionId);
+  }
+
+  const finalStatus = result.status === "succeeded" ? "processed" : "failed";
+  await admin
+    .from("agent_events")
+    .update({
+      status: finalStatus,
+      session_id: sessionId,
+      error: result.error,
+      processed_at: new Date().toISOString(),
+    })
+    .eq("id", event.id);
+
+  return { skipped: false, sessionId, status: finalStatus, error: result.error };
+}
+
+function buildTranscriptFramingPrompt(
+  transcript: { id: string; title: string | null; customer_id: string | null },
+  manager: ManagerContact | null,
+): string {
+  const managerLine = manager?.email
+    ? `${manager.name ?? "your manager"} <${manager.email}>`
+    : "your manager (none configured — note it in your summary)";
+  const lines: string[] = [
+    "A meeting your note-taker (Scribe) recorded just landed. Read it and act — you're in autonomous mode.",
+    "",
+    "## What to do",
+    `1. Read the full transcript + insights: call \`read_transcript\` with transcript_id \`${transcript.id}\`.`,
+    "2. Extract decisions, action items (with owners + dates), and any risks or commitments.",
+    transcript.customer_id
+      ? `3. This meeting is tied to customer \`${transcript.customer_id}\`. Update their onboarding plan and objectives from what was decided (\`get_customer\`, \`create_objective\` / \`update_objective\`, onboarding step tools).`
+      : "3. Identify the customer from the attendees (`find_contact` / `find_customer`) and tie the meeting to them; update their plan/objectives from what was decided.",
+    "4. Draft a concise recap (decisions, owners, next steps).",
+    "   - If the recap goes to an INTERNAL teammate / your manager (@getonyx.ai), you may send it.",
+    "   - If it goes to the customer (external), draft only — leave it for human review.",
+    `5. When something needs a human call, consult your manager: ${managerLine}.`,
+    "",
+    "Ground anything customer-facing in the playbook (`read_knowledge_doc`).",
+  ];
+  return lines.join("\n");
 }
 
 async function resolveSenderToCustomer(
