@@ -150,7 +150,8 @@ export async function processAgentEvent(
     return { skipped: true, reason: "unsupported_type" };
   }
 
-  const framing = buildOutlookFramingPrompt(email);
+  const manager = await getManagerContact(admin, event.org_id);
+  const framing = buildOutlookFramingPrompt(email, manager);
   const sessionTitle = `Email: ${email.subject ?? "(no subject)"}`.slice(0, 120);
   const seedContent = renderInboundForChat(email);
 
@@ -214,6 +215,10 @@ export async function processAgentEvent(
     timeBudgetMs: PROCESS_TIME_BUDGET_MS,
     clientAppTag: "agent-george-event/0.1",
     sessionId,
+    // George may send to internal (@getonyx.ai) recipients — reply to an
+    // internal thread, escalate to his manager — but the send tool refuses
+    // any draft with an external recipient.
+    emailSendPolicy: "internal_only",
   });
 
   // Persist George's summary as an assistant message so the reviewer can
@@ -413,24 +418,40 @@ export function extractOutlookMessage(
   };
 }
 
-function buildOutlookFramingPrompt(email: OutlookMessageFields): string {
+function buildOutlookFramingPrompt(
+  email: OutlookMessageFields,
+  manager: ManagerContact | null,
+): string {
   const fromLabel = email.from
     ? email.from.name && email.from.address
       ? `${email.from.name} <${email.from.address}>`
       : email.from.address ?? email.from.name ?? "(unknown sender)"
     : "(unknown sender)";
 
+  const senderDomain = (email.from?.address?.split("@")[1] ?? "").toLowerCase();
+  const senderInternal = senderDomain === "getonyx.ai";
+  const managerLine = manager?.email
+    ? `${manager.name ?? "your manager"} <${manager.email}>`
+    : "your manager (no manager email is configured — note this in your summary instead of emailing)";
+
   const lines: string[] = [];
   lines.push(
-    "An email just arrived in your inbox. You are running in autonomous mode — there is no human to ask follow-up questions right now. Read the email, decide what to do, and draft a reply if one is appropriate.",
+    "An email just arrived in your inbox. You are running in autonomous mode — there is no human to ask follow-up questions in real time. Read it, triage it, and act.",
     "",
-    "## What to do",
-    "1. Identify the customer/contact: call `find_customer` or `find_contact` if you can extract a domain or name. If you can't tie this to anyone you know, note that and stop short of drafting.",
-    "2. Decide one of:",
-    "   - **Reply** — for anything operationally on-track. Use `draft_email_reply` with the Outlook message id below. DO NOT call `send_email_draft` — humans review every outbound message.",
-    "   - **Route to human** — if the email needs a decision a CSM should make. Do not draft; explain why in your summary.",
-    "   - **No-op** — auto-newsletters, bounce-backs, calendar invites, obvious noise. State the reason in your summary.",
-    "3. Whatever you draft, ground it in the org's playbook — use `read_knowledge_doc` if you need the wording or process.",
+    "## Step 1 — Identify",
+    "Call `find_customer` / `find_contact` to tie the sender to a customer if you can. Check the thread and records for context (`get_customer`, `search_emails`).",
+    "",
+    "## Step 2 — Triage into exactly one of:",
+    "- **Act (in-scope)** — it asks something of you or is clearly part of your job (onboarding, scheduling, a question you can answer from the playbook/records, a follow-up). Do the work.",
+    "- **FYI only** — you're cc'd, or it's informational with no ask of you, or it's noise (newsletters, bounces, auto-replies, calendar invites). Take NO action; just record a one-line FYI in your summary.",
+    "- **Escalate** — it needs a human judgement call (pricing, commitments, contract/legal, anything you're unsure about, or any reply that must go to an EXTERNAL recipient). See Step 3.",
+    "",
+    "## Step 3 — How to respond (trust boundary = recipient domain)",
+    `- The sender here is **${senderInternal ? "INTERNAL (@getonyx.ai)" : "EXTERNAL"}**.`,
+    "- **Internal recipients (@getonyx.ai):** you MAY draft AND send (`draft_email_reply` → `send_email_draft`). Replies to an internal teammate and notes to your manager are fine to send.",
+    "- **External recipients (customers/partners):** `draft_email_reply` ONLY — do NOT send. Leave the draft for human review and escalate (the send tool will refuse external recipients anyway).",
+    `- **When in doubt, consult your manager:** ${managerLine}. Send them a short internal email with the context and your recommendation, or note it in your summary if no manager email is set. Don't guess on anything customer-facing or commercial.`,
+    "- Ground every draft in the org's playbook — use `read_knowledge_doc` for wording/process.",
     "",
     "## The email",
     "",
@@ -465,6 +486,34 @@ function renderInboundForChat(email: OutlookMessageFields): string {
   parts.push("");
   parts.push(email.body_text ?? email.body_preview ?? "_(no body captured)_");
   return parts.join("\n");
+}
+
+type ManagerContact = { name: string | null; email: string | null };
+
+/** George's escalation contact — the agent's configured human owner. */
+async function getManagerContact(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  orgId: string,
+): Promise<ManagerContact | null> {
+  const settings = await admin
+    .from("agent_settings")
+    .select("owner_user_id")
+    .eq("org_id", orgId)
+    .eq("agent_slug", "george")
+    .maybeSingle();
+  const ownerId = settings.data?.owner_user_id as string | null | undefined;
+  if (!ownerId) return null;
+  const member = await admin
+    .from("org_members")
+    .select("full_name, email")
+    .eq("org_id", orgId)
+    .eq("user_id", ownerId)
+    .maybeSingle();
+  if (!member.data) return null;
+  return {
+    name: (member.data.full_name as string | null) ?? null,
+    email: (member.data.email as string | null) ?? null,
+  };
 }
 
 async function resolveSenderToCustomer(

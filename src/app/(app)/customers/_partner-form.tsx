@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Loader2, Plus } from "lucide-react";
 import {
   Dialog,
@@ -26,6 +26,7 @@ export function NewPartnerButton({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startSubmit] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
 
   function close() {
     if (pending) return;
@@ -38,12 +39,18 @@ export function NewPartnerButton({
     setError(null);
     const fd = new FormData(e.currentTarget);
     startSubmit(async () => {
-      const res = await createPartnerAction(fd);
-      if (!res.ok) {
-        setError(res.error);
-        return;
+      try {
+        const res = await createPartnerAction(fd);
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
+        setOpen(false);
+      } catch (err) {
+        // A thrown server action (e.g. session/auth failure) would otherwise
+        // reject silently — the spinner stops and nothing happens. Surface it.
+        setError(err instanceof Error ? err.message : "Could not create partner. Try again.");
       }
-      setOpen(false);
     });
   }
 
@@ -75,8 +82,8 @@ export function NewPartnerButton({
               Cancel
             </button>
             <button
-              type="submit"
-              form="new-partner-form"
+              type="button"
+              onClick={() => formRef.current?.requestSubmit()}
               disabled={pending}
               className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
             >
@@ -86,7 +93,7 @@ export function NewPartnerButton({
           </>
         }
       >
-        <form id="new-partner-form" onSubmit={onSubmit} className="space-y-4">
+        <form ref={formRef} id="new-partner-form" onSubmit={onSubmit} className="space-y-4">
           <DialogField label="Name" required>
             <input
               name="name"

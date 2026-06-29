@@ -1,5 +1,6 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
+import { isSenderAllowed } from "./sender-allowlist";
 
 /**
  * Mirrors George's M365 mailbox + calendar into Supabase (mail_folders,
@@ -30,8 +31,15 @@ export type MailboxSyncResult = {
   messages_upserted: number;
   messages_removed: number;
   events_upserted: number;
+  /** Fresh inbound emails enqueued as agent_events for George to act on. */
+  events_enqueued: number;
   errors: string[];
 };
+
+// Backstop window: only enqueue inbound email received within this window, so
+// the initial mirror backfill of old mail doesn't trigger a flood of runs.
+const ENQUEUE_WINDOW_MS = 6 * 60 * 60_000;
+const ENQUEUE_MAX_PER_RUN = 25;
 
 type GraphList = {
   value?: unknown[];
@@ -60,6 +68,7 @@ export async function syncMailbox(orgId: string): Promise<MailboxSyncResult> {
     messages_upserted: 0,
     messages_removed: 0,
     events_upserted: 0,
+    events_enqueued: 0,
     errors: [],
   };
   const admin = createSupabaseAdmin();
@@ -175,7 +184,88 @@ export async function syncMailbox(orgId: string): Promise<MailboxSyncResult> {
     result.errors.push(`calendar: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  // ── Enqueue fresh inbound for George ─────────────────────────────────────────
+  // Backstop for the Composio real-time trigger: turn newly-mirrored inbound
+  // mail into agent_events so George acts on it even if the webhook is down.
+  try {
+    result.events_enqueued = await enqueueFreshInbound(admin, orgId);
+  } catch (err) {
+    result.errors.push(`enqueue: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   return result;
+}
+
+/**
+ * Turn recently-mirrored inbound emails into pending `agent_events` so the cron
+ * sweep runs George on them. Independent of the Composio webhook (which may not
+ * be subscribed). Guards:
+ *   - only inbound received within ENQUEUE_WINDOW_MS (no backfill flood),
+ *   - only allowlisted senders,
+ *   - skips any message a prior run or the webhook already enqueued (dedup on
+ *     the Graph message id, checked across event sources).
+ */
+async function enqueueFreshInbound(admin: Admin, orgId: string): Promise<number> {
+  const cutoff = new Date(Date.now() - ENQUEUE_WINDOW_MS).toISOString();
+  const { data: candidates } = await admin
+    .from("email_messages")
+    .select("external_id, from_address, received_at")
+    .eq("org_id", orgId)
+    .eq("direction", "inbound")
+    .gte("received_at", cutoff)
+    .order("received_at", { ascending: false })
+    .limit(ENQUEUE_MAX_PER_RUN);
+  const rows = (candidates ?? []) as Array<{
+    external_id: string;
+    from_address: string | null;
+    received_at: string | null;
+  }>;
+  if (rows.length === 0) return 0;
+
+  // Message ids we've already turned into events (either path). The webhook
+  // keys events on Composio's delivery id, so also match the message id it
+  // stashes under payload.data.id.
+  const sinceDay = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+  const { data: existing } = await admin
+    .from("agent_events")
+    .select("source_event_id, payload")
+    .eq("org_id", orgId)
+    .gte("created_at", sinceDay);
+  const seen = new Set<string>();
+  for (const e of (existing ?? []) as Array<{
+    source_event_id: string | null;
+    payload: Record<string, unknown> | null;
+  }>) {
+    if (e.source_event_id) seen.add(e.source_event_id);
+    const pid = ((e.payload?.data as Record<string, unknown> | undefined)?.id as string) ?? null;
+    if (pid) seen.add(pid);
+  }
+
+  let enqueued = 0;
+  for (const m of rows) {
+    if (seen.has(m.external_id)) continue;
+    const decision = await isSenderAllowed(orgId, m.from_address);
+    if (!decision.allowed) continue;
+    const ins = await admin
+      .from("agent_events")
+      .insert({
+        org_id: orgId,
+        source: "mailbox_sync",
+        source_event_id: m.external_id,
+        event_type: "OUTLOOK_MESSAGE_TRIGGER",
+        payload: { data: { id: m.external_id }, source: "mailbox_sync" },
+        status: "pending",
+      })
+      .select("id")
+      .maybeSingle();
+    // 23505 = a concurrent run/webhook already enqueued it; treat as success.
+    if (ins.error && ins.error.code !== "23505") {
+      throw ins.error;
+    }
+    if (!ins.error) enqueued++;
+    seen.add(m.external_id);
+  }
+  return enqueued;
 }
 
 type Admin = ReturnType<typeof createSupabaseAdmin>;

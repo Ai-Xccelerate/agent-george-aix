@@ -18,6 +18,7 @@ import { buildGeorgeMcpServer } from "./tools";
 import { buildScribeMcpServer } from "./scribe";
 import { georgeCanUseTool } from "./permissions";
 import { buildGeorgeSystemPrompt } from "./system-prompt";
+import type { AutonomousSendPolicy } from "./prompt";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export type RunAutonomousInput = {
@@ -36,6 +37,14 @@ export type RunAutonomousInput = {
   /** Our agent_sessions.id for this run, if one exists. Forwarded into
    *  audit_log so the Inbox UI can link outbound rows back to the chat. */
   sessionId?: string | null;
+  /**
+   * Whether George may send email in this run.
+   *   - "none" (default): draft-only; send_email_draft is stripped.
+   *   - "internal_only": send_email_draft is available but the tool refuses
+   *     any draft with a non-@getonyx.ai recipient. Used for inbound email so
+   *     George can reply to internal threads / escalate to his manager.
+   */
+  emailSendPolicy?: AutonomousSendPolicy;
 };
 
 export type RunAutonomousResult = {
@@ -52,27 +61,32 @@ export async function runGeorgeAutonomous(
 ): Promise<RunAutonomousResult> {
   const admin = createSupabaseAdmin();
   const timeBudgetMs = input.timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS;
+  const emailSendPolicy = input.emailSendPolicy ?? "none";
 
   const systemPrompt = await buildGeorgeSystemPrompt(admin, {
     orgId: input.orgId,
     autonomous: true,
+    emailSendPolicy,
   });
 
   const { server: georgeServer, toolNames } = buildGeorgeMcpServer({
     orgId: input.orgId,
     userId: input.userId ?? null,
     sessionId: input.sessionId ?? null,
+    emailSendPolicy: emailSendPolicy === "internal_only" ? "internal_only" : "chat",
   });
   const scribe = buildScribeMcpServer();
 
   // Autonomous mode allowlist:
   //   - WebFetch / WebSearch: research is fine in the background.
-  //   - send_email_draft stripped: drafts go to humans for review.
   //   - AskUserQuestion excluded from builtinAllow: no UI to answer.
+  //   - send_email_draft: stripped under "none"; kept under "internal_only"
+  //     (the tool itself refuses external recipients).
   const builtinAllow = ["WebFetch", "WebSearch"];
-  const allowedMcpTools = toolNames.filter(
-    (n) => !n.endsWith("send_email_draft"),
-  );
+  const allowedMcpTools =
+    emailSendPolicy === "internal_only"
+      ? toolNames
+      : toolNames.filter((n) => !n.endsWith("send_email_draft"));
 
   const abortController = new AbortController();
   const timeoutHandle = setTimeout(() => abortController.abort(), timeBudgetMs);

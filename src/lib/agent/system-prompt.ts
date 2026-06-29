@@ -13,7 +13,11 @@
  * `mcp__george__search_knowledge(query)`.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { GEORGE_AUTONOMOUS_RUN_PROMPT, GEORGE_SYSTEM_PROMPT } from "./prompt";
+import {
+  buildAutonomousRunPrompt,
+  GEORGE_SYSTEM_PROMPT,
+  type AutonomousSendPolicy,
+} from "./prompt";
 import {
   getAgentSettings,
   operatingModeLabel,
@@ -44,8 +48,10 @@ type KnowledgeDoc = {
 
 export type BuildSystemPromptOptions = {
   orgId: string;
-  /** When true, appends GEORGE_AUTONOMOUS_RUN_PROMPT at the end. */
+  /** When true, appends the autonomous-run suffix at the end. */
   autonomous?: boolean;
+  /** Email send policy for autonomous runs. Default "none" (draft-only). */
+  emailSendPolicy?: AutonomousSendPolicy;
   /** When set, this conversation is scoped to one customer (the account hub's
    *  "Ask George about <partner>" chat). Appends a "Current account" block so
    *  George knows who the conversation is about without being told. */
@@ -54,7 +60,12 @@ export type BuildSystemPromptOptions = {
 
 export async function buildGeorgeSystemPrompt(
   admin: SupabaseClient,
-  { orgId, autonomous = false, customerId = null }: BuildSystemPromptOptions,
+  {
+    orgId,
+    autonomous = false,
+    customerId = null,
+    emailSendPolicy = "none",
+  }: BuildSystemPromptOptions,
 ): Promise<string> {
   const [orgRes, docsRes, agent] = await Promise.all([
     admin
@@ -90,7 +101,7 @@ export async function buildGeorgeSystemPrompt(
     accountBlock,
     knowledgeBlock,
   ];
-  if (autonomous) parts.push("\n\n" + GEORGE_AUTONOMOUS_RUN_PROMPT);
+  if (autonomous) parts.push("\n\n" + buildAutonomousRunPrompt(emailSendPolicy));
   return parts.join("");
 }
 

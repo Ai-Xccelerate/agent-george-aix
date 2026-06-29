@@ -24,8 +24,34 @@ type Ctx = {
    * originating chat conversation.
    */
   sessionId: string | null;
+  /**
+   * "chat" (default): a human confirmed the send, no guard. "internal_only":
+   * autonomous run — send_email_draft refuses any draft whose recipients
+   * aren't all @getonyx.ai, so George can't email a customer without review.
+   */
+  emailSendPolicy?: "chat" | "internal_only";
   db: SupabaseClient;
 };
+
+const INTERNAL_DOMAIN = "getonyx.ai";
+
+function recipientAddresses(msg: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  for (const key of ["toRecipients", "ccRecipients", "bccRecipients"]) {
+    const arr = msg[key];
+    if (!Array.isArray(arr)) continue;
+    for (const r of arr) {
+      const ea = (r as { emailAddress?: { address?: string } })?.emailAddress;
+      const addr = ea?.address ?? (typeof r === "string" ? r : null);
+      if (addr) out.push(addr.toLowerCase());
+    }
+  }
+  return out;
+}
+
+function externalRecipients(addresses: string[]): string[] {
+  return addresses.filter((a) => (a.split("@")[1] ?? "") !== INTERNAL_DOMAIN);
+}
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -143,11 +169,30 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- SEND DRAFT --------------------------------------------------
   const sendDraft = tool(
     "send_email_draft",
-    "Send a previously created draft. ONLY call this after the user has explicitly confirmed the draft (e.g. 'send it', 'looks good, send'). Never call autonomously.",
+    "Send a previously created draft. In chat, only after the user confirms ('send it'). In an autonomous run you may only send drafts whose recipients are all internal (@getonyx.ai) — external drafts are refused and must be left for human review.",
     {
       draft_id: z.string().min(1),
     },
     async ({ draft_id }) => {
+      // Hard guard for autonomous runs: never send a draft that would reach a
+      // customer/external address without a human in the loop.
+      if (ctx.emailSendPolicy === "internal_only") {
+        const draft = await callAction<Record<string, unknown>>(
+          "OUTLOOK_GET_MESSAGE",
+          ctx.orgId,
+          { messageId: draft_id },
+        );
+        if (!draft.ok) return fail(connectHintIfNeeded(draft.error, "Outlook"));
+        const body = (draft.data?.data ?? draft.data ?? {}) as Record<string, unknown>;
+        const external = externalRecipients(recipientAddresses(body));
+        if (external.length > 0) {
+          await audit(ctx, "email.send_blocked", { draft_id, external });
+          return fail(
+            `Refused to send: this draft has external recipient(s) [${external.join(", ")}]. ` +
+              "Autonomous sending is internal-only. Leave it as a draft and escalate to your manager for review.",
+          );
+        }
+      }
       const res = await callAction("OUTLOOK_SEND_DRAFT", ctx.orgId, {
         messageId: draft_id,
       });

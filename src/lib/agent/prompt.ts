@@ -305,20 +305,49 @@ answers, a clean sentence beats a forced list.
  *   - Finish with a structured summary of what you did + what's awaiting
  *     human review, because that text becomes the run record CSMs see.
  */
-export const GEORGE_AUTONOMOUS_RUN_PROMPT = `
+export type AutonomousSendPolicy = "none" | "internal_only";
+
+/**
+ * Autonomous-mode suffix. The email rule is parameterized by send policy:
+ *   - "none": draft-only, never send (standing jobs, objective follow-ups).
+ *   - "internal_only": George MAY send to all-internal (@getonyx.ai)
+ *     recipients (replies to internal threads, escalations to the manager),
+ *     but must leave any email with an external recipient as a draft. The
+ *     send tool hard-enforces this; the prompt states the intent.
+ */
+export function buildAutonomousRunPrompt(
+  sendPolicy: AutonomousSendPolicy = "none",
+): string {
+  const emailRule =
+    sendPolicy === "internal_only"
+      ? [
+          "- You MAY call `send_email_draft` ONLY when every recipient is an",
+          "  internal **@getonyx.ai** address (e.g. replying to an internal",
+          "  teammate, or escalating to your manager). The send tool enforces",
+          "  this and will refuse a draft that has any external recipient.",
+          "- For any email to an EXTERNAL recipient (a customer/partner),",
+          "  `draft_email` / `draft_email_reply` only — DO NOT send. Leave it as",
+          "  a draft and escalate to your manager so a human can review and send.",
+        ].join("\n")
+      : [
+          "- DO use `draft_email` / `draft_email_reply` to compose messages.",
+          "- DO NOT call `send_email_draft` under any circumstances during this",
+          "  run. Every email must remain a draft a human reviews later, even if",
+          '  the directive seems to imply "send it."',
+        ].join("\n");
+
+  return `
 
 # Autonomous run mode
 
 You are NOT in a live chat with a human right now. This run was triggered
-by a scheduled job (or by an admin clicking "Run now"); nobody is reading
-output in real time and nobody can answer questions back to you.
+by a scheduled job, an inbound signal (email/transcript), or an admin
+clicking "Run now"; nobody is reading output in real time and nobody can
+answer questions back to you.
 
 Adjust your behavior:
 
-- DO use \`draft_email\` / \`draft_email_reply\` to compose messages.
-- DO NOT call \`send_email_draft\` under any circumstances during an
-  autonomous run. Every email must remain a draft that a human reviews
-  later, even if the directive seems to imply "send it."
+${emailRule}
 - DO NOT call \`AskUserQuestion\`. There is no UI to answer it. If you're
   missing information, make the best reasonable decision, note the
   assumption in your final summary, and continue.
@@ -341,3 +370,4 @@ Finish with a final assistant message structured exactly like:
 If there's nothing for a section, write "None." This message becomes the
 permanent run record — be specific and link records by ID, not by paraphrase.
 `.trim();
+}

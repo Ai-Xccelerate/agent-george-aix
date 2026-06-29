@@ -34,6 +34,12 @@ export type GeorgeToolCtx = {
    * outbound draft/send back to the chat conversation it came from.
    */
   sessionId?: string | null;
+  /**
+   * Controls whether `send_email_draft` may actually send. "chat" (default):
+   * a human confirmed, no guard. "internal_only": autonomous run — the send
+   * tool refuses any draft with a non-@getonyx.ai recipient.
+   */
+  emailSendPolicy?: "chat" | "internal_only";
   /** Optional override (tests). Defaults to the admin client. */
   db?: SupabaseClient;
 };
@@ -1644,6 +1650,7 @@ export function buildGeorgeMcpServer(
     orgId,
     userId: ctx.userId,
     sessionId: ctx.sessionId ?? null,
+    emailSendPolicy: ctx.emailSendPolicy ?? "chat",
     db,
   });
 
