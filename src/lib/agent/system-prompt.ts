@@ -14,6 +14,13 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { GEORGE_AUTONOMOUS_RUN_PROMPT, GEORGE_SYSTEM_PROMPT } from "./prompt";
+import {
+  getAgentSettings,
+  operatingModeLabel,
+  personalityPrompt,
+  type AgentSettings,
+} from "./agent-settings";
+import { renderOperatingModelBlock } from "./operating-model";
 
 type OrgProfile = {
   name?: string | null;
@@ -47,7 +54,7 @@ export async function buildGeorgeSystemPrompt(
   admin: SupabaseClient,
   { orgId, autonomous = false, customerId = null }: BuildSystemPromptOptions,
 ): Promise<string> {
-  const [orgRes, docsRes] = await Promise.all([
+  const [orgRes, docsRes, agent] = await Promise.all([
     admin
       .from("orgs")
       .select(
@@ -61,8 +68,11 @@ export async function buildGeorgeSystemPrompt(
       .eq("org_id", orgId)
       .order("is_core", { ascending: false })
       .order("path"),
+    getAgentSettings(admin, orgId),
   ]);
 
+  const identityBlock = await buildIdentityBlock(admin, orgId, agent);
+  const operatingBlock = renderOperatingModelBlock(agent.operating_policy);
   const orgBlock = buildOrgBlock((orgRes.data ?? null) as OrgProfile | null);
   const knowledgeBlock = buildKnowledgeBlock(
     (docsRes.data ?? []) as KnowledgeDoc[],
@@ -71,12 +81,73 @@ export async function buildGeorgeSystemPrompt(
 
   const parts: string[] = [
     GEORGE_SYSTEM_PROMPT,
+    identityBlock,
+    operatingBlock,
     orgBlock,
     accountBlock,
     knowledgeBlock,
   ];
   if (autonomous) parts.push("\n\n" + GEORGE_AUTONOMOUS_RUN_PROMPT);
   return parts.join("");
+}
+
+/**
+ * Agent identity overlay — the editable employee record from /settings/agent.
+ * Customises name, title, bio, tone, default mode, and human owner. It is
+ * deliberately ADDITIVE: it can change who George *is* and how he *sounds*, but
+ * it must never relax an operating rule. The closing line restates that so a
+ * future edit to copy can't quietly imply otherwise.
+ */
+async function buildIdentityBlock(
+  admin: SupabaseClient,
+  orgId: string,
+  agent: AgentSettings,
+): Promise<string> {
+  type Owner = { full_name: string | null; email: string | null };
+  let owner: Owner | null = null;
+  if (agent.owner_user_id) {
+    const { data } = await admin
+      .from("org_members")
+      .select("full_name, email")
+      .eq("org_id", orgId)
+      .eq("user_id", agent.owner_user_id)
+      .maybeSingle();
+    owner = (data as Owner | null) ?? null;
+  }
+
+  const lines: string[] = [
+    `- Name: ${agent.name}`,
+    `- Title: ${agent.title}`,
+  ];
+  if (agent.bio) lines.push(`- Bio: ${agent.bio}`);
+  if (owner) {
+    const who = [owner.full_name, owner.email].filter(Boolean).join(" · ");
+    if (who) {
+      lines.push(
+        `- Reports to (human owner / escalation contact): ${who}. When a task needs human sign-off, a send authority you don't have, or a judgement call above your remit, this is who you escalate to.`,
+      );
+    }
+  }
+  lines.push(
+    `- Default operating mode: ${operatingModeLabel(agent.operating_mode)}` +
+      (agent.operating_mode === "assistant"
+        ? " (prepare/draft/surface; a human reviews and acts unless told otherwise)"
+        : " (execute end-to-end and report back; a human post-reviews on cadence)"),
+  );
+  lines.push(`- Tone preset: ${personalityPrompt(agent.personality)}`);
+
+  return (
+    "\n\n# Agent identity (configured for this org)\n\n" +
+    "These settings define who you are and how you sound for this organization. " +
+    `They take precedence over the default name, title, and tone mentioned ` +
+    `above — sign emails as **${agent.name}, ${agent.title}** (keep the mailbox ` +
+    "address and the AI-teammate disclaimer line in the signature unchanged).\n\n" +
+    lines.join("\n") +
+    "\n\nThese identity and tone settings do NOT override any of your operating " +
+    "rules or safety policies — draft-never-send, route-don't-invent, no SKU or " +
+    "pricing invention, and the tool allowlist all remain in force exactly as " +
+    "written above. Personality changes your wording, never your guardrails."
+  );
 }
 
 /**

@@ -18,17 +18,26 @@ export type IntegrationSummary = {
 };
 
 /**
+ * Result of a list call. We distinguish a genuinely-empty workspace from a
+ * failed Composio call so the page can tell the admin the truth — a bad/
+ * expired API key must not look identical to "no auth configs created yet."
+ */
+export type ListIntegrationsResult =
+  | { ok: true; integrations: IntegrationSummary[] }
+  | { ok: false; error: string };
+
+/**
  * Pulls every auth config the workspace has defined in Composio and joins it
  * with the connected accounts for this org. New auth configs added in the
  * Composio dashboard show up here automatically — no env-var plumbing.
  *
- * If the Composio API call fails we degrade to an empty list so the page
- * doesn't blow up; the admin will see the error banner from the action layer
- * next time they try to connect.
+ * On a Composio API failure (bad key, network, outage) we return
+ * `{ ok: false, error }` rather than an empty list, so the caller can show a
+ * "couldn't reach Composio" state instead of the misleading empty state.
  */
 export async function listOrgIntegrations(
   orgId: string,
-): Promise<IntegrationSummary[]> {
+): Promise<ListIntegrationsResult> {
   let configs: RawAuthConfig[] = [];
   let accounts: RawConnectedAccount[] = [];
 
@@ -50,14 +59,19 @@ export async function listOrgIntegrations(
       });
       accounts = unwrapList(acctList) as RawConnectedAccount[];
     }
-  } catch {
-    return [];
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Unknown Composio failure";
+    console.error("[composio] listOrgIntegrations failed", { orgId, message });
+    return { ok: false, error: message };
   }
 
-  return configs
+  const integrations = configs
     .map((cfg) => buildSummary(cfg, accounts))
     .filter((r): r is IntegrationSummary => !!r)
     .sort((a, b) => a.label.localeCompare(b.label));
+
+  return { ok: true, integrations };
 }
 
 function buildSummary(
@@ -241,5 +255,6 @@ export type ConnectionSummary = IntegrationSummary;
 export async function listOrgConnections(
   orgId: string,
 ): Promise<ConnectionSummary[]> {
-  return listOrgIntegrations(orgId);
+  const result = await listOrgIntegrations(orgId);
+  return result.ok ? result.integrations : [];
 }

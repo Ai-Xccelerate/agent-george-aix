@@ -89,7 +89,7 @@ export default async function IntegrationsPage({
   if (!user) return null;
   if (user.role !== "owner" && user.role !== "admin") redirect("/settings/profile");
 
-  const integrations = await listOrgIntegrations(user.orgId);
+  const result = await listOrgIntegrations(user.orgId);
   const sp = await searchParams;
 
   return (
@@ -118,11 +118,13 @@ export default async function IntegrationsPage({
         </Banner>
       )}
 
-      {integrations.length === 0 ? (
+      {!result.ok ? (
+        <ConnectionError message={result.error} />
+      ) : result.integrations.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="space-y-3">
-          {integrations.map((c) => (
+          {result.integrations.map((c) => (
             <IntegrationRow key={c.authConfigId} c={c} />
           ))}
         </div>
@@ -259,6 +261,31 @@ function EmptyState() {
       >
         Open Composio dashboard
       </a>
+    </div>
+  );
+}
+
+function ConnectionError({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-[12px] border border-dashed border-[var(--color-error)]/40 bg-[var(--color-surface-card)] py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-error)]/10 text-[var(--color-error)]">
+        <Unplug size={20} />
+      </div>
+      <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">
+        Couldn&apos;t reach Composio
+      </h2>
+      <p className="max-w-[480px] text-sm text-[var(--color-fg-secondary)]">
+        George couldn&apos;t list your auth configs. This usually means the
+        Composio API key is missing, expired, or scoped to a different project.
+        Check <code>COMPOSIO_API_KEY</code> in the server environment, then
+        refresh.
+      </p>
+      <p
+        className="max-w-[480px] truncate font-mono text-[12px] text-[var(--color-fg-secondary)] opacity-70"
+        title={message}
+      >
+        {message}
+      </p>
     </div>
   );
 }

@@ -31,7 +31,7 @@ const STAGES: Array<{ key: string; label: string }> = [
 export function PartnersView({ rows }: { rows: PartnerRow[] }) {
   const [view, setView] = useState<"list" | "board">("list");
   const [stage, setStage] = useState<string>("all");
-  const [kind, setKind] = useState<"all" | "partner" | "end_customer">("all");
+  const [kind, setKind] = useState<"all" | "partner" | "end_customer">("partner");
 
   // Kind filter applies first; stage tabs + their counts reflect the kind set.
   const kindFiltered = kind === "all" ? rows : rows.filter((r) => r.kind === kind);
@@ -66,9 +66,9 @@ export function PartnersView({ rows }: { rows: PartnerRow[] }) {
           {/* Partner / Customer filter — only when there are end customers */}
           {customerCount > 0 && (
             <div className="inline-flex rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] p-0.5">
-              <SegBtn active={kind === "all"} onClick={() => setKind("all")} label="All" />
               <SegBtn active={kind === "partner"} onClick={() => setKind("partner")} label={`Partners ${partnerCount}`} />
               <SegBtn active={kind === "end_customer"} onClick={() => setKind("end_customer")} label={`Customers ${customerCount}`} />
+              <SegBtn active={kind === "all"} onClick={() => setKind("all")} label="All" />
             </div>
           )}
 
