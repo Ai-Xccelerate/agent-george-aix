@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle, ArrowRight, Flag, Mail } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { listOrgIntegrations } from "@/lib/composio/connections";
 import { LifecycleBadge } from "@/components/ui/badge";
 import { Greeting } from "./_greeting";
 import { ActivityStats } from "./_activity-stats";
@@ -64,7 +65,7 @@ export default async function DashboardPage() {
         .eq("status", "blocked")
         .order("updated_at", { ascending: false })
         .limit(5),
-      admin.from("integrations").select("provider, status").eq("org_id", orgId),
+      listOrgIntegrations(orgId),
     ]);
 
   const customers = (custRes.data ?? []) as Array<{ lifecycle: string; customer_kind: string }>;
@@ -91,7 +92,11 @@ export default async function DashboardPage() {
     customer_id: string;
     customers: { name: string }[] | null;
   }>;
-  const integrations = (integrationsRes.data ?? []) as Array<{ provider: string; status: string }>;
+  // Live status from Composio is the single source of truth — no cached
+  // table that can go stale on token expiry. `ok: false` means Composio was
+  // unreachable; we render that distinctly rather than implying "connected".
+  const integrationsOk = integrationsRes.ok;
+  const integrations = integrationsRes.ok ? integrationsRes.integrations : [];
 
   const needsYouCount = recentDrafts.length + atRisk.length + escalated.length;
   const firstName = user.fullName?.split(" ")[0] ?? null;
@@ -184,22 +189,27 @@ export default async function DashboardPage() {
             title="George's connections"
             right={<Link href="/settings/integrations" className="text-[12px] font-medium text-[var(--color-accent)] hover:underline">Manage →</Link>}
           >
-            {integrations.length === 0 ? (
-              <Empty text="No integrations connected yet." />
+            {!integrationsOk ? (
+              <Empty text="Couldn't check connections — Composio was unreachable." />
+            ) : integrations.length === 0 ? (
+              <Empty text="No integrations configured yet." />
             ) : (
               <ul className="space-y-1.5">
-                {integrations.map((i) => (
-                  <li key={i.provider} className="flex items-center justify-between text-[13px]">
-                    <span className="text-[var(--color-fg)]">{providerLabel(i.provider)}</span>
-                    <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--color-fg-muted)]">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: i.status === "connected" ? "var(--color-success)" : "var(--color-fg-muted)" }}
-                      />
-                      {i.status === "connected" ? "Connected" : i.status}
-                    </span>
-                  </li>
-                ))}
+                {integrations.map((i) => {
+                  const connected = i.status === "connected";
+                  return (
+                    <li key={i.authConfigId} className="flex items-center justify-between text-[13px]">
+                      <span className="text-[var(--color-fg)]">{i.label}</span>
+                      <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--color-fg-muted)]">
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: connected ? "var(--color-success)" : "var(--color-fg-muted)" }}
+                        />
+                        {connected ? "Connected" : "Not connected"}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </Card>
@@ -273,16 +283,3 @@ function Empty({ text }: { text: string }) {
   );
 }
 
-function providerLabel(provider: string): string {
-  const map: Record<string, string> = {
-    composio: "Composio",
-    m365: "Microsoft 365",
-    outlook: "Microsoft Outlook",
-    onedrive: "Microsoft OneDrive",
-    fireflies: "Fireflies",
-    zoho: "Zoho CRM",
-    gmail: "Gmail",
-    slack: "Slack",
-  };
-  return map[provider] ?? provider;
-}

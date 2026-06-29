@@ -98,9 +98,20 @@ function buildSummary(
     cfg.toolkit?.description ??
     descriptionFor(toolkit);
 
-  const match = accounts.find(
+  // A toolkit can carry more than one connected account — e.g. a stale
+  // EXPIRED row left behind after a reconnect. Prefer an active account so a
+  // working connection is never masked by a dead one; fall back to any match
+  // so a lone expired/errored account still surfaces (as not-connected).
+  const matches = accounts.filter(
     (a) => (a.toolkit?.slug ?? a.appName ?? "").toUpperCase() === toolkit,
   );
+  const match =
+    matches.find((a) => {
+      const s = (a.status ?? "").toLowerCase();
+      return s === "active" || s === "connected";
+    }) ??
+    matches[0] ??
+    null;
 
   const rawStatus = (match?.status ?? "").toLowerCase();
   const status: IntegrationSummary["status"] = !match

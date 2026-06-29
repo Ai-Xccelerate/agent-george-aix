@@ -9,8 +9,10 @@ export const dynamic = "force-dynamic";
  * Query string carries `?status=success&connected_account_id=ca_...&toolkit=OUTLOOK`
  * (toolkit comes from the URL we built in connectToolkitAction).
  *
- * We persist the connection to our `integrations` table for fast UI status
- * lookups and then bounce the user back to /settings/integrations.
+ * Connection status is read live from Composio (see `listOrgIntegrations`) —
+ * the single source of truth — so we don't cache it here; a cached row would
+ * go stale on token expiry and lie. We just log the connect and bounce the
+ * user back to /settings/integrations.
  */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -40,22 +42,6 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = createSupabaseAdmin();
-  const provider = toolkit === "OUTLOOK" ? "m365" : toolkit.toLowerCase();
-
-  // Upsert into integrations so the UI can read it without a Composio round trip.
-  await admin
-    .from("integrations")
-    .upsert(
-      {
-        org_id: user.orgId,
-        provider,
-        status: "connected",
-        external_id: connectedAccountId,
-        last_synced_at: new Date().toISOString(),
-        metadata: { toolkit, connected_via: "composio" },
-      },
-      { onConflict: "org_id,provider" },
-    );
 
   await admin.from("audit_log").insert({
     org_id: user.orgId,
