@@ -61,6 +61,23 @@ export async function createPartnerAction(
   const notes = trimmedOrNull(formData.get("notes"));
 
   const admin = createSupabaseAdmin();
+
+  // One partner per domain — surface the existing one instead of duplicating.
+  if (domain) {
+    const existing = await admin
+      .from("customers")
+      .select("id, name")
+      .eq("org_id", user.orgId)
+      .ilike("domain", domain)
+      .maybeSingle();
+    if (existing.data) {
+      return {
+        ok: false,
+        error: `A partner with domain ${domain} already exists: ${existing.data.name}.`,
+      };
+    }
+  }
+
   const insert = await admin
     .from("customers")
     .insert({
@@ -78,9 +95,12 @@ export async function createPartnerAction(
     .select("id")
     .single();
   if (insert.error || !insert.data) {
+    const dupe = insert.error?.code === "23505";
     return {
       ok: false,
-      error: insert.error?.message ?? "Could not create partner.",
+      error: dupe
+        ? `A partner with domain ${domain} already exists.`
+        : insert.error?.message ?? "Could not create partner.",
     };
   }
 

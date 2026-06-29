@@ -264,7 +264,7 @@ export function buildGeorgeMcpServer(
   // ---- create_customer --------------------------------------------
   const createCustomer = tool(
     "create_customer",
-    "Create a new customer record. `customer_kind` distinguishes partners (MSPs Onyx contracts with) from end_customers (customers of a partner). End customers REQUIRE parent_customer_id pointing to their partner. Defaults to 'partner' to preserve existing behavior. Confirm the kind with the user when ambiguous.",
+    "Create a new customer record (or return the existing one). `customer_kind` distinguishes partners (MSPs Onyx contracts with) from end_customers (customers of a partner). End customers REQUIRE parent_customer_id pointing to their partner. Defaults to 'partner'. IMPORTANT: customers are unique by domain — if one already exists for the given domain this returns it (deduped=true) instead of creating a second. Always pass `domain` when you have it so dedup works.",
     {
       name: z.string().min(1),
       domain: z.string().optional().describe("Primary website domain, e.g. acme.com"),
@@ -292,6 +292,20 @@ export function buildGeorgeMcpServer(
       notes,
     }) => {
       const kind = customer_kind ?? "partner";
+
+      // Resolve-or-create by domain: one customer per domain per org. Avoids the
+      // duplicate-record loop when two autonomous runs see the same signal.
+      if (domain) {
+        const existing = await db
+          .from("customers")
+          .select("*")
+          .eq("org_id", orgId)
+          .ilike("domain", domain)
+          .maybeSingle();
+        if (existing.data) {
+          return ok({ customer: existing.data, deduped: true });
+        }
+      }
 
       if (kind === "end_customer") {
         if (!parent_customer_id) {
@@ -330,7 +344,20 @@ export function buildGeorgeMcpServer(
         })
         .select("*")
         .single();
-      if (error) return fail(error.message);
+      if (error) {
+        // 23505 = a concurrent run inserted the same domain first. Return that
+        // row so the caller converges on one customer instead of erroring.
+        if (error.code === "23505" && domain) {
+          const existing = await db
+            .from("customers")
+            .select("*")
+            .eq("org_id", orgId)
+            .ilike("domain", domain)
+            .maybeSingle();
+          if (existing.data) return ok({ customer: existing.data, deduped: true });
+        }
+        return fail(error.message);
+      }
       return ok({ customer: data });
     },
   );
