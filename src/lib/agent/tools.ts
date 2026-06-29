@@ -1615,10 +1615,65 @@ export function buildGeorgeMcpServer(
     },
   );
 
+  const raiseDecision = tool(
+    "raise_decision",
+    "Escalate to your human manager: record a decision you can't make on your own (pricing/commercial calls, contract/legal, an external email that shouldn't go without review, or anything above your remit). This puts it on the team's 'Needs you' queue so it can't be missed. Also send the manager a one-line internal email pointing here. Don't use this for routine work you can just do.",
+    {
+      title: z.string().min(1).describe("Short headline, e.g. 'Acme wants a 20% discount — approve?'"),
+      detail: z.string().min(1).describe("What's going on and exactly what you need decided."),
+      recommendation: z.string().optional().describe("Your proposed answer, if you have one."),
+      urgency: z.enum(["low", "normal", "high"]).default("normal").optional(),
+      customer_id: z.string().uuid().optional().describe("The customer this concerns, if any."),
+    },
+    async ({ title, detail, recommendation, urgency, customer_id }) => {
+      const { data, error } = await db
+        .from("escalations")
+        .insert({
+          org_id: orgId,
+          customer_id: customer_id ?? null,
+          session_id: ctx.sessionId ?? null,
+          title,
+          detail,
+          recommendation: recommendation ?? null,
+          urgency: urgency ?? "normal",
+          status: "open",
+        })
+        .select("id")
+        .single();
+      if (error) return fail(error.message);
+      return ok({
+        escalation_id: data.id,
+        status: "open",
+        note: "Logged to the Needs-you queue. Send the manager a short internal email pointing at this decision.",
+      });
+    },
+  );
+
+  const listOpenDecisions = tool(
+    "list_open_decisions",
+    "List escalations still awaiting a human decision (status='open'), newest first. Use during a proactive scan to re-ping the manager on anything stale.",
+    {
+      limit: z.number().int().min(1).max(50).default(20).optional(),
+    },
+    async ({ limit }) => {
+      const { data, error } = await db
+        .from("escalations")
+        .select("id, title, urgency, customer_id, created_at")
+        .eq("org_id", orgId)
+        .eq("status", "open")
+        .order("created_at", { ascending: false })
+        .limit(limit ?? 20);
+      if (error) return fail(error.message);
+      return ok({ open_decisions: data ?? [], count: (data ?? []).length });
+    },
+  );
+
   const supabaseTools = [
     findCustomer,
     listCustomers,
     getCustomer,
+    raiseDecision,
+    listOpenDecisions,
     createCustomer,
     addContact,
     recordContract,

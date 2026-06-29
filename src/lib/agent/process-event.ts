@@ -455,7 +455,7 @@ function buildOutlookFramingPrompt(
     `- The sender here is **${senderInternal ? "INTERNAL (@getonyx.ai)" : "EXTERNAL"}**.`,
     "- **Internal recipients (@getonyx.ai):** you MAY draft AND send (`draft_email_reply` → `send_email_draft`). Replies to an internal teammate and notes to your manager are fine to send.",
     "- **External recipients (customers/partners):** `draft_email_reply` ONLY — do NOT send. Leave the draft for human review and escalate (the send tool will refuse external recipients anyway).",
-    `- **When in doubt, consult your manager:** ${managerLine}. Send them a short internal email with the context and your recommendation, or note it in your summary if no manager email is set. Don't guess on anything customer-facing or commercial.`,
+    `- **When in doubt, escalate:** call \`raise_decision\` (title, detail, your recommendation) to put it on the team's Needs-you queue, then send a one-line internal heads-up to your manager ${managerLine}. Don't guess on anything customer-facing or commercial.`,
     "- Ground every draft in the org's playbook — use `read_knowledge_doc` for wording/process.",
     "",
     "## The email",
@@ -650,7 +650,7 @@ function buildTranscriptFramingPrompt(
     "4. Draft a concise recap (decisions, owners, next steps).",
     "   - If the recap goes to an INTERNAL teammate / your manager (@getonyx.ai), you may send it.",
     "   - If it goes to the customer (external), draft only — leave it for human review.",
-    `5. When something needs a human call, consult your manager: ${managerLine}.`,
+    `5. When something needs a human call, call \`raise_decision\` (it goes on the team's Needs-you queue) and send a one-line heads-up to your manager: ${managerLine}.`,
     "",
     "Ground anything customer-facing in the playbook (`read_knowledge_doc`).",
   ];

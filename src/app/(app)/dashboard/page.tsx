@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, ArrowRight, Flag, Mail } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Flag, Mail } from "lucide-react";
+import { resolveEscalationAction } from "./actions";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { listOrgIntegrations } from "@/lib/composio/connections";
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
   const orgId = user.orgId;
   const ninetyAgo = new Date(Date.now() - 90 * 86400000).toISOString();
 
-  const [custRes, activityRes, objAchievedRes, recentDraftsRes, atRiskRes, escalatedRes, integrationsRes] =
+  const [custRes, activityRes, objAchievedRes, recentDraftsRes, atRiskRes, escalatedRes, decisionsRes, integrationsRes] =
     await Promise.all([
       admin.from("customers").select("id, lifecycle, customer_kind").eq("org_id", orgId).limit(1000),
       admin
@@ -66,6 +67,13 @@ export default async function DashboardPage() {
         .eq("status", "blocked")
         .order("updated_at", { ascending: false })
         .limit(5),
+      admin
+        .from("escalations")
+        .select("id, title, urgency, customer_id, session_id, created_at, customers(name)")
+        .eq("org_id", orgId)
+        .eq("status", "open")
+        .order("created_at", { ascending: false })
+        .limit(8),
       listOrgIntegrations(orgId),
     ]);
 
@@ -93,6 +101,13 @@ export default async function DashboardPage() {
     customer_id: string;
     customers: { name: string }[] | null;
   }>;
+  const decisions = (decisionsRes.data ?? []) as Array<{
+    id: string;
+    title: string;
+    urgency: string;
+    session_id: string | null;
+    customers: { name: string }[] | null;
+  }>;
   // Live status from Composio is the single source of truth — no cached
   // table that can go stale on token expiry. `ok: false` means Composio was
   // unreachable; we render that distinctly rather than implying "connected".
@@ -102,7 +117,8 @@ export default async function DashboardPage() {
   // env-derived and independent of whether Composio could be reached.
   const scribe = getScribeConnection();
 
-  const needsYouCount = recentDrafts.length + atRisk.length + escalated.length;
+  const needsYouCount =
+    recentDrafts.length + atRisk.length + escalated.length + decisions.length;
   const firstName = user.fullName?.split(" ")[0] ?? null;
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -139,6 +155,49 @@ export default async function DashboardPage() {
               <Empty text="Nothing waiting. George surfaces drafts to approve, escalations, and at-risk partners here." />
             ) : (
               <div className="space-y-4">
+                {decisions.length > 0 && (
+                  <NeedGroup
+                    icon={<Bell size={13} />}
+                    label={`${decisions.length} decision${decisions.length === 1 ? "" : "s"} for you`}
+                  >
+                    {decisions.map((d) => (
+                      <div
+                        key={d.id}
+                        className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-[var(--color-surface-2)]"
+                      >
+                        <Link
+                          href={d.session_id ? `/chat/${d.session_id}` : "/actions"}
+                          className="min-w-0 flex-1"
+                        >
+                          <div className="flex items-center gap-2">
+                            {d.urgency === "high" && (
+                              <span className="shrink-0 rounded-full bg-[var(--color-error)]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--color-error)]">
+                                high
+                              </span>
+                            )}
+                            <span className="truncate text-[13px] font-medium text-[var(--color-fg)]">
+                              {d.title}
+                            </span>
+                          </div>
+                          {d.customers?.[0]?.name && (
+                            <div className="truncate text-[12px] text-[var(--color-fg-muted)]">
+                              {d.customers[0].name}
+                            </div>
+                          )}
+                        </Link>
+                        <form action={resolveEscalationAction} className="shrink-0">
+                          <input type="hidden" name="id" value={d.id} />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2 py-1 text-[12px] font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+                          >
+                            Resolve
+                          </button>
+                        </form>
+                      </div>
+                    ))}
+                  </NeedGroup>
+                )}
                 {recentDrafts.length > 0 && (
                   <NeedGroup icon={<Mail size={13} />} label={`${recentDrafts.length} draft${recentDrafts.length === 1 ? "" : "s"} to review`}>
                     {recentDrafts.map((d) => (
