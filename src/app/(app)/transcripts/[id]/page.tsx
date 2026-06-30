@@ -76,9 +76,9 @@ export default async function TranscriptDetailPage({
               {t.customers.name}
             </Link>
           )}
-          {t.meeting_url && (
+          {safeHttpUrl(t.meeting_url) && (
             <a
-              href={t.meeting_url}
+              href={safeHttpUrl(t.meeting_url)!}
               target="_blank"
               rel="noreferrer noopener"
               className="text-[var(--color-accent)] hover:underline"
@@ -200,6 +200,17 @@ function extractInsightLists(
     if (items.length) out.push({ label, items });
   }
   return out;
+}
+
+/** Only allow http(s) hrefs — meeting_url is synced from Scribe (external). */
+function safeHttpUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 function formatWhen(iso: string | null): string {

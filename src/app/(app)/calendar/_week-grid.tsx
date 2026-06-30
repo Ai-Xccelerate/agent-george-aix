@@ -280,10 +280,11 @@ function EventBlock({
     width: `calc(${widthPct}% - 4px)`,
   };
   const title = `${e.subject ?? "(no title)"} · ${minutesLabel(start)}–${minutesLabel(end)}`;
+  const joinUrl = safeHttpUrl(e.online_meeting_url);
 
-  if (e.online_meeting_url) {
+  if (joinUrl) {
     return (
-      <a href={e.online_meeting_url} target="_blank" rel="noreferrer noopener" className={className} style={style} title={title}>
+      <a href={joinUrl} target="_blank" rel="noreferrer noopener" className={className} style={style} title={title}>
         {body}
       </a>
     );
@@ -293,6 +294,21 @@ function EventBlock({
       {body}
     </div>
   );
+}
+
+/**
+ * Only return a URL safe to use as an href. Meeting URLs come from synced Graph
+ * data, so a malicious event could carry a javascript:/data:/vbscript: scheme —
+ * reject anything but http(s) to prevent stored XSS on click.
+ */
+function safeHttpUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 function hourLabel(h: number): string {
