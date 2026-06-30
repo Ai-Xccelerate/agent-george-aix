@@ -166,7 +166,7 @@ export default async function DashboardPage() {
                         className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-[var(--color-surface-2)]"
                       >
                         <Link
-                          href={d.session_id ? `/chat/${d.session_id}` : "/actions"}
+                          href={`/actions?item=decision:${d.id}`}
                           className="min-w-0 flex-1"
                         >
                           <div className="flex items-center gap-2">
@@ -180,7 +180,7 @@ export default async function DashboardPage() {
                             </span>
                           </div>
                           {d.customers?.[0]?.name && (
-                            <div className="truncate text-[12px] text-[var(--color-fg-muted)]">
+                            <div className="truncate text-[12px] font-medium text-[var(--color-accent)]">
                               {d.customers[0].name}
                             </div>
                           )}
@@ -203,7 +203,7 @@ export default async function DashboardPage() {
                     {recentDrafts.map((d) => (
                       <NeedRow
                         key={d.id}
-                        href="/actions"
+                        href={`/actions?item=draft:${d.id}`}
                         title={d.payload?.subject ?? "(no subject)"}
                         sub={d.payload?.to?.join(", ") ?? "—"}
                       />

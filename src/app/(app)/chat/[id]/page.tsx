@@ -20,14 +20,14 @@ export default async function ChatSessionPage({
   const { id } = await params;
   const supabase = await createSupabaseServer();
 
-  // Allow human-initiated chat sessions and autonomous-event sessions
-  // (channel='email' today, 'transcript' later) so the reviewer can resume
-  // an inbound email thread to approve / send a draft.
+  // Allow human chat sessions and all autonomous-run sessions (inbound email,
+  // transcript recaps, and proactive scans — all channel 'cron'/'email') so the
+  // reviewer can open George's write-up and resume the thread.
   const session = await supabase
     .from("agent_sessions")
     .select("id, channel")
     .eq("id", id)
-    .in("channel", ["chat", "email"])
+    .in("channel", ["chat", "email", "cron", "transcript"])
     .maybeSingle();
   if (!session.data) notFound();
 

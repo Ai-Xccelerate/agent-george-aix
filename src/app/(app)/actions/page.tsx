@@ -97,7 +97,7 @@ export default async function ActionsPage({
     key: `decision:${e.id}`,
     kind: "decision",
     title: e.title,
-    sub: name(e.customers),
+    sub: null,
     customerId: e.customer_id,
     customerName: name(e.customers),
     sessionId: e.session_id,
@@ -130,7 +130,7 @@ export default async function ActionsPage({
   const selected = items.find((i) => i.key === selectedKey) ?? items[0] ?? null;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 md:px-8 md:py-7">
+    <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <header className="mb-5">
         <h1 className="text-[22px] font-bold text-[var(--color-fg)]">AI actions</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
@@ -177,17 +177,25 @@ function Detail({ item, approver }: { item: Item; approver: string | null }) {
   return (
     <div className="space-y-4">
       <div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {item.kind === "decision" && item.urgency === "high" && (
             <span className="rounded-full bg-[var(--color-error)]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--color-error)]">
               high
             </span>
           )}
-          <h2 className="text-[16px] font-semibold text-[var(--color-fg)]">{item.title}</h2>
+          {item.customerName && (
+            <Link
+              href={item.customerId ? `/customers/${item.customerId}` : "#"}
+              className="inline-flex items-center gap-1 rounded-full bg-[var(--color-accent-light)] px-2.5 py-0.5 text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
+            >
+              {item.customerName}
+            </Link>
+          )}
         </div>
+        <h2 className="mt-1.5 text-[16px] font-semibold text-[var(--color-fg)]">{item.title}</h2>
         <p className="mt-0.5 text-[12px] text-[var(--color-fg-muted)]">
-          {item.kind === "decision" ? "Decision for you" : "Draft awaiting review"}
-          {item.customerName ? ` · ${item.customerName}` : ""} · {fmt(item.createdAt)}
+          {item.kind === "decision" ? "Decision for you" : "Draft awaiting review"} ·{" "}
+          {fmt(item.createdAt)}
         </p>
       </div>
 
@@ -318,9 +326,16 @@ function ListRow({ item, active }: { item: Item; active: boolean }) {
             {item.title}
           </span>
         </div>
-        {item.sub && (
-          <div className="mt-0.5 truncate text-[12px] text-[var(--color-fg-muted)]">{item.sub}</div>
-        )}
+        <div className="mt-1 flex items-center gap-2">
+          {item.customerName && (
+            <span className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-[var(--color-accent-light)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-accent)]">
+              {item.customerName}
+            </span>
+          )}
+          {item.sub && (
+            <span className="truncate text-[12px] text-[var(--color-fg-muted)]">{item.sub}</span>
+          )}
+        </div>
       </Link>
     </li>
   );
