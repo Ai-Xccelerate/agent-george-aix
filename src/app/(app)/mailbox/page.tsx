@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Mail, Paperclip } from "lucide-react";
+import { CheckCheck, Flag, Mail, Paperclip, Trash2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { deleteEmailAction, toggleFlagAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,9 @@ type Message = {
   has_attachments: boolean;
   received_at: string | null;
   sent_at: string | null;
+  flagged: boolean;
+  processed_at: string | null;
+  processed_session_id: string | null;
 };
 
 // Folders Outlook always has, in the order people expect them.
@@ -63,7 +67,7 @@ export default async function MailboxPage({
   const { data: msgData } = await supabase
     .from("email_messages")
     .select(
-      "external_id, conversation_id, subject, body_preview, from_name, from_address, to_recipients, is_read, has_attachments, received_at, sent_at",
+      "external_id, conversation_id, subject, body_preview, from_name, from_address, to_recipients, is_read, has_attachments, received_at, sent_at, flagged, processed_at, processed_session_id",
     )
     .eq("org_id", user.orgId)
     .eq("folder_external_id", selected.external_id)
@@ -129,29 +133,90 @@ export default async function MailboxPage({
 }
 
 function MessageRow({ m, outbound }: { m: Message; outbound: boolean }) {
-  const who = outbound ? `To ${firstRecipient(m.to_recipients) ?? "—"}` : (m.from_name ?? m.from_address ?? "(unknown sender)");
+  const who = outbound
+    ? `To ${firstRecipient(m.to_recipients) ?? "—"}`
+    : m.from_name ?? m.from_address ?? "(unknown sender)";
   const when = m.received_at ?? m.sent_at;
   const href = m.conversation_id ? `/mailbox/${encodeURIComponent(m.conversation_id)}` : "#";
+  const unread = !m.is_read && !outbound;
+
   return (
-    <li>
-      <Link href={href} className="flex items-start gap-3 px-4 py-3 hover:bg-[var(--color-surface-3)]">
-        {!m.is_read && !outbound && (
-          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[var(--color-accent)]" aria-label="unread" />
-        )}
-        <div className={`min-w-0 flex-1 ${m.is_read || outbound ? "pl-[20px]" : ""}`}>
-          <div className="flex items-center gap-2">
-            <span className={`truncate text-[13px] ${m.is_read ? "text-[var(--color-fg)]" : "font-semibold text-[var(--color-fg)]"}`}>
-              {m.subject || "(no subject)"}
-            </span>
-            {m.has_attachments && <Paperclip size={12} className="shrink-0 text-[var(--color-fg-muted)]" />}
-          </div>
-          <div className="mt-0.5 truncate text-[12px] text-[var(--color-fg-secondary)]">{who}</div>
+    <li
+      className={`group flex items-center gap-2 px-2.5 py-1.5 hover:bg-[var(--color-surface-3)] ${
+        m.flagged ? "bg-[var(--color-accent-light)]/40" : ""
+      }`}
+    >
+      {/* Flag toggle */}
+      <form action={toggleFlagAction} className="shrink-0">
+        <input type="hidden" name="external_id" value={m.external_id} />
+        <input type="hidden" name="flagged" value={(!m.flagged).toString()} />
+        <button
+          type="submit"
+          aria-label={m.flagged ? "Unflag" : "Flag for George"}
+          title={m.flagged ? "Flagged — click to clear" : "Flag as a signal for George"}
+          className={`flex h-6 w-6 items-center justify-center rounded ${
+            m.flagged
+              ? "text-[var(--color-accent)]"
+              : "text-[var(--color-fg-muted)] opacity-0 hover:bg-[var(--color-surface-2)] group-hover:opacity-100"
+          }`}
+        >
+          <Flag size={13} fill={m.flagged ? "currentColor" : "none"} />
+        </button>
+      </form>
+
+      {/* Unread dot */}
+      <span
+        className={`h-1.5 w-1.5 shrink-0 rounded-full ${unread ? "bg-[var(--color-accent)]" : "bg-transparent"}`}
+        aria-hidden
+      />
+
+      {/* Content (single compact line) */}
+      <Link href={href} className="flex min-w-0 flex-1 items-center gap-2 text-[13px]">
+        <span
+          className={`w-44 shrink-0 truncate ${
+            unread ? "font-semibold text-[var(--color-fg)]" : "text-[var(--color-fg-secondary)]"
+          }`}
+        >
+          {who}
+        </span>
+        <span className="min-w-0 flex-1 truncate">
+          <span className={unread ? "font-semibold text-[var(--color-fg)]" : "text-[var(--color-fg)]"}>
+            {m.subject || "(no subject)"}
+          </span>
           {m.body_preview && (
-            <div className="mt-1 line-clamp-1 text-[12px] text-[var(--color-fg-muted)]">{m.body_preview}</div>
+            <span className="text-[var(--color-fg-muted)]"> — {m.body_preview}</span>
           )}
-        </div>
-        <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">{when ? relative(when) : ""}</span>
+        </span>
       </Link>
+
+      {/* Badges */}
+      {m.has_attachments && <Paperclip size={12} className="shrink-0 text-[var(--color-fg-muted)]" />}
+      {m.processed_at && (
+        <Link
+          href={m.processed_session_id ? `/chat/${m.processed_session_id}` : "#"}
+          title={`George reviewed ${relative(m.processed_at)} ago`}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-success-light)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-success)]"
+        >
+          <CheckCheck size={11} /> George
+        </Link>
+      )}
+
+      <span className="w-12 shrink-0 text-right text-[11px] text-[var(--color-fg-muted)]">
+        {when ? relative(when) : ""}
+      </span>
+
+      {/* Delete */}
+      <form action={deleteEmailAction} className="shrink-0">
+        <input type="hidden" name="external_id" value={m.external_id} />
+        <button
+          type="submit"
+          aria-label="Delete"
+          title="Move to Deleted Items"
+          className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-fg-muted)] opacity-0 hover:bg-[var(--color-surface-2)] hover:text-[var(--color-error)] group-hover:opacity-100"
+        >
+          <Trash2 size={13} />
+        </button>
+      </form>
     </li>
   );
 }

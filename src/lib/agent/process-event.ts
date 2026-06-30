@@ -258,6 +258,16 @@ export async function processAgentEvent(
     })
     .eq("id", event.id);
 
+  // Stamp the mirrored email so the mailbox shows a "George reviewed" badge
+  // linking to his write-up.
+  if (finalStatus === "processed" && email.message_id) {
+    await admin
+      .from("email_messages")
+      .update({ processed_at: new Date().toISOString(), processed_session_id: sessionId })
+      .eq("org_id", event.org_id)
+      .eq("external_id", email.message_id);
+  }
+
   return {
     skipped: false,
     sessionId,
