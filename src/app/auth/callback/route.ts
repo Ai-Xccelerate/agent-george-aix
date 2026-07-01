@@ -11,7 +11,7 @@ import { admitUser, isAllowedEmail } from "@/lib/auth/access-policy";
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") ?? "/dashboard";
+  const next = safeRedirectPath(url.searchParams.get("next"));
 
   if (!code) return NextResponse.redirect(new URL("/signin", url));
 
@@ -47,4 +47,23 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(new URL(next, url));
+}
+
+/**
+ * Sanitise a user-supplied redirect target so it can only resolve to a
+ * same-origin path. Blocks protocol-relative URLs, absolute URLs, and
+ * any other scheme that would send the browser off-site.
+ */
+function safeRedirectPath(raw: string | null): string {
+  const fallback = "/dashboard";
+  if (!raw) return fallback;
+  const cleaned = raw.replace(/^[\s\\/]+/, "/");
+  if (!cleaned.startsWith("/") || cleaned.startsWith("//")) return fallback;
+  try {
+    const url = new URL(cleaned, "http://localhost");
+    if (url.hostname !== "localhost") return fallback;
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return fallback;
+  }
 }

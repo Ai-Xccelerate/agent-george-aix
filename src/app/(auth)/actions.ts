@@ -11,7 +11,7 @@ export type AuthResult = { error?: string; info?: string };
 export async function signInAction(_: AuthResult, formData: FormData): Promise<AuthResult> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/dashboard");
+  const next = safeRedirectPath(String(formData.get("next") ?? ""));
 
   if (!email || !password) return { error: "Email and password are required." };
   if (!isAllowedEmail(email)) {
@@ -70,4 +70,27 @@ export async function signOutAction() {
   const supabase = await createSupabaseServer();
   await supabase.auth.signOut();
   redirect("/signin");
+}
+
+/**
+ * Sanitise a user-supplied redirect target so it can only resolve to a
+ * same-origin path. Blocks protocol-relative URLs (`//evil.com`),
+ * absolute URLs (`https://evil.com`), and any other scheme that would
+ * send the browser off-site.
+ */
+function safeRedirectPath(raw: string): string {
+  const fallback = "/dashboard";
+  if (!raw) return fallback;
+  // Strip leading whitespace and backslashes (IE compat quirk).
+  const cleaned = raw.replace(/^[\s\\/]+/, "/");
+  // Must start with a single `/` and NOT `//` (protocol-relative).
+  if (!cleaned.startsWith("/") || cleaned.startsWith("//")) return fallback;
+  try {
+    const url = new URL(cleaned, "http://localhost");
+    // If the resolved host isn't localhost, something is off.
+    if (url.hostname !== "localhost") return fallback;
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return fallback;
+  }
 }

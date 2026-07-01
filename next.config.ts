@@ -6,8 +6,9 @@ const nextConfig: NextConfig = {
     // files × 25 MB each (see MAX_FILE_SIZE / MAX_FILES_PER_TURN in
     // src/app/(app)/chat/upload-actions.ts). The default 1 MB limit
     // rejects anything bigger with a 413 before the action even runs.
+    // 260 MB covers the maximum realistic payload (10 × 25 MB + overhead).
     serverActions: {
-      bodySizeLimit: "300mb",
+      bodySizeLimit: "260mb",
     },
   },
 };

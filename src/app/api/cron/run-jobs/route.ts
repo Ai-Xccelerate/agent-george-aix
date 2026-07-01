@@ -8,9 +8,10 @@
  * `runCronTick()` (`src/lib/agent/cron-tick.ts`) — shared by both callers so
  * they can't drift.
  *
- * Auth: caller sends `Authorization: Bearer <CRON_SECRET>` (or `?secret=`).
+ * Auth: caller sends `Authorization: Bearer <CRON_SECRET>`.
  */
 import { NextRequest } from "next/server";
+import crypto from "node:crypto";
 import { runCronTick } from "@/lib/agent/cron-tick";
 
 export const runtime = "nodejs";
@@ -33,10 +34,11 @@ async function handle(req: NextRequest) {
       { status: 500 },
     );
   }
+  // Only accept the secret via the Authorization header — never via query
+  // string, which leaks into access logs, browser history, and referrers.
   const auth = req.headers.get("authorization") ?? "";
-  const querySecret = new URL(req.url).searchParams.get("secret");
-  const provided = auth.replace(/^Bearer\s+/i, "") || querySecret;
-  if (provided !== secret) {
+  const provided = auth.replace(/^Bearer\s+/i, "");
+  if (!provided || !safeEqual(provided, secret)) {
     return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
@@ -48,5 +50,14 @@ async function handle(req: NextRequest) {
       { ok: false, error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
     );
+  }
+}
+
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch {
+    return false;
   }
 }
