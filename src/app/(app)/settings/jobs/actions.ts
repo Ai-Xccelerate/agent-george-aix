@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { CronExpressionParser } from "cron-parser";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/supabase/current-user";
 import { runGeorgeJob } from "@/lib/agent/run-job";
 import { computeNextRun } from "@/lib/agent/cron";
+import { type ActionResult, requireAdmin } from "@/lib/actions";
 
-export type ActionResult = { error?: string; info?: string };
+export type { ActionResult } from "@/lib/actions";
 
 const JobSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
@@ -26,14 +26,6 @@ const JobSchema = z.object({
     .transform((v) => (v && v.length ? v : null)),
   enabled: z.preprocess((v) => v === "on" || v === true, z.boolean()),
 });
-
-async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not signed in." as const };
-  if (user.role !== "owner" && user.role !== "admin")
-    return { error: "Admins only." as const };
-  return { user };
-}
 
 function validateCron(expr: string, tz: string | null): string | null {
   try {

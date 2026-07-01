@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/supabase/current-user";
+import { type ActionResult, requireAdmin } from "@/lib/actions";
 
-export type ActionResult = { error?: string; info?: string };
+export type { ActionResult } from "@/lib/actions";
 
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
@@ -62,14 +62,6 @@ const OrgSchema = z.object({
     .optional()
     .transform((v) => (v && v.length ? v : null)),
 });
-
-async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not signed in." as const };
-  if (user.role !== "owner" && user.role !== "admin")
-    return { error: "Admins only." as const };
-  return { user };
-}
 
 export async function updateOrganizationAction(
   _: ActionResult,

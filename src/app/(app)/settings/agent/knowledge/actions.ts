@@ -2,19 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/supabase/current-user";
 import { publishProposal } from "@/lib/knowledge/publish";
 import { AGENT_SLUG } from "@/lib/agent/agent-settings";
+import { type ActionResult, requireAdmin } from "@/lib/actions";
 
-export type ActionResult = { error?: string; info?: string };
-
-async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not signed in." as const };
-  if (user.role !== "owner" && user.role !== "admin")
-    return { error: "Admins only." as const };
-  return { user };
-}
+export type { ActionResult } from "@/lib/actions";
 
 /**
  * Approve (publish) or reject a staged knowledge proposal. One action so the

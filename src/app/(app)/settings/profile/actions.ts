@@ -5,8 +5,9 @@ import { z } from "zod";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/current-user";
+import { type ActionResult } from "@/lib/actions";
 
-export type ActionResult = { error?: string; info?: string };
+export type { ActionResult } from "@/lib/actions";
 
 const ProfileSchema = z.object({
   first_name: z.string().trim().min(1, "First name is required").max(60),

@@ -2,23 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/supabase/current-user";
 import { AGENT_SLUG } from "@/lib/agent/agent-settings";
+import { type ActionResult, requireAdmin } from "@/lib/actions";
 import {
   POLICY_CATALOG,
   type PolicyOverrides,
   type PolicyValue,
 } from "@/lib/agent/operating-model";
 
-export type ActionResult = { error?: string; info?: string };
-
-async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not signed in." as const };
-  if (user.role !== "owner" && user.role !== "admin")
-    return { error: "Admins only." as const };
-  return { user };
-}
+export type { ActionResult } from "@/lib/actions";
 
 /**
  * Reads every catalog policy from the form, validates it, and stores only the

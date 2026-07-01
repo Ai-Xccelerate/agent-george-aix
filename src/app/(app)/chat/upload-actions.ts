@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { prettyBytes, sanitizeFilename } from "@/lib/actions";
 
 export type UploadedAttachment = {
   document_id: string;
@@ -290,16 +291,4 @@ function resolveMimeType(file: File): string | null {
     if (ALLOWED_MIME.has(stripped)) return stripped;
   }
   return null;
-}
-
-function sanitizeFilename(name: string): string {
-  const noPath = name.replace(/^.*[\\/]/, "");
-  const safe = noPath.replace(/[^a-zA-Z0-9._-]+/g, "_");
-  return safe.length > 120 ? safe.slice(0, 120) : safe;
-}
-
-function prettyBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
