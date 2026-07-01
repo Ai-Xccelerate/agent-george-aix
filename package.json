@@ -19,7 +19,9 @@
     "sync:mailbox": "tsx scripts/sync-mailbox.ts",
     "seed:reporting-job": "tsx scripts/seed-reporting-job.ts",
     "seed:knowledge-review-job": "tsx scripts/seed-knowledge-review-job.ts",
-    "db:migrate": "bash scripts/db-migrate.sh"
+    "db:migrate": "bash scripts/db-migrate.sh",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.139",
@@ -57,6 +59,7 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }
