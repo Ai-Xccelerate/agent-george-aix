@@ -120,8 +120,11 @@ export async function searchCustomersAction(
 
   const trimmed = q.trim();
   if (trimmed.length > 0) {
-    // Match on prefix in name OR domain, case-insensitive.
-    qb = qb.or(`name.ilike.${trimmed}%,domain.ilike.${trimmed}%`);
+    // Escape characters that have special meaning in PostgREST filter
+    // values (commas, dots, parens, backslashes) so user input can't
+    // break out of the ilike value and alter the filter expression.
+    const safe = trimmed.replace(/[\\.,()]/g, (ch) => `\\${ch}`);
+    qb = qb.or(`name.ilike.${safe}%,domain.ilike.${safe}%`);
   }
 
   const { data, error } = await qb
