@@ -14,6 +14,7 @@ import { z } from "zod";
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callAction } from "@/lib/composio/client";
+import { wrapGeorgeEmailHtml, injectReplyHtml } from "@/lib/agent/email-branding";
 
 type Ctx = {
   orgId: string;
@@ -34,6 +35,26 @@ type Ctx = {
 };
 
 const INTERNAL_DOMAIN = "getonyx.ai";
+const GEORGE_ADDRESS = "agent.george@getonyx.ai";
+
+type Recipient = { address: string; name?: string };
+
+function isInternalAddress(addr: string): boolean {
+  return (addr.split("@")[1] ?? "").toLowerCase() === INTERNAL_DOMAIN;
+}
+
+/** Pull {address, name} pairs out of a Graph recipient array (or string[]). */
+function extractRecipients(list: unknown): Recipient[] {
+  if (!Array.isArray(list)) return [];
+  const out: Recipient[] = [];
+  for (const r of list) {
+    const ea =
+      (r as { emailAddress?: { address?: string; name?: string } })?.emailAddress ??
+      (typeof r === "string" ? { address: r } : undefined);
+    if (ea?.address) out.push({ address: ea.address, name: ea.name });
+  }
+  return out;
+}
 
 function recipientAddresses(msg: Record<string, unknown>): string[] {
   const out: string[] = [];
@@ -99,12 +120,16 @@ export function buildComposioTools(ctx: Ctx) {
       // silently sent the raw HTML as plain text — recipients saw <p> tags
       // in the email. Same nesting is already used by the calendar event
       // call below; keep them consistent.
+      // Append George's branded signature before sending. The chat preview
+      // below stays on the agent's own text so the user reviews content, not
+      // boilerplate.
+      const sentHtml = wrapGeorgeEmailHtml(input.body_html);
       const res = await callAction("OUTLOOK_CREATE_DRAFT", ctx.orgId, {
         toRecipients: input.to,
         ccRecipients: input.cc ?? [],
         bccRecipients: input.bcc ?? [],
         subject: input.subject,
-        body: { contentType: "HTML", content: input.body_html },
+        body: { contentType: "HTML", content: sentHtml },
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
       const data = res.data as { id?: string; message?: { id?: string } };
@@ -118,8 +143,9 @@ export function buildComposioTools(ctx: Ctx) {
         // Snapshot the body at draft time so the /inbox/outbound/[id]
         // viewer can always render a clean HTML preview, even if the
         // Outlook draft is later sent (id moves to Sent Items) or
-        // deleted (Outlook returns ErrorItemNotFound).
-        body_html: input.body_html,
+        // deleted (Outlook returns ErrorItemNotFound). Store the signed
+        // version so the viewer matches what actually went out.
+        body_html: sentHtml,
       });
       return ok({
         draft_id: draftId,
@@ -134,33 +160,109 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- DRAFT REPLY -------------------------------------------------
   const draftReply = tool(
     "draft_email_reply",
-    "Create a reply draft to an existing message in the same Outlook thread. Returns the draft id + preview; user MUST confirm before send_email_draft.",
+    "Reply in an existing Outlook thread. Replies to ALL internal @getonyx.ai people on the thread (sender + To + Cc) and EXCLUDES any external customer/partner. Returns the draft id, the recipients it will go to, and `excluded_external` (external addresses left off). Surface excluded_external to the user and ask before adding anyone external. User MUST confirm before send_email_draft.",
     {
       message_id: z.string().min(1).describe("Outlook message id (from get_email / list_recent_emails)."),
       body_html: z.string().min(1),
-      reply_all: z.boolean().default(false).optional(),
     },
-    async ({ message_id, body_html, reply_all }) => {
-      const slug = reply_all
-        ? "OUTLOOK_CREATE_REPLY_ALL_DRAFT"
-        : "OUTLOOK_CREATE_DRAFT_REPLY";
-      const res = await callAction(slug, ctx.orgId, {
+    async ({ message_id, body_html }) => {
+      // 1) Read the original's participants so we can reply-all to the internal
+      //    people on the thread only — never auto-include an external customer.
+      const orig = await callAction<Record<string, unknown>>(
+        "OUTLOOK_GET_MESSAGE",
+        ctx.orgId,
+        { messageId: message_id, select: ["from", "toRecipients", "ccRecipients"] },
+      );
+      const om = ((orig.ok ? (orig.data?.data ?? orig.data) : null) ?? {}) as {
+        from?: { emailAddress?: { address?: string; name?: string } };
+        toRecipients?: unknown;
+        ccRecipients?: unknown;
+      };
+      const fromRecip: Recipient[] = om.from?.emailAddress?.address
+        ? [{ address: om.from.emailAddress.address, name: om.from.emailAddress.name }]
+        : [];
+      const toPool = [...fromRecip, ...extractRecipients(om.toRecipients)];
+      const ccPool = extractRecipients(om.ccRecipients);
+
+      // Internal-only, de-duped, never George himself.
+      const seen = new Set<string>([GEORGE_ADDRESS.toLowerCase()]);
+      const internalOnly = (pool: Recipient[]): Recipient[] => {
+        const out: Recipient[] = [];
+        for (const r of pool) {
+          const a = r.address.toLowerCase();
+          if (!isInternalAddress(a) || seen.has(a)) continue;
+          seen.add(a);
+          out.push({ address: r.address, ...(r.name ? { name: r.name } : {}) });
+        }
+        return out;
+      };
+      let toRecipients = internalOnly(toPool);
+      const ccRecipients = internalOnly(ccPool);
+      const excludedExternal = [
+        ...new Set(
+          [...toPool, ...ccPool]
+            .map((r) => r.address)
+            .filter((a) => !isInternalAddress(a)),
+        ),
+      ];
+      // External-only thread (no internal besides George): fall back to the
+      // original sender so the reply is still valid, and flag it hard.
+      const externalOnly = toRecipients.length === 0;
+      if (externalOnly && fromRecip.length) toRecipients = [fromRecip[0]];
+
+      // 2) Create the reply draft WITHOUT a comment (the reply action's comment
+      //    is plain-text only; HTML there shows literal tags). This seeds the
+      //    quoted thread + conversationId; we set the HTML body + recipients next.
+      const res = await callAction("OUTLOOK_CREATE_DRAFT_REPLY", ctx.orgId, {
         messageId: message_id,
-        comment: body_html,
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
-      const data = res.data as { id?: string };
-      const draftId = data.id;
+      const draftId = (res.data as { id?: string }).id;
+      if (!draftId) return fail("Couldn't create the reply draft.");
+
+      // 3) Read the seeded draft body (quoted original) so we can top-post
+      //    George's HTML reply above it. Degrade to just George's message if
+      //    the fetch fails.
+      const got = await callAction<Record<string, unknown>>(
+        "OUTLOOK_GET_MESSAGE",
+        ctx.orgId,
+        { messageId: draftId, select: ["body"] },
+      );
+      const gotBody = ((got.ok ? (got.data?.data ?? got.data) : null) ??
+        {}) as { body?: { content?: string } };
+      const sentHtml = injectReplyHtml(
+        gotBody.body?.content ?? "",
+        wrapGeorgeEmailHtml(body_html),
+      );
+
+      // 4) Patch body + recipients. Recipient arrays are replace-on-write, so
+      //    setting both to the internal set strips the external addresses the
+      //    reply was seeded with.
+      const updated = await callAction("OUTLOOK_UPDATE_EMAIL", ctx.orgId, {
+        messageId: draftId,
+        body: { contentType: "HTML", content: sentHtml },
+        to_recipients: toRecipients,
+        cc_recipients: ccRecipients,
+      });
+      if (!updated.ok) return fail(connectHintIfNeeded(updated.error, "Outlook"));
+
       await audit(ctx, "email.reply_drafted", {
         draft_id: draftId,
         message_id,
-        reply_all: !!reply_all,
-        // Snapshot for the outbound viewer (see note in draft_email).
-        body_html,
+        to: toRecipients.map((r) => r.address),
+        cc: ccRecipients.map((r) => r.address),
+        excluded_external: excludedExternal,
+        // Snapshot the signed body so the outbound viewer matches what's sent.
+        body_html: sentHtml,
       });
       return ok({
         draft_id: draftId,
         in_reply_to: message_id,
+        to: toRecipients.map((r) => r.address),
+        cc: ccRecipients.map((r) => r.address),
+        excluded_external: excludedExternal,
+        reply_scope: externalOnly ? "external_fallback" : "internal_only",
+        // Preview stays on the agent's own text, not the quoted thread.
         preview: stripHtml(body_html).slice(0, 400),
       });
     },
@@ -169,29 +271,41 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- SEND DRAFT --------------------------------------------------
   const sendDraft = tool(
     "send_email_draft",
-    "Send a previously created draft. In chat, only after the user confirms ('send it'). In an autonomous run you may only send drafts whose recipients are all internal (@getonyx.ai) — external drafts are refused and must be left for human review.",
+    "Send a previously created draft — ONLY when every recipient is internal (@getonyx.ai). Drafts with any external recipient are always refused: those must be sent by a human from the mailbox Drafts folder. This holds in chat and in autonomous runs alike.",
     {
       draft_id: z.string().min(1),
     },
     async ({ draft_id }) => {
-      // Hard guard for autonomous runs: never send a draft that would reach a
-      // customer/external address without a human in the loop.
-      if (ctx.emailSendPolicy === "internal_only") {
-        const draft = await callAction<Record<string, unknown>>(
-          "OUTLOOK_GET_MESSAGE",
-          ctx.orgId,
-          { messageId: draft_id },
+      // Hard guard, ALWAYS ON (chat + autonomous): this tool may only send
+      // drafts whose recipients are ALL internal. External sends require an
+      // explicit human action (mailbox Drafts → Send), so a prompt injection
+      // driving George to read untrusted content can never exfiltrate via an
+      // auto-send. Do NOT re-scope this behind emailSendPolicy again.
+      const draft = await callAction<Record<string, unknown>>(
+        "OUTLOOK_GET_MESSAGE",
+        ctx.orgId,
+        { messageId: draft_id },
+      );
+      if (!draft.ok) return fail(connectHintIfNeeded(draft.error, "Outlook"));
+      const body = (draft.data?.data ?? draft.data ?? {}) as Record<string, unknown>;
+      const addresses = recipientAddresses(body);
+      // Fail CLOSED: if we can't positively read the recipients, we can't
+      // prove they're all internal — refuse rather than risk an external send.
+      if (addresses.length === 0) {
+        await audit(ctx, "email.send_blocked", { draft_id, reason: "recipients_unparsed" });
+        return fail(
+          "Refused to send: couldn't confirm this draft's recipients are all internal. " +
+            "The draft is saved — a human can send it from the mailbox Drafts folder.",
         );
-        if (!draft.ok) return fail(connectHintIfNeeded(draft.error, "Outlook"));
-        const body = (draft.data?.data ?? draft.data ?? {}) as Record<string, unknown>;
-        const external = externalRecipients(recipientAddresses(body));
-        if (external.length > 0) {
-          await audit(ctx, "email.send_blocked", { draft_id, external });
-          return fail(
-            `Refused to send: this draft has external recipient(s) [${external.join(", ")}]. ` +
-              "Autonomous sending is internal-only. Leave it as a draft and escalate to your manager for review.",
-          );
-        }
+      }
+      const external = externalRecipients(addresses);
+      if (external.length > 0) {
+        await audit(ctx, "email.send_blocked", { draft_id, external });
+        return fail(
+          `Refused to send: this draft has external recipient(s) [${external.join(", ")}]. ` +
+            "You can only send internal (@getonyx.ai) mail directly. The draft is saved — " +
+            "tell the user to review it and send it from the mailbox Drafts folder.",
+        );
       }
       const res = await callAction("OUTLOOK_SEND_DRAFT", ctx.orgId, {
         messageId: draft_id,
