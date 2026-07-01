@@ -109,12 +109,13 @@ export async function revokeInviteAction(formData: FormData) {
   const inviteId = String(formData.get("invite_id") ?? "");
   if (!inviteId) return;
   const admin = createSupabaseAdmin();
-  await admin
+  const { error } = await admin
     .from("invites")
     .update({ status: "revoked" })
     .eq("id", inviteId)
     .eq("org_id", auth.user.orgId)
     .eq("status", "pending");
+  if (error) throw new Error(`Could not revoke invite: ${error.message}`);
   revalidatePath("/settings/users");
 }
 
@@ -134,11 +135,12 @@ export async function changeRoleAction(formData: FormData) {
     .eq("user_id", targetUserId)
     .maybeSingle();
   if (target.data?.role === "owner") return;
-  await admin
+  const { error } = await admin
     .from("org_members")
     .update({ role: newRole })
     .eq("org_id", auth.user.orgId)
     .eq("user_id", targetUserId);
+  if (error) throw new Error(`Could not change role: ${error.message}`);
   revalidatePath("/settings/users");
 }
 
@@ -155,10 +157,11 @@ export async function removeMemberAction(formData: FormData) {
     .eq("user_id", targetUserId)
     .maybeSingle();
   if (target.data?.role === "owner") return;
-  await admin
+  const { error } = await admin
     .from("org_members")
     .delete()
     .eq("org_id", auth.user.orgId)
     .eq("user_id", targetUserId);
+  if (error) throw new Error(`Could not remove member: ${error.message}`);
   revalidatePath("/settings/users");
 }

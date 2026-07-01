@@ -124,9 +124,13 @@ export async function searchCustomersAction(
     qb = qb.or(`name.ilike.${trimmed}%,domain.ilike.${trimmed}%`);
   }
 
-  const { data } = await qb
+  const { data, error } = await qb
     .order("updated_at", { ascending: false })
     .limit(limit);
+  if (error) {
+    console.error("[searchCustomers] query failed", { error: error.message });
+    return [];
+  }
 
   return ((data ?? []) as Array<{
     id: string;
@@ -147,11 +151,14 @@ export async function clearAndStartNewChatAction(sessionId: string) {
 
   const admin = createSupabaseAdmin();
   if (sessionId) {
-    await admin
+    const { error: delError } = await admin
       .from("agent_sessions")
       .delete()
       .eq("id", sessionId)
       .eq("org_id", user.orgId);
+    if (delError) {
+      console.error("[chat] clearAndStartNew delete failed", { sessionId, error: delError.message });
+    }
   }
 
   const { data, error } = await admin

@@ -26,11 +26,14 @@ export async function deleteEmailAction(formData: FormData): Promise<void> {
   }
 
   const admin = createSupabaseAdmin();
-  await admin
+  const { error } = await admin
     .from("email_messages")
     .delete()
     .eq("org_id", user.orgId)
     .eq("external_id", externalId);
+  if (error) {
+    console.error("[mailbox] local delete failed", { externalId, error: error.message });
+  }
 
   revalidatePath("/mailbox");
 }
@@ -44,11 +47,12 @@ export async function toggleFlagAction(formData: FormData): Promise<void> {
   const flagged = formData.get("flagged") === "true";
 
   const admin = createSupabaseAdmin();
-  await admin
+  const { error } = await admin
     .from("email_messages")
     .update({ flagged })
     .eq("org_id", user.orgId)
     .eq("external_id", externalId);
+  if (error) throw new Error(`Could not update flag: ${error.message}`);
 
   revalidatePath("/mailbox");
 }

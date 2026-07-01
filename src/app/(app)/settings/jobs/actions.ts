@@ -105,11 +105,12 @@ export async function toggleJobAction(formData: FormData) {
   if (!jobId) return;
 
   const admin = createSupabaseAdmin();
-  await admin
+  const { error } = await admin
     .from("agent_jobs")
     .update({ enabled })
     .eq("id", jobId)
     .eq("org_id", auth.user.orgId);
+  if (error) throw new Error(`Could not toggle job: ${error.message}`);
   revalidatePath("/settings/jobs");
 }
 
@@ -119,11 +120,12 @@ export async function deleteJobAction(formData: FormData) {
   const jobId = String(formData.get("job_id") ?? "");
   if (!jobId) return;
   const admin = createSupabaseAdmin();
-  await admin
+  const { error } = await admin
     .from("agent_jobs")
     .delete()
     .eq("id", jobId)
     .eq("org_id", auth.user.orgId);
+  if (error) throw new Error(`Could not delete job: ${error.message}`);
   revalidatePath("/settings/jobs");
 }
 
@@ -143,11 +145,14 @@ export async function runJobNowAction(formData: FormData) {
     .maybeSingle();
   if (!data) return;
 
-  await runGeorgeJob({
+  const result = await runGeorgeJob({
     jobId,
     trigger: "manual",
     triggeredBy: auth.user.id,
   });
+  if (!result.skipped && result.error) {
+    throw new Error(`Job failed: ${result.error}`);
+  }
 
   revalidatePath("/settings/jobs");
 }

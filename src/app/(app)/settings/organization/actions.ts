@@ -217,10 +217,11 @@ export async function removeOrgLogoAction(formData: FormData) {
     .maybeSingle();
   const path = (current.data as Record<string, string | null> | null)?.[column];
 
-  await admin
+  const { error } = await admin
     .from("orgs")
     .update({ [column]: null, updated_by: user.id })
     .eq("id", user.orgId);
+  if (error) throw new Error(`Could not remove logo: ${error.message}`);
 
   if (path) {
     await admin.storage.from("org-assets").remove([path]);

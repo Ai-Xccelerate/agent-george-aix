@@ -181,11 +181,12 @@ export async function removeAgentAvatarAction(formData: FormData) {
     .maybeSingle();
   const path = (current.data as { avatar_path: string | null } | null)?.avatar_path;
 
-  await admin
+  const { error } = await admin
     .from("agent_settings")
     .update({ avatar_path: null, updated_by: user.id })
     .eq("org_id", user.orgId)
     .eq("agent_slug", AGENT_SLUG);
+  if (error) throw new Error(`Could not remove avatar: ${error.message}`);
 
   if (path) {
     await admin.storage.from("org-assets").remove([path]);

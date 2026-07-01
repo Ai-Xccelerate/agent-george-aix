@@ -206,11 +206,14 @@ export async function processAgentEvent(
   // 4) Seed the conversation with the inbound email so the reviewer sees it
   //    at the top of the chat. role='user' is the simplest framing — the
   //    chat history rail already renders user messages.
-  await admin.from("agent_messages").insert({
+  const seedInsert = await admin.from("agent_messages").insert({
     session_id: sessionId,
     role: "user",
     content: seedContent,
   });
+  if (seedInsert.error) {
+    console.error("[process-event] seed message insert failed", { sessionId, error: seedInsert.error.message });
+  }
 
   // 5) Run George autonomously. The runner enforces no send_email_draft, no
   //    AskUserQuestion, structured summary.
@@ -229,11 +232,14 @@ export async function processAgentEvent(
   // Persist George's summary as an assistant message so the reviewer can
   // read it in the chat UI.
   if (result.summary) {
-    await admin.from("agent_messages").insert({
+    const summaryInsert = await admin.from("agent_messages").insert({
       session_id: sessionId,
       role: "assistant",
       content: result.summary,
     });
+    if (summaryInsert.error) {
+      console.error("[process-event] summary message insert failed", { sessionId, error: summaryInsert.error.message });
+    }
   }
 
   // Link SDK session id so when the reviewer types in this session George
@@ -596,13 +602,16 @@ async function handleTranscriptReady(
   }
   const sessionId = sessionInsert.data.id as string;
 
-  await admin.from("agent_messages").insert({
+  const transcriptSeedInsert = await admin.from("agent_messages").insert({
     session_id: sessionId,
     role: "user",
     content: `**Meeting transcript ready** — ${transcript.title ?? "(untitled)"}${
       transcript.summary ? `\n\n${transcript.summary}` : ""
     }`,
   });
+  if (transcriptSeedInsert.error) {
+    console.error("[process-event] transcript seed message insert failed", { sessionId, error: transcriptSeedInsert.error.message });
+  }
 
   const result = await runGeorgeAutonomous({
     orgId: event.org_id,
@@ -614,11 +623,14 @@ async function handleTranscriptReady(
   });
 
   if (result.summary) {
-    await admin.from("agent_messages").insert({
+    const transcriptSummaryInsert = await admin.from("agent_messages").insert({
       session_id: sessionId,
       role: "assistant",
       content: result.summary,
     });
+    if (transcriptSummaryInsert.error) {
+      console.error("[process-event] transcript summary insert failed", { sessionId, error: transcriptSummaryInsert.error.message });
+    }
   }
   if (result.sdkSessionId) {
     await admin

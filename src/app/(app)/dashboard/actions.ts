@@ -12,7 +12,7 @@ export async function resolveEscalationAction(formData: FormData) {
   if (!id) return;
 
   const admin = createSupabaseAdmin();
-  await admin
+  const { error } = await admin
     .from("escalations")
     .update({
       status: "resolved",
@@ -22,6 +22,7 @@ export async function resolveEscalationAction(formData: FormData) {
     .eq("id", id)
     .eq("org_id", user.orgId)
     .eq("status", "open");
+  if (error) throw new Error(`Could not resolve escalation: ${error.message}`);
 
   revalidatePath("/dashboard");
 }
