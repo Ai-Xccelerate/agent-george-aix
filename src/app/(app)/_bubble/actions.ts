@@ -28,7 +28,10 @@ export async function createBubbleSessionAction(): Promise<{
     })
     .select("id")
     .single();
-  if (error || !data) return null;
+  if (error || !data) {
+    console.error("[bubble] session creation failed", { error: error?.message });
+    return null;
+  }
   return { id: data.id };
 }
 

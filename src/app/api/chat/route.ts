@@ -99,13 +99,16 @@ export async function POST(req: NextRequest) {
     ? `${attachmentMarkers}\n\n${lastUser.content}`
     : lastUser.content;
 
-  await admin.from("agent_messages").insert({
+  const userMsgInsert = await admin.from("agent_messages").insert({
     session_id: dbSession!.id,
     role: "user",
     content: userContentForLog,
     content_json:
       attachmentList.length > 0 ? { attachments: attachmentList } : null,
   });
+  if (userMsgInsert.error) {
+    console.error("[chat] user message insert failed", { sessionId: dbSession!.id, error: userMsgInsert.error.message });
+  }
 
   // Build transcript context. SDK `resume` will swap to its own context once we
   // capture the sdk_session_id from the first turn.

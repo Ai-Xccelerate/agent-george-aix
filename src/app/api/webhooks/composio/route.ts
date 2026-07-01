@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
       return new Response("ok (duplicate)", { status: 200 });
     }
     console.error("[composio webhook] failed to persist event", insert.error);
-    return new Response("ok", { status: 200 });
+    return new Response("persist failed", { status: 500 });
   }
 
   const eventId = insert.data.id as string;

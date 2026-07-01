@@ -66,6 +66,7 @@ export type CronTickResult = {
   mailbox_sync: MailboxSyncResult[];
   transcript_sync: TranscriptSyncResult[];
   proactive_scan: ProactiveScanResult[];
+  errors: string[];
 };
 
 export async function runCronTick(): Promise<CronTickResult> {
@@ -157,6 +158,8 @@ export async function runCronTick(): Promise<CronTickResult> {
 
   // Objectives scan — wake George on objectives whose follow-up clock is due.
   // Runs last so standing jobs + the event sweep get first claim on the budget.
+  const errors: string[] = [];
+
   let objectivesScan: ObjectivesScanResult = {
     customers_processed: 0,
     objectives_due: 0,
@@ -167,7 +170,9 @@ export async function runCronTick(): Promise<CronTickResult> {
     try {
       objectivesScan = await runObjectivesScan({ budgetMsRemaining: budgetLeft });
     } catch (err) {
+      const msg = `objectives scan: ${err instanceof Error ? err.message : String(err)}`;
       console.error("[cron tick] objectives scan failed", err);
+      errors.push(msg);
     }
   }
 
@@ -177,7 +182,9 @@ export async function runCronTick(): Promise<CronTickResult> {
     try {
       mailboxSync = await runDueMailboxSyncs(admin);
     } catch (err) {
+      const msg = `mailbox sync: ${err instanceof Error ? err.message : String(err)}`;
       console.error("[cron tick] mailbox sync failed", err);
+      errors.push(msg);
     }
   }
 
@@ -187,7 +194,9 @@ export async function runCronTick(): Promise<CronTickResult> {
     try {
       transcriptSync = await runDueTranscriptSyncs(admin);
     } catch (err) {
+      const msg = `transcript sync: ${err instanceof Error ? err.message : String(err)}`;
       console.error("[cron tick] transcript sync failed", err);
+      errors.push(msg);
     }
   }
 
@@ -201,7 +210,9 @@ export async function runCronTick(): Promise<CronTickResult> {
         TICK_BUDGET_MS - (Date.now() - startedAt),
       );
     } catch (err) {
+      const msg = `proactive scan: ${err instanceof Error ? err.message : String(err)}`;
       console.error("[cron tick] proactive scan failed", err);
+      errors.push(msg);
     }
   }
 
@@ -216,6 +227,7 @@ export async function runCronTick(): Promise<CronTickResult> {
     mailbox_sync: mailboxSync,
     transcript_sync: transcriptSync,
     proactive_scan: proactiveScan,
+    errors,
   };
 }
 
