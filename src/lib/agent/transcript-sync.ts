@@ -1,5 +1,6 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callScribeTool, isScribeAvailable } from "@/lib/scribe/client";
+import { analyzeMeetingIntelligence } from "@/lib/agent/meeting-intelligence";
 
 /**
  * Mirrors George's Scribe meeting transcripts into Supabase (meeting_transcripts).
@@ -134,7 +135,25 @@ async function syncOneMeeting(
   const { text, count } = transcriptRes.ok
     ? flattenTranscript(transcriptRes.data)
     : { text: null, count: 0 };
-  const insights = insightsRes.ok ? insightsRes.data : null;
+  const scribeInsights = insightsRes.ok ? insightsRes.data : null;
+  const summary = summaryFromInsights(scribeInsights);
+
+  // Enrich with George-derived sentiment + learnings (Scribe doesn't provide
+  // these). Best-effort — merged into the insights jsonb when it succeeds.
+  let insights: unknown = scribeInsights;
+  if (text) {
+    const intel = await analyzeMeetingIntelligence({ transcriptText: text, summary });
+    if (intel) {
+      const base =
+        scribeInsights && typeof scribeInsights === "object" ? (scribeInsights as Json) : {};
+      insights = {
+        ...base,
+        sentiment: intel.sentiment,
+        sentiment_rationale: intel.sentiment_rationale,
+        learnings: intel.learnings,
+      };
+    }
+  }
 
   const attendees = pick(src, ["attendees", "participants"]) ?? [];
   const emails = attendeeEmails(attendees);
@@ -160,7 +179,7 @@ async function syncOneMeeting(
       transcript_text: text,
       segment_count: count,
       insights: insights ?? null,
-      summary: summaryFromInsights(insights),
+      summary,
       customer_id: customerId,
       meeting_url: str(pick(src, ["meeting_url", "url", "join_url", "joinUrl"])),
       raw: { meeting: src, transcript_ok: transcriptRes.ok, insights_ok: insightsRes.ok },

@@ -31,6 +31,9 @@ export async function connectToolkitAction(formData: FormData) {
 
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
+  // Managing the org's shared OAuth connections is admin-only. The page hides
+  // these controls for non-admins, but the action must enforce it too.
+  if (user.role !== "owner" && user.role !== "admin") redirect("/settings/profile");
 
   const hdrs = await headers();
   const baseUrl =
@@ -78,6 +81,7 @@ export async function disconnectToolkitAction(formData: FormData) {
 
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
+  if (user.role !== "owner" && user.role !== "admin") redirect("/settings/profile");
 
   try {
     const composio = getComposio();

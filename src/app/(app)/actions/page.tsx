@@ -1,19 +1,21 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bell, Mail, MessageSquare, Inbox } from "lucide-react";
+import { Bell, Mail, Inbox, Sparkles } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { resolveEscalationAction } from "../dashboard/actions";
+import { resolveEscalationAction, discardEscalationAction } from "../dashboard/actions";
 import { SafeHtml } from "./_safe-html";
+import { type InitialMessage } from "../chat/_chat-client";
+import { GeorgePanel, type SuggestedAction } from "./_george-panel";
+import { ResizableChat } from "./_resizable-chat";
 
 export const dynamic = "force-dynamic";
 
 /**
- * AI actions — the lean queue of what George needs from a human, as a
- * master-detail: the list on the left, the selected item's detail + who
- * approves + the action on the right. Two real sources, no demo data:
- *   - escalations George raised (decisions to make)
- *   - email drafts not yet sent (replies to approve)
+ * AI actions — a three-pane queue of what George needs from a human:
+ *   1. the list (decisions George raised + email drafts to approve),
+ *   2. the selected item's detail + approve/discard actions,
+ *   3. a contextual chat with George on that item's originating conversation.
  * Customer-specific work also surfaces on that partner's page; this is the
  * cross-book catch-all.
  */
@@ -32,6 +34,7 @@ type Item = {
   escalationId?: string;
   to?: string[];
   bodyHtml?: string | null;
+  suggestedActions?: SuggestedAction[];
 };
 
 export default async function ActionsPage({
@@ -48,7 +51,7 @@ export default async function ActionsPage({
     admin
       .from("escalations")
       .select(
-        "id, title, detail, recommendation, urgency, customer_id, session_id, created_at, customers(name)",
+        "id, title, detail, recommendation, suggested_actions, urgency, customer_id, session_id, created_at, customers(name)",
       )
       .eq("org_id", user.orgId)
       .eq("status", "open")
@@ -106,6 +109,7 @@ export default async function ActionsPage({
     recommendation: e.recommendation,
     urgency: e.urgency,
     escalationId: e.id,
+    suggestedActions: Array.isArray(e.suggested_actions) ? e.suggested_actions : [],
   }));
 
   const drafts: Item[] = ((draftRes.data ?? []) as RawDraft[])
@@ -116,7 +120,9 @@ export default async function ActionsPage({
     .map((r) => ({
       key: `draft:${r.id}`,
       kind: "draft",
-      title: r.payload?.subject || "(no subject)",
+      title:
+        r.payload?.subject ||
+        (r.action === "email.reply_drafted" ? "Reply draft" : "(no subject)"),
       sub: (r.payload?.to ?? []).join(", ") || null,
       customerId: r.customer_id,
       customerName: name(r.customers),
@@ -129,13 +135,23 @@ export default async function ActionsPage({
   const items = [...decisions, ...drafts];
   const selected = items.find((i) => i.key === selectedKey) ?? items[0] ?? null;
 
+  // Resolving/discarding is a decision the approver makes — the org owner today,
+  // and CSMs going forward. Read-only roles (sales, viewer) see it but can't act.
+  const canApprove = ["owner", "admin", "csm"].includes(user.role);
+
+  // Seed the chat with a clean, plain-text opening from George (the finding +
+  // his recommendation) rather than dumping the raw originating session, which
+  // can contain HTML email bodies and long run logs. The real session still
+  // backs the conversation, so George has full context when you reply.
+  const chatSeed: InitialMessage[] = selected ? [seedMessage(selected)] : [];
+
   return (
     <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <header className="mb-5">
         <h1 className="text-[22px] font-bold text-[var(--color-fg)]">AI actions</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
           What George needs from you across the book — decisions to make and drafts to
-          review. Anything tied to one partner also shows on that partner&apos;s page.
+          review. Talk it through with George on the right, then resolve or discard.
         </p>
       </header>
 
@@ -150,8 +166,9 @@ export default async function ActionsPage({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 items-start gap-4 xl:flex">
+          {/* Column 1 — the queue */}
+          <div className="space-y-4 xl:w-[300px] xl:shrink-0 xl:sticky xl:top-5">
             <ListGroup label="Decisions" count={decisions.length} icon={<Bell size={13} />}>
               {decisions.map((d) => (
                 <ListRow key={d.key} item={d} active={selected?.key === d.key} />
@@ -164,16 +181,70 @@ export default async function ActionsPage({
             </ListGroup>
           </div>
 
-          <div className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-            {selected ? <Detail item={selected} approver={approver} /> : null}
+          {/* Column 2 — detail + actions */}
+          <div className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5 xl:min-w-0 xl:flex-1">
+            {selected ? <Detail item={selected} approver={approver} canApprove={canApprove} /> : null}
           </div>
+
+          {/* Column 3 — contextual chat with George (drag the left edge to resize) */}
+          <ResizableChat>
+            <div className="flex items-center gap-1.5 border-b border-[var(--color-border-subtle)] px-4 py-3 pl-5 text-[13px] font-semibold text-[var(--color-fg)]">
+              <Sparkles size={14} className="text-[var(--color-accent)]" />
+              Chat with George
+            </div>
+            <div className="min-h-0 flex-1">
+              {selected && (
+                <GeorgePanel
+                  sessionId={selected.sessionId}
+                  initialMessages={chatSeed}
+                  suggestedActions={selected.suggestedActions ?? []}
+                />
+              )}
+            </div>
+          </ResizableChat>
         </div>
       )}
     </div>
   );
 }
 
-function Detail({ item, approver }: { item: Item; approver: string | null }) {
+/**
+ * A clean, plain-text opening message from George for the chat — the finding,
+ * what it's based on, and his recommendation. Keeps the conversation human and
+ * readable instead of replaying raw session history.
+ */
+function seedMessage(item: Item): InitialMessage {
+  const parts: string[] = [];
+  if (item.kind === "draft") {
+    const to = item.to && item.to.length ? ` to ${item.to.join(", ")}` : "";
+    parts.push(`I've drafted a reply${to} — the full draft is in the panel on the left.`);
+    parts.push(
+      "Here's what I can do:\n\n- **Send it** as-is\n- **Revise it** first — tell me what to change\n- **Hold off** for now",
+    );
+    parts.push("Which would you like?");
+  } else if (item.detail || item.recommendation) {
+    if (item.detail) parts.push(item.detail);
+    if (item.recommendation) {
+      parts.push(`**Here's what I'd suggest:**\n\n${item.recommendation}`);
+    }
+    parts.push(
+      "Tell me which way to go and I'll take care of it — I can create or assign the user, update the owner, or send an email on your behalf. Just confirm and I'll do it (and I'll always show you before anything goes out externally).",
+    );
+  } else {
+    parts.push(item.title, "How would you like to handle this?");
+  }
+  return { id: `seed-${item.key}`, role: "assistant", content: parts.join("\n\n") };
+}
+
+function Detail({
+  item,
+  approver,
+  canApprove,
+}: {
+  item: Item;
+  approver: string | null;
+  canApprove: boolean;
+}) {
   return (
     <div className="space-y-4">
       <div>
@@ -241,25 +312,33 @@ function Detail({ item, approver }: { item: Item; approver: string | null }) {
       </Field>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border-subtle)] pt-4">
-        {item.kind === "decision" && item.escalationId && (
-          <form action={resolveEscalationAction}>
-            <input type="hidden" name="id" value={item.escalationId} />
-            <button
-              type="submit"
-              className="inline-flex h-9 items-center rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
-            >
-              Mark resolved
-            </button>
-          </form>
+        {item.kind === "decision" && item.escalationId && canApprove && (
+          <>
+            <form action={resolveEscalationAction}>
+              <input type="hidden" name="id" value={item.escalationId} />
+              <button
+                type="submit"
+                className="inline-flex h-9 items-center rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
+              >
+                Mark resolved
+              </button>
+            </form>
+            <form action={discardEscalationAction}>
+              <input type="hidden" name="id" value={item.escalationId} />
+              <button
+                type="submit"
+                className="inline-flex h-9 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg-secondary)] hover:border-[var(--color-error)]/40 hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)]"
+              >
+                Discard
+              </button>
+            </form>
+          </>
         )}
-        {item.sessionId && (
-          <Link
-            href={`/chat/${item.sessionId}`}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
-          >
-            <MessageSquare size={14} />
-            Open conversation
-          </Link>
+        {item.kind === "decision" && item.escalationId && !canApprove && (
+          <span className="text-[12px] text-[var(--color-fg-muted)]">
+            Resolving or discarding is handled by the assigned CSM or owner
+            {approver ? ` (${approver})` : ""}. You can still discuss it with George on the right.
+          </span>
         )}
         {item.customerId && (
           <Link
@@ -286,18 +365,16 @@ function ListGroup({
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <div className="mb-1.5 flex items-center gap-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
+    <div className="overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+      <div className="flex items-center gap-2 border-b border-[var(--color-border-subtle)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
         {icon}
         {label}
         <span className="text-[var(--color-fg-muted)]">({count})</span>
       </div>
       {count === 0 ? (
-        <p className="px-1 text-[12px] text-[var(--color-fg-muted)]">None.</p>
+        <p className="px-3 py-2.5 text-[12px] text-[var(--color-fg-muted)]">None.</p>
       ) : (
-        <ul className="overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
-          {children}
-        </ul>
+        <ul>{children}</ul>
       )}
     </div>
   );
@@ -308,21 +385,17 @@ function ListRow({ item, active }: { item: Item; active: boolean }) {
     <li>
       <Link
         href={`/actions?item=${encodeURIComponent(item.key)}`}
-        className={`block border-b border-[var(--color-border-subtle)] px-3 py-2.5 last:border-b-0 ${
-          active ? "bg-[var(--color-accent-light)]" : "hover:bg-[var(--color-surface-3)]"
+        className={`block border-l-2 border-b border-[var(--color-border-subtle)] px-3 py-2.5 last:border-b-0 ${
+          active
+            ? "border-l-[var(--color-accent)] bg-[var(--color-surface-2)]"
+            : "border-l-transparent hover:bg-[var(--color-surface-3)]"
         }`}
       >
         <div className="flex items-center gap-2">
           {item.kind === "decision" && item.urgency === "high" && (
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-error)]" />
           )}
-          <span
-            className={`truncate text-[13px] ${
-              active
-                ? "font-semibold text-[var(--color-accent)]"
-                : "font-medium text-[var(--color-fg)]"
-            }`}
-          >
+          <span className="truncate text-[13px] font-medium text-[var(--color-fg)]">
             {item.title}
           </span>
         </div>
@@ -357,6 +430,7 @@ type RawEsc = {
   title: string;
   detail: string | null;
   recommendation: string | null;
+  suggested_actions: SuggestedAction[] | null;
   urgency: string;
   customer_id: string | null;
   session_id: string | null;

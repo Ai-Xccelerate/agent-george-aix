@@ -109,7 +109,7 @@ export default async function UsersSettingsPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-[14px] font-medium text-[var(--color-fg)]">
-                    {m.full_name ?? "—"}
+                    {m.full_name ?? (m.user_id === user.id ? user.fullName : null) ?? "—"}
                   </span>
                   {m.user_id === user.id && (
                     <span className="text-[10px] uppercase tracking-wide text-[var(--color-fg-muted)]">

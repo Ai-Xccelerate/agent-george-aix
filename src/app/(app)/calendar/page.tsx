@@ -68,7 +68,7 @@ export default async function CalendarPage({
   const { data } = await supabase
     .from("calendar_events")
     .select(
-      "external_id, subject, start_at, end_at, location, online_meeting_url, is_all_day, is_cancelled",
+      "external_id, subject, start_at, end_at, location, online_meeting_url, web_link, is_all_day, is_cancelled, body_preview, organizer_name, organizer_address, attendees, response_status",
     )
     .eq("org_id", user.orgId)
     .gte("start_at", from)
@@ -78,7 +78,7 @@ export default async function CalendarPage({
   const events = (data ?? []) as CalEvent[];
 
   return (
-    <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-6 2xl:px-12">
+    <div className="flex h-full min-h-0 w-full flex-col px-4 py-5 sm:px-6 md:px-8 md:py-6 2xl:px-12">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Calendar</h1>

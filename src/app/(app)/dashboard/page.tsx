@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangle, ArrowRight, Bell, Flag, Mail } from "lucide-react";
-import { resolveEscalationAction } from "./actions";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { listOrgIntegrations } from "@/lib/composio/connections";
@@ -29,7 +28,7 @@ export default async function DashboardPage() {
   const orgId = user.orgId;
   const ninetyAgo = new Date(Date.now() - 90 * 86400000).toISOString();
 
-  const [custRes, activityRes, objAchievedRes, recentDraftsRes, atRiskRes, escalatedRes, decisionsRes, integrationsRes] =
+  const [custRes, activityRes, objAchievedRes, recentDraftsRes, sentDraftsRes, atRiskRes, escalatedRes, decisionsRes, integrationsRes] =
     await Promise.all([
       admin.from("customers").select("id, lifecycle, customer_kind").eq("org_id", orgId).limit(1000),
       admin
@@ -48,11 +47,18 @@ export default async function DashboardPage() {
         .limit(5000),
       admin
         .from("audit_log")
-        .select("id, payload, customer_id")
+        .select("id, action, payload, customer_id")
         .eq("org_id", orgId)
         .in("action", DRAFT_ACTIONS)
         .order("created_at", { ascending: false })
-        .limit(4),
+        .limit(30),
+      admin
+        .from("audit_log")
+        .select("payload")
+        .eq("org_id", orgId)
+        .eq("action", "email.sent")
+        .order("created_at", { ascending: false })
+        .limit(500),
       admin
         .from("customers")
         .select("id, name")
@@ -90,10 +96,26 @@ export default async function DashboardPage() {
     .map((o) => o.achieved_at)
     .filter((t): t is string => !!t);
 
-  const recentDrafts = (recentDraftsRes.data ?? []) as Array<{
-    id: string;
-    payload: { to?: string[]; subject?: string } | null;
-  }>;
+  // Drop drafts that have since been sent — an `email.sent` row carries the
+  // sent draft's id in its payload. Without this the dashboard shows stale
+  // "to review" rows whose /actions target has already been filtered out.
+  const sentDraftIds = new Set(
+    ((sentDraftsRes.data ?? []) as Array<{ payload: { draft_id?: string } | null }>)
+      .map((r) => r.payload?.draft_id)
+      .filter((x): x is string => !!x),
+  );
+  const recentDrafts = (
+    (recentDraftsRes.data ?? []) as Array<{
+      id: string;
+      action: string;
+      payload: { to?: string[]; subject?: string; draft_id?: string } | null;
+    }>
+  )
+    .filter((d) => {
+      const id = d.payload?.draft_id;
+      return id ? !sentDraftIds.has(id) : true;
+    })
+    .slice(0, 4);
   const atRisk = (atRiskRes.data ?? []) as Array<{ id: string; name: string }>;
   const escalated = (escalatedRes.data ?? []) as Array<{
     id: string;
@@ -143,7 +165,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Card
-            title="What needs you"
+            title="AI Actions for You"
             badge={needsYouCount || undefined}
             right={
               <Link href="/actions" className="text-[12px] font-medium text-[var(--color-accent)] hover:underline">
@@ -163,12 +185,9 @@ export default async function DashboardPage() {
                     {decisions.map((d) => (
                       <div
                         key={d.id}
-                        className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-[var(--color-surface-2)]"
+                        className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-[var(--color-surface-2)]"
                       >
-                        <Link
-                          href={`/actions?item=decision:${d.id}`}
-                          className="min-w-0 flex-1"
-                        >
+                        <Link href={`/actions?item=decision:${d.id}`} className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             {d.urgency === "high" && (
                               <span className="shrink-0 rounded-full bg-[var(--color-error)]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--color-error)]">
@@ -185,15 +204,12 @@ export default async function DashboardPage() {
                             </div>
                           )}
                         </Link>
-                        <form action={resolveEscalationAction} className="shrink-0">
-                          <input type="hidden" name="id" value={d.id} />
-                          <button
-                            type="submit"
-                            className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2 py-1 text-[12px] font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
-                          >
-                            Resolve
-                          </button>
-                        </form>
+                        <Link
+                          href={`/actions?item=decision:${d.id}`}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+                        >
+                          Open <ArrowRight size={12} />
+                        </Link>
                       </div>
                     ))}
                   </NeedGroup>
@@ -204,8 +220,11 @@ export default async function DashboardPage() {
                       <NeedRow
                         key={d.id}
                         href={`/actions?item=draft:${d.id}`}
-                        title={d.payload?.subject ?? "(no subject)"}
-                        sub={d.payload?.to?.join(", ") ?? "—"}
+                        title={
+                          d.payload?.subject ||
+                          (d.action === "email.reply_drafted" ? "Reply draft" : "(no subject)")
+                        }
+                        sub={d.payload?.to?.join(", ") || "—"}
                       />
                     ))}
                   </NeedGroup>
@@ -316,12 +335,12 @@ function Card({
 
 function NeedGroup({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-[var(--color-fg-muted)]">
-        {icon}
+    <div className="overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+      <div className="flex items-center gap-1.5 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-fg-secondary)]">
+        <span className="text-[var(--color-accent)]">{icon}</span>
         {label}
       </div>
-      <div className="space-y-1">{children}</div>
+      <div className="divide-y divide-[var(--color-border-subtle)]">{children}</div>
     </div>
   );
 }
@@ -330,7 +349,7 @@ function NeedRow({ href, title, sub }: { href: string; title: string; sub: strin
   return (
     <Link
       href={href}
-      className="flex items-center justify-between gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-3 py-2 hover:bg-[var(--color-surface-2)]"
+      className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-[var(--color-surface-2)]"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] font-medium text-[var(--color-fg)]">{title}</span>

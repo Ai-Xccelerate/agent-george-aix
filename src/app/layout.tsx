@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import { Inter } from "next/font/google";
+import { Open_Sans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+const openSans = Open_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-open-sans",
   display: "swap",
 });
 
@@ -32,7 +32,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} h-full ${isDark ? "dark" : ""}`}
+      className={`${openSans.variable} h-full ${isDark ? "dark" : ""}`}
       suppressHydrationWarning
     >
       <body className="min-h-full antialiased">{children}</body>

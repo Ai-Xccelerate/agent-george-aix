@@ -471,7 +471,7 @@ function buildOutlookFramingPrompt(
     `- The sender here is **${senderInternal ? "INTERNAL (@getonyx.ai)" : "EXTERNAL"}**.`,
     "- **Internal recipients (@getonyx.ai):** you MAY draft AND send (`draft_email_reply` → `send_email_draft`). Replies to an internal teammate and notes to your manager are fine to send.",
     "- **External recipients (customers/partners):** `draft_email_reply` ONLY — do NOT send. Leave the draft for human review and escalate (the send tool will refuse external recipients anyway).",
-    `- **When in doubt, escalate:** call \`raise_decision\` (title, detail, your recommendation) to put it on the team's Needs-you queue, then send a one-line internal heads-up to your manager ${managerLine}. Don't guess on anything customer-facing or commercial.`,
+    `- **When in doubt, escalate:** call \`raise_decision\` (title, detail, your recommendation, and 1–4 concrete \`suggested_actions\` the reviewer can click to hand back to you) to put it on the team's Needs-you queue, then send a one-line internal heads-up to your manager ${managerLine}. Don't guess on anything customer-facing or commercial.`,
     "- Ground every draft in the org's playbook — use `read_knowledge_doc` for wording/process.",
     "",
     "## The email",

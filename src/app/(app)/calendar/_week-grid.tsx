@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { MapPin, Video } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { MapPin, Users, Video, X } from "lucide-react";
 
 export type CalEvent = {
   external_id: string;
@@ -10,12 +10,20 @@ export type CalEvent = {
   end_at: string | null;
   location: string | null;
   online_meeting_url: string | null;
+  web_link: string | null;
   is_all_day: boolean;
   is_cancelled: boolean;
+  body_preview: string | null;
+  organizer_name: string | null;
+  organizer_address: string | null;
+  attendees: unknown;
+  response_status: string | null;
 };
 
-const PX_PER_HOUR = 48;
+const PX_PER_HOUR = 56;
 const DAYS = 7;
+// The full day is rendered so the timeline scrolls; it opens scrolled to 6am.
+const DEFAULT_HOUR = 6;
 
 function partsInTz(iso: string, tz: string): { dayKey: string; minutes: number } {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -51,6 +59,7 @@ export function WeekGrid({
   weekStartMs: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [selected, setSelected] = useState<CalEvent | null>(null);
 
   const todayKey = dayKeyOf(Date.now(), tz);
   const nowMinutes = partsInTz(new Date().toISOString(), tz).minutes;
@@ -69,11 +78,14 @@ export function WeekGrid({
   });
   const colIndex = new Map(columns.map((c, i) => [c.key, i]));
 
+  // Open scrolled to 6am (or an hour before "now" when today is in view). The
+  // sticky header shares the header's height, so hour*PX lands that hour right
+  // below the pinned header.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const showNow = columns.some((c) => c.key === todayKey);
-    const startHour = showNow ? Math.max(0, Math.floor(nowMinutes / 60) - 1) : 7;
+    const startHour = showNow ? Math.max(0, Math.floor(nowMinutes / 60) - 1) : DEFAULT_HOUR;
     el.scrollTop = startHour * PX_PER_HOUR;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStartMs]);
@@ -119,56 +131,63 @@ export function WeekGrid({
   const gridCols: React.CSSProperties = { gridTemplateColumns: `56px repeat(${DAYS}, 1fr)` };
 
   return (
-    <div className="overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
-      {/* Day headers */}
-      <div className="grid border-b border-[var(--color-border)]" style={gridCols}>
-        <div className="border-r border-[var(--color-border-subtle)]" />
-        {columns.map((c) => {
-          const isToday = c.key === todayKey;
-          return (
-            <div
-              key={c.key}
-              className="border-r border-[var(--color-border-subtle)] px-2 py-2 text-center last:border-r-0"
-            >
-              <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">
-                {c.weekday}
-              </div>
-              <div
-                className={`text-[13px] font-semibold ${
-                  isToday ? "text-[var(--color-accent)]" : "text-[var(--color-fg)]"
-                }`}
-              >
-                {c.label}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* All-day band */}
-      {hasAllDay && (
-        <div className="grid border-b border-[var(--color-border-subtle)]" style={gridCols}>
-          <div className="border-r border-[var(--color-border-subtle)] px-2 py-1.5 text-right text-[10px] uppercase tracking-wide text-[var(--color-fg-muted)]">
-            All day
-          </div>
-          {columns.map((c, i) => (
-            <div key={c.key} className="space-y-1 border-r border-[var(--color-border-subtle)] p-1 last:border-r-0">
-              {allDayByCol[i].map((e) => (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+      {/* One scroll container: sticky header + all-day + timeline. Keeping the
+          header inside the same scroller means its columns always match the
+          body's width, so nothing drifts when the scrollbar appears. */}
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+        <div className="sticky top-0 z-20 bg-[var(--color-surface-card)]">
+          {/* Day headers */}
+          <div className="grid border-b border-[var(--color-border)]" style={gridCols}>
+            <div className="border-r border-[var(--color-border-subtle)]" />
+            {columns.map((c) => {
+              const isToday = c.key === todayKey;
+              return (
                 <div
-                  key={e.external_id}
-                  className="truncate rounded bg-[var(--color-accent-light)] px-1.5 py-0.5 text-[11px] text-[var(--color-accent)]"
-                  title={e.subject ?? ""}
+                  key={c.key}
+                  className="border-r border-[var(--color-border-subtle)] px-2 py-2 text-center last:border-r-0"
                 >
-                  {e.subject || "(no title)"}
+                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">
+                    {c.weekday}
+                  </div>
+                  <div
+                    className={`text-[13px] font-semibold ${
+                      isToday ? "text-[var(--color-accent)]" : "text-[var(--color-fg)]"
+                    }`}
+                  >
+                    {c.label}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* All-day band */}
+          {hasAllDay && (
+            <div className="grid border-b border-[var(--color-border-subtle)]" style={gridCols}>
+              <div className="border-r border-[var(--color-border-subtle)] px-2 py-1.5 text-right text-[10px] uppercase tracking-wide text-[var(--color-fg-muted)]">
+                All day
+              </div>
+              {columns.map((c, i) => (
+                <div key={c.key} className="space-y-1 border-r border-[var(--color-border-subtle)] p-1 last:border-r-0">
+                  {allDayByCol[i].map((e) => (
+                    <button
+                      key={e.external_id}
+                      type="button"
+                      onClick={() => setSelected(e)}
+                      className="block w-full truncate rounded bg-[var(--color-accent-light)] px-1.5 py-0.5 text-left text-[11px] text-[var(--color-accent)] hover:brightness-95"
+                      title={e.subject ?? ""}
+                    >
+                      {e.subject || "(no title)"}
+                    </button>
+                  ))}
                 </div>
               ))}
             </div>
-          ))}
+          )}
         </div>
-      )}
 
-      {/* Scrollable time grid */}
-      <div ref={scrollRef} className="max-h-[calc(100vh-240px)] overflow-y-auto">
+        {/* Timeline */}
         <div className="grid" style={gridCols}>
           {/* Hour gutter */}
           <div className="border-r border-[var(--color-border-subtle)]">
@@ -224,6 +243,7 @@ export function WeekGrid({
                         widthPct={100 / t.lanes}
                         start={t.start}
                         end={t.end}
+                        onOpen={setSelected}
                       />
                     );
                   })}
@@ -232,6 +252,8 @@ export function WeekGrid({
           })}
         </div>
       </div>
+
+      {selected && <EventModal e={selected} tz={tz} onClose={() => setSelected(null)} />}
     </div>
   );
 }
@@ -244,6 +266,7 @@ function EventBlock({
   widthPct,
   start,
   end,
+  onOpen,
 }: {
   e: CalEvent;
   top: number;
@@ -252,6 +275,7 @@ function EventBlock({
   widthPct: number;
   start: number;
   end: number;
+  onOpen: (e: CalEvent) => void;
 }) {
   const body = (
     <>
@@ -280,19 +304,18 @@ function EventBlock({
     width: `calc(${widthPct}% - 4px)`,
   };
   const title = `${e.subject ?? "(no title)"} · ${minutesLabel(start)}–${minutesLabel(end)}`;
-  const joinUrl = safeHttpUrl(e.online_meeting_url);
 
-  if (joinUrl) {
-    return (
-      <a href={joinUrl} target="_blank" rel="noreferrer noopener" className={className} style={style} title={title}>
-        {body}
-      </a>
-    );
-  }
+  // Clicking opens the details panel (no longer jumps straight into Teams).
   return (
-    <div className={className} style={style} title={title}>
+    <button
+      type="button"
+      onClick={() => onOpen(e)}
+      className={`${className} cursor-pointer text-left hover:brightness-95`}
+      style={style}
+      title={title}
+    >
       {body}
-    </div>
+    </button>
   );
 }
 
@@ -323,4 +346,181 @@ function minutesLabel(min: number): string {
   const ampm = h < 12 ? "a" : "p";
   const hr = h % 12 === 0 ? 12 : h % 12;
   return m === 0 ? `${hr}${ampm}` : `${hr}:${String(m).padStart(2, "0")}${ampm}`;
+}
+
+type Attendee = { name: string; address: string; response?: string; optional: boolean };
+
+function parseAttendees(raw: unknown): Attendee[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((a) => {
+    const o = (a ?? {}) as Record<string, unknown>;
+    const ea = (o.emailAddress ?? {}) as Record<string, unknown>;
+    const status = (o.status ?? {}) as Record<string, unknown>;
+    const address = (ea.address as string) ?? "";
+    return {
+      name: (ea.name as string) || address || "—",
+      address,
+      response: (status.response as string) ?? undefined,
+      optional: (o.type as string) === "optional",
+    };
+  });
+}
+
+function responseLabel(s: string | null): string | null {
+  switch (s) {
+    case "accepted":
+      return "Accepted";
+    case "tentativelyAccepted":
+      return "Tentative";
+    case "declined":
+      return "Declined";
+    case "organizer":
+      return "You're organizing";
+    case "notResponded":
+    case "none":
+      return "No response yet";
+    default:
+      return null;
+  }
+}
+
+function EventModal({ e, tz, onClose }: { e: CalEvent; tz: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const joinUrl = safeHttpUrl(e.online_meeting_url);
+  const webLink = safeHttpUrl(e.web_link);
+  const isTeams = joinUrl ? /teams\.(microsoft|live)\.com/i.test(joinUrl) : false;
+  const attendees = parseAttendees(e.attendees);
+  const response = responseLabel(e.response_status);
+
+  const dateLabel = e.start_at
+    ? new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }).format(new Date(e.start_at))
+    : "";
+  const timeFmt = (iso: string) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  const timeLabel = e.is_all_day
+    ? "All day"
+    : e.start_at
+      ? `${timeFmt(e.start_at)}${e.end_at ? ` – ${timeFmt(e.end_at)}` : ""}`
+      : "";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
+      <div className="relative z-10 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface-card)] shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border-subtle)] px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="text-[16px] font-semibold text-[var(--color-fg)]">{e.subject || "(no title)"}</h2>
+            <p className="mt-0.5 text-[13px] text-[var(--color-fg-secondary)]">
+              {dateLabel}
+              {timeLabel ? ` · ${timeLabel}` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-4 text-[13px]">
+          {response && (
+            <span className="inline-flex items-center rounded-full bg-[var(--color-accent-light)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-accent)]">
+              {response}
+            </span>
+          )}
+
+          {/* Meeting link */}
+          {joinUrl ? (
+            <div className="flex items-center gap-2">
+              <Video size={15} className="shrink-0 text-[var(--color-fg-muted)]" />
+              <a
+                href={joinUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-[var(--color-fg-inverse)] hover:brightness-110"
+              >
+                {isTeams ? "Join Teams meeting" : "Join online meeting"}
+              </a>
+            </div>
+          ) : (
+            <p className="text-[var(--color-fg-muted)]">No online meeting link.</p>
+          )}
+
+          {e.location && (
+            <div className="flex items-start gap-2">
+              <MapPin size={15} className="mt-0.5 shrink-0 text-[var(--color-fg-muted)]" />
+              <span className="text-[var(--color-fg)]">{e.location}</span>
+            </div>
+          )}
+
+          {/* Organizer + participants */}
+          <div>
+            <div className="mb-1.5 flex items-center gap-2 text-[12px] font-medium text-[var(--color-fg-secondary)]">
+              <Users size={14} className="shrink-0" />
+              Participants
+            </div>
+            <ul className="space-y-1">
+              {(e.organizer_name || e.organizer_address) && (
+                <li className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-[var(--color-fg)]">
+                    {e.organizer_name || e.organizer_address}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">Organizer</span>
+                </li>
+              )}
+              {attendees.map((a) => (
+                <li key={a.address || a.name} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-[var(--color-fg)]">{a.name}</span>
+                  <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">
+                    {responseLabel(a.response ?? null) ?? (a.optional ? "Optional" : "")}
+                  </span>
+                </li>
+              ))}
+              {attendees.length === 0 && !e.organizer_address && (
+                <li className="text-[var(--color-fg-muted)]">No participants listed.</li>
+              )}
+            </ul>
+          </div>
+
+          {/* Agenda */}
+          {e.body_preview && (
+            <div>
+              <div className="mb-1 text-[12px] font-medium text-[var(--color-fg-secondary)]">Agenda</div>
+              <p className="whitespace-pre-wrap text-[var(--color-fg)]">{e.body_preview}</p>
+            </div>
+          )}
+
+          {webLink && (
+            <a
+              href={webLink}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-block text-[12px] text-[var(--color-accent)] hover:underline"
+            >
+              Open in Outlook
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

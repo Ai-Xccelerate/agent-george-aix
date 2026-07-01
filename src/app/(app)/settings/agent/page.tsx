@@ -62,8 +62,8 @@ export default async function AgentSettingsPage() {
         <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Agent George</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
           George&apos;s identity as an employee — who he is, how he sounds, who he
-          reports to, and the accounts he operates from. These shape every chat,
-          email draft, and standing job.
+          reports to, and the accounts he operates from. These shape every chat
+          and email draft.
         </p>
       </header>
 

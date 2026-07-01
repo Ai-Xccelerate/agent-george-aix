@@ -7,7 +7,7 @@ import {
   FileText,
   LayoutDashboard,
   Mail,
-  MessageSquare,
+  Sparkles,
   Users,
   Settings,
   HelpCircle,
@@ -19,7 +19,7 @@ import { BrandLogo } from "@/components/brand-logo";
 
 const primaryNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/chat", label: "Agent George", icon: MessageSquare },
+  { href: "/actions", label: "AI Actions", icon: Sparkles },
   { href: "/customers", label: "Partners", icon: Users },
 ];
 

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  Clock,
   MessageSquare,
   Plug,
   Settings as SettingsIcon,
@@ -16,14 +15,6 @@ type Topic = {
 };
 
 const TOPICS: Topic[] = [
-  {
-    href: "/help/standing-jobs",
-    title: "Standing jobs",
-    description:
-      "How George works on his own — scheduled cadence prep, inbox triage, health sweeps. Writing directives, reading runs, what he can and can't do autonomously.",
-    icon: Clock,
-    status: "live",
-  },
   {
     href: "/help/getting-started",
     title: "Getting started",
@@ -65,15 +56,9 @@ export default function HelpIndexPage() {
         <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Help &amp; docs</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
           How George works and how to work with him. New here? Start with{" "}
-          <Link
-            href="/help/standing-jobs"
-            className="text-[var(--color-accent)] underline-offset-2 hover:underline"
-          >
-            Standing jobs
-          </Link>{" "}
-          to understand the autonomous side, then read{" "}
-          <span className="text-[var(--color-fg-muted)]">Chatting with George</span> for
-          the live side.
+          <span className="text-[var(--color-fg-muted)]">Getting started</span>, then
+          read <span className="text-[var(--color-fg-muted)]">Chatting with George</span>{" "}
+          to see him in action.
         </p>
       </header>
 

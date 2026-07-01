@@ -1,0 +1,46 @@
+<!-- Supabase → Authentication → Emails → Templates → "Magic Link" -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f2fb;margin:0;padding:32px 0;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:100%;background-color:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(20,20,19,0.08);">
+        <!-- Header -->
+        <tr>
+          <td align="left" bgcolor="#6D45F5" style="background-color:#6D45F5;background-image:linear-gradient(100deg,#6D45F5,#4C1FCF);padding:22px 32px;">
+            <span style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:19px;font-weight:700;letter-spacing:-0.2px;color:#ffffff;">Agent George<span style="color:#B87EFF;">.</span></span>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 32px 8px 32px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#141413;">Your sign-in link</h1>
+            <p style="margin:0 0 28px 0;font-size:15px;line-height:1.6;color:#5C5B56;">Click below to sign in to Agent George. This link is single-use and expires shortly.</p>
+          </td>
+        </tr>
+        <!-- CTA -->
+        <tr>
+          <td align="center" style="padding:0 32px 8px 32px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" bgcolor="#6D45F5" style="border-radius:8px;">
+                  <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:14px 34px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Sign in to Agent George</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <!-- Fallback link -->
+        <tr>
+          <td style="padding:24px 32px 0 32px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#B0AEA5;">If the button doesn't work, copy and paste this link:<br><a href="{{ .ConfirmationURL }}" target="_blank" style="color:#6D45F5;text-decoration:none;word-break:break-all;">{{ .ConfirmationURL }}</a></p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="padding:28px 32px 32px 32px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;border-top:1px solid #eceaf6;">
+            <p style="margin:24px 0 0 0;font-size:12px;line-height:1.6;color:#B0AEA5;">You're receiving this because someone requested a sign-in link for this address. If it wasn't you, you can safely ignore this email.</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

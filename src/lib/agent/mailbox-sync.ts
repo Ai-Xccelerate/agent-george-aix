@@ -391,6 +391,26 @@ async function syncCalendar(admin: Admin, orgId: string): Promise<number> {
         { onConflict: "org_id,external_id" },
       );
       count++;
+
+      // Auto-accept: any invite George hasn't responded to yet gets accepted so
+      // it lands on the calendar without manual RSVP. "notResponded" excludes
+      // events he organizes ("organizer") and ones already actioned, so this
+      // only fires once per invite. Best-effort — a failure just retries next sync.
+      const resp = (asObj(e.responseStatus).response as string) ?? null;
+      if (resp === "notResponded" && !(e.isCancelled as boolean)) {
+        const accepted = await callAction("OUTLOOK_ACCEPT_EVENT", orgId, {
+          event_id: id,
+          response_type: "accept",
+          send_response: true,
+        });
+        if (accepted.ok) {
+          await admin
+            .from("calendar_events")
+            .update({ response_status: "accepted" })
+            .eq("org_id", orgId)
+            .eq("external_id", id);
+        }
+      }
     }
     skip = tokenFrom(list["@odata.nextLink"], "skiptoken");
   } while (skip);

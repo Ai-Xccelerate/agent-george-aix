@@ -37,7 +37,7 @@ export default async function TranscriptsPage() {
   const rows = (data ?? []) as unknown as Row[];
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-5 sm:px-6 md:px-8 md:py-7">
+    <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <header className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Transcripts</h1>
@@ -83,7 +83,7 @@ export default async function TranscriptsPage() {
                   </div>
                   {r.summary && (
                     <p className="mt-0.5 line-clamp-2 text-[12px] text-[var(--color-fg-secondary)]">
-                      {r.summary}
+                      {plainText(r.summary)}
                     </p>
                   )}
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-[var(--color-fg-muted)]">
@@ -110,6 +110,20 @@ export default async function TranscriptsPage() {
 
 function attendeeCount(a: unknown): number {
   return Array.isArray(a) ? a.length : 0;
+}
+
+/** Strip markdown syntax so the list preview reads as plain prose. */
+function plainText(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, " ") // code fences
+    .replace(/`([^`]+)`/g, "$1") // inline code
+    .replace(/^#{1,6}\s+/gm, "") // headings
+    .replace(/^\s*[-*+]\s+/gm, "") // bullet markers
+    .replace(/\*\*([^*]+)\*\*/g, "$1") // bold
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1$2") // italic
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // links → text
+    .replace(/\s+/g, " ") // collapse whitespace/newlines
+    .trim();
 }
 
 function formatWhen(iso: string | null): string {

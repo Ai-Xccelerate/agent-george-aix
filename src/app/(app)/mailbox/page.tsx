@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CheckCheck, Flag, Mail, Paperclip, Trash2 } from "lucide-react";
+import { CheckCheck, Flag, Mail, Paperclip, Search, Trash2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { deleteEmailAction, toggleFlagAction } from "./actions";
@@ -38,11 +38,12 @@ const OUTBOUND = new Set(["Sent Items", "Drafts", "Outbox"]);
 export default async function MailboxPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ folder?: string }>;
+  searchParams?: Promise<{ folder?: string; q?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
   const sp = (await searchParams) ?? {};
+  const q = (sp.q ?? "").trim();
   const supabase = await createSupabaseServer();
 
   const { data: folderData } = await supabase
@@ -64,13 +65,24 @@ export default async function MailboxPage({
     folders[0];
   const isOutbound = OUTBOUND.has(selected.display_name);
 
-  const { data: msgData } = await supabase
+  let msgQuery = supabase
     .from("email_messages")
     .select(
       "external_id, conversation_id, subject, body_preview, from_name, from_address, to_recipients, is_read, has_attachments, received_at, sent_at, flagged, processed_at, processed_session_id",
     )
     .eq("org_id", user.orgId)
-    .eq("folder_external_id", selected.external_id)
+    .eq("folder_external_id", selected.external_id);
+  if (q) {
+    // Sanitize before interpolating into the .or() filter grammar — commas and
+    // parens are separators there, so strip them rather than risk a broken query.
+    const safe = q.replace(/[,()%*]/g, " ").trim();
+    if (safe) {
+      msgQuery = msgQuery.or(
+        `subject.ilike.%${safe}%,from_name.ilike.%${safe}%,from_address.ilike.%${safe}%,body_preview.ilike.%${safe}%`,
+      );
+    }
+  }
+  const { data: msgData } = await msgQuery
     .order("received_at", { ascending: false, nullsFirst: false })
     .limit(100);
   const messages = (msgData ?? []) as Message[];
@@ -115,9 +127,31 @@ export default async function MailboxPage({
 
         {/* Message list */}
         <div className="min-w-0 flex-1">
+          {/* Search within the current folder (server-side, no JS needed) */}
+          <form method="GET" action="/mailbox" className="mb-3">
+            <input type="hidden" name="folder" value={selected.external_id} />
+            <div className="flex h-9 items-center gap-2 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-3">
+              <Search size={15} className="shrink-0 text-[var(--color-fg-muted)]" />
+              <input
+                name="q"
+                defaultValue={q}
+                placeholder={`Search ${selected.display_name}…`}
+                className="w-full min-w-0 bg-transparent text-[13px] text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] outline-none"
+              />
+              {q ? (
+                <Link
+                  href={`/mailbox?folder=${encodeURIComponent(selected.external_id)}`}
+                  className="shrink-0 text-[12px] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                >
+                  Clear
+                </Link>
+              ) : null}
+            </div>
+          </form>
+
           {messages.length === 0 ? (
             <div className="rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-16 text-center text-[13px] text-[var(--color-fg-muted)]">
-              Nothing in {selected.display_name}.
+              {q ? `No matches for “${q}” in ${selected.display_name}.` : `Nothing in ${selected.display_name}.`}
             </div>
           ) : (
             <ul className="divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">

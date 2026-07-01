@@ -1649,10 +1649,29 @@ export function buildGeorgeMcpServer(
       title: z.string().min(1).describe("Short headline, e.g. 'Acme wants a 20% discount — approve?'"),
       detail: z.string().min(1).describe("What's going on and exactly what you need decided."),
       recommendation: z.string().optional().describe("Your proposed answer, if you have one."),
+      suggested_actions: z
+        .array(
+          z.object({
+            label: z
+              .string()
+              .min(1)
+              .describe("The concrete action, phrased as an imperative the reviewer could hand back to you, e.g. 'Add Fraser Maclean as a platform user and assign him as RKON's owner'."),
+            kind: z
+              .enum(["create", "assign", "update", "email", "confirm", "other"])
+              .default("other")
+              .optional()
+              .describe("Category, for the button's icon/badge."),
+          }),
+        )
+        .max(4)
+        .optional()
+        .describe(
+          "1–4 concrete next actions the reviewer could take. Each renders as a one-click button that hands the instruction back to you to execute. Make them mutually-exclusive options when the decision is a fork (e.g. 'Assign Fraser' vs 'Assign John').",
+        ),
       urgency: z.enum(["low", "normal", "high"]).default("normal").optional(),
       customer_id: z.string().uuid().optional().describe("The customer this concerns, if any."),
     },
-    async ({ title, detail, recommendation, urgency, customer_id }) => {
+    async ({ title, detail, recommendation, suggested_actions, urgency, customer_id }) => {
       const { data, error } = await db
         .from("escalations")
         .insert({
@@ -1662,6 +1681,7 @@ export function buildGeorgeMcpServer(
           title,
           detail,
           recommendation: recommendation ?? null,
+          suggested_actions: suggested_actions ?? [],
           urgency: urgency ?? "normal",
           status: "open",
         })

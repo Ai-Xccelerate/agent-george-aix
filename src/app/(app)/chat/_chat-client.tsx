@@ -72,6 +72,7 @@ export function ChatClient({
   sessionId,
   initialMessages,
   embedded = false,
+  suggestedActions = [],
 }: {
   sessionId: string;
   initialMessages: InitialMessage[];
@@ -79,6 +80,9 @@ export function ChatClient({
    *  trimmed suggestion list, narrower hero. The streaming/tool/input
    *  machinery is identical. */
   embedded?: boolean;
+  /** One-click actions shown just above the composer (AI actions panel).
+   *  Clicking hands the instruction to George. Capped at 2 in the UI. */
+  suggestedActions?: { label: string; kind?: string }[];
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<Msg[]>(initialMessages);
@@ -175,6 +179,16 @@ export function ChatClient({
     };
   }, [trigger?.kind, trigger?.kind === "mention" ? trigger.query : null]);
 
+  // Auto-grow the composer with its content up to the max-height cap, so there's
+  // no inner scrollbar until it genuinely overflows. Keyed on `input` so it also
+  // fires on programmatic changes (command insert, clear after send).
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+  }, [input]);
+
   function onInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const v = e.target.value;
     setInput(v);
@@ -236,8 +250,8 @@ export function ChatClient({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(override?: string) {
+    const text = (override ?? input).trim();
     // Allow sending with files only (no prompt text). Bail only if both are empty.
     if ((!text && stagedFiles.length === 0) || streaming || uploading) return;
 
@@ -501,6 +515,21 @@ export function ChatClient({
               ))}
             </div>
           )}
+          {suggestedActions.length > 0 && (
+            <div className="mb-2 flex flex-col gap-1.5">
+              {suggestedActions.slice(0, 2).map((a, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  disabled={streaming}
+                  onClick={() => void send(`Please go ahead: ${a.label}`)}
+                  className="w-full rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent-light)] px-3 py-2 text-left text-[12px] font-medium leading-snug text-[var(--color-accent)] hover:brightness-95 disabled:opacity-50"
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2 rounded-[12px] border border-[var(--color-border)] bg-[var(--color-surface-card)] p-2 pl-3 shadow-sm focus-within:border-[var(--color-accent)]">
             <input
               ref={fileInputRef}
@@ -585,7 +614,7 @@ export function ChatClient({
                 }}
                 rows={1}
                 placeholder="Type / for commands, @ for a customer, or just start chatting with George…"
-                className="block max-h-[180px] w-full resize-none bg-transparent py-2 text-sm leading-6 text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] outline-none"
+                className="block max-h-[180px] w-full resize-none overflow-y-auto bg-transparent py-2 text-sm leading-6 text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] outline-none"
               />
             </div>
             <button
@@ -605,7 +634,7 @@ export function ChatClient({
               </button>
             ) : (
               <button
-                onClick={send}
+                onClick={() => send()}
                 disabled={
                   uploading || (!input.trim() && stagedFiles.length === 0)
                 }

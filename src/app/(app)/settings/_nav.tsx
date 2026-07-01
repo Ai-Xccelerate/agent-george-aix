@@ -7,7 +7,6 @@ import {
   BrainCircuit,
   Building2,
   BookOpen,
-  Clock,
   Network,
   Puzzle,
   ScrollText,
@@ -36,7 +35,6 @@ const SECTIONS: Section[] = [
       { href: "/settings/agent/graph", label: "Knowledge graph", icon: Network, adminOnly: true },
       { href: "/settings/integrations", label: "Integrations", icon: Puzzle, adminOnly: true },
       { href: "/settings/knowledge", label: "Knowledge", icon: BookOpen, adminOnly: true },
-      { href: "/settings/jobs", label: "Standing jobs", icon: Clock, adminOnly: true },
     ],
   },
   {
