@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/supabase/current-user";
 import { AGENT_SLUG, TIMEZONE_OPTIONS } from "@/lib/agent/agent-settings";
+import { type ActionResult, requireAdmin } from "@/lib/actions";
 
 const TIMEZONE_VALUES = TIMEZONE_OPTIONS.map((o) => o.value) as [string, ...string[]];
 
-export type ActionResult = { error?: string; info?: string };
+export type { ActionResult } from "@/lib/actions";
 
 const AgentSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
@@ -28,14 +28,6 @@ const AgentSchema = z.object({
     .transform((v) => (v && v.length ? v : null)),
   timezone: z.enum(TIMEZONE_VALUES),
 });
-
-async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not signed in." as const };
-  if (user.role !== "owner" && user.role !== "admin")
-    return { error: "Admins only." as const };
-  return { user };
-}
 
 export async function updateAgentSettingsAction(
   _: ActionResult,

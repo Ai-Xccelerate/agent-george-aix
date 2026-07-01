@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { prettyBytes, sanitizeFilename } from "@/lib/actions";
 
 // All actions return { ok, error?, ...data } so client dialogs can render
 // inline errors without throwing.
@@ -392,18 +393,6 @@ export async function updateContactAction(
 // Same shape as chat's uploadAttachmentAction but bound to a customer
 // instead of a session, so it appears in the Documents tab.
 // ---------------------------------------------------------------------------
-function prettyBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function sanitizeFilename(name: string): string {
-  const noPath = name.replace(/^.*[\\/]/, "");
-  const safe = noPath.replace(/[^a-zA-Z0-9._-]+/g, "_");
-  return safe.length > 120 ? safe.slice(0, 120) : safe;
-}
-
 export async function uploadCustomerDocumentAction(
   formData: FormData,
 ): Promise<

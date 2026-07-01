@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/supabase/current-user";
 import { isAllowedEmail } from "@/lib/auth/access-policy";
+import { type ActionResult, requireAdmin } from "@/lib/actions";
 
 const InviteSchema = z.object({
   first_name: z.string().min(1).max(60),
@@ -14,15 +14,7 @@ const InviteSchema = z.object({
   role: z.enum(["admin", "csm", "sales", "viewer"]),
 });
 
-export type ActionResult = { error?: string; info?: string };
-
-async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user) return { error: "not signed in" as const };
-  if (user.role !== "owner" && user.role !== "admin")
-    return { error: "Admins only." as const };
-  return { user };
-}
+export type { ActionResult } from "@/lib/actions";
 
 export async function inviteUserAction(
   _: ActionResult,
