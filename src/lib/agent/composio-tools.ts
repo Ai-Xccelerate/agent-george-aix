@@ -114,22 +114,23 @@ export function buildComposioTools(ctx: Ctx) {
         .describe("HTML body. Use simple inline tags only (<p>, <br>, <ul>, <a>)."),
     },
     async (input) => {
-      // Composio's Outlook actions follow Microsoft Graph's shape: the
-      // body has to be `{ contentType, content }`, not a top-level string
-      // with a sibling `contentType`. With the wrong shape the action
-      // silently sent the raw HTML as plain text — recipients saw <p> tags
-      // in the email. Same nesting is already used by the calendar event
-      // call below; keep them consistent.
+      // Composio's OUTLOOK_CREATE_DRAFT schema is flat snake_case — NOT
+      // Microsoft Graph's shape. `body` is a plain string with a sibling
+      // `is_html` flag, and recipients are `to_recipients`/`cc_recipients`/
+      // `bcc_recipients`. Sending Graph-style keys (toRecipients, a nested
+      // body object) gets silently dropped by Composio, which is why drafts
+      // failed/came through empty.
       // Append George's branded signature before sending. The chat preview
       // below stays on the agent's own text so the user reviews content, not
       // boilerplate.
       const sentHtml = wrapGeorgeEmailHtml(input.body_html);
       const res = await callAction("OUTLOOK_CREATE_DRAFT", ctx.orgId, {
-        toRecipients: input.to,
-        ccRecipients: input.cc ?? [],
-        bccRecipients: input.bcc ?? [],
+        to_recipients: input.to,
+        cc_recipients: input.cc ?? [],
+        bcc_recipients: input.bcc ?? [],
         subject: input.subject,
-        body: { contentType: "HTML", content: sentHtml },
+        body: sentHtml,
+        is_html: true,
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
       const data = res.data as { id?: string; message?: { id?: string } };
@@ -171,7 +172,7 @@ export function buildComposioTools(ctx: Ctx) {
       const orig = await callAction<Record<string, unknown>>(
         "OUTLOOK_GET_MESSAGE",
         ctx.orgId,
-        { messageId: message_id, select: ["from", "toRecipients", "ccRecipients"] },
+        { message_id, select: ["from", "toRecipients", "ccRecipients"] },
       );
       const om = ((orig.ok ? (orig.data?.data ?? orig.data) : null) ?? {}) as {
         from?: { emailAddress?: { address?: string; name?: string } };
@@ -214,7 +215,7 @@ export function buildComposioTools(ctx: Ctx) {
       //    is plain-text only; HTML there shows literal tags). This seeds the
       //    quoted thread + conversationId; we set the HTML body + recipients next.
       const res = await callAction("OUTLOOK_CREATE_DRAFT_REPLY", ctx.orgId, {
-        messageId: message_id,
+        message_id,
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
       const draftId = (res.data as { id?: string }).id;
@@ -226,7 +227,7 @@ export function buildComposioTools(ctx: Ctx) {
       const got = await callAction<Record<string, unknown>>(
         "OUTLOOK_GET_MESSAGE",
         ctx.orgId,
-        { messageId: draftId, select: ["body"] },
+        { message_id: draftId, select: ["body"] },
       );
       const gotBody = ((got.ok ? (got.data?.data ?? got.data) : null) ??
         {}) as { body?: { content?: string } };
@@ -239,7 +240,7 @@ export function buildComposioTools(ctx: Ctx) {
       //    setting both to the internal set strips the external addresses the
       //    reply was seeded with.
       const updated = await callAction("OUTLOOK_UPDATE_EMAIL", ctx.orgId, {
-        messageId: draftId,
+        message_id: draftId,
         body: { contentType: "HTML", content: sentHtml },
         to_recipients: toRecipients,
         cc_recipients: ccRecipients,
@@ -284,7 +285,7 @@ export function buildComposioTools(ctx: Ctx) {
       const draft = await callAction<Record<string, unknown>>(
         "OUTLOOK_GET_MESSAGE",
         ctx.orgId,
-        { messageId: draft_id },
+        { message_id: draft_id },
       );
       if (!draft.ok) return fail(connectHintIfNeeded(draft.error, "Outlook"));
       const body = (draft.data?.data ?? draft.data ?? {}) as Record<string, unknown>;
@@ -308,7 +309,7 @@ export function buildComposioTools(ctx: Ctx) {
         );
       }
       const res = await callAction("OUTLOOK_SEND_DRAFT", ctx.orgId, {
-        messageId: draft_id,
+        message_id: draft_id,
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
       await audit(ctx, "email.sent", { draft_id });
@@ -329,7 +330,7 @@ export function buildComposioTools(ctx: Ctx) {
       const res = await callAction("OUTLOOK_LIST_MESSAGES", ctx.orgId, {
         folder: folder ?? "inbox",
         top: limit ?? 20,
-        filter: unread_only ? "isRead eq false" : undefined,
+        is_read: unread_only ? false : undefined,
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
       return ok(res.data);
@@ -345,7 +346,7 @@ export function buildComposioTools(ctx: Ctx) {
     },
     async ({ message_id }) => {
       const res = await callAction("OUTLOOK_GET_MESSAGE", ctx.orgId, {
-        messageId: message_id,
+        message_id,
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
       return ok(res.data);
@@ -437,17 +438,17 @@ export function buildComposioTools(ctx: Ctx) {
     async (input) => {
       const res = await callAction("OUTLOOK_CALENDAR_CREATE_EVENT", ctx.orgId, {
         subject: input.subject,
-        start: { dateTime: input.start_iso, timeZone: "UTC" },
-        end: { dateTime: input.end_iso, timeZone: "UTC" },
-        attendees: (input.attendees ?? []).map((email) => ({
-          emailAddress: { address: email },
+        start_datetime: input.start_iso,
+        end_datetime: input.end_iso,
+        time_zone: "UTC",
+        attendees_info: (input.attendees ?? []).map((email) => ({
+          email,
           type: "required",
         })),
-        body: input.body_html
-          ? { contentType: "HTML", content: input.body_html }
-          : undefined,
-        isOnlineMeeting: input.online_meeting ?? true,
-        onlineMeetingProvider: "teamsForBusiness",
+        body: input.body_html ?? undefined,
+        is_html: input.body_html ? true : undefined,
+        is_online_meeting: input.online_meeting ?? true,
+        online_meeting_provider: "teamsForBusiness",
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
       await audit(
@@ -480,10 +481,10 @@ export function buildComposioTools(ctx: Ctx) {
         end_iso ?? new Date(Date.now() + 14 * 86400000).toISOString();
       // OUTLOOK_LIST_EVENTS is the slug that actually resolves; the older
       // OUTLOOK_CALENDAR_LIST_EVENTS no longer exists in the toolkit and
-      // errored on every call.
+      // errored on every call. It has no startDateTime/endDateTime params —
+      // the date range has to be expressed as an OData `filter` string.
       const res = await callAction("OUTLOOK_LIST_EVENTS", ctx.orgId, {
-        startDateTime: start,
-        endDateTime: end,
+        filter: `start/dateTime ge '${start}' and end/dateTime le '${end}'`,
         top: limit ?? 50,
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
