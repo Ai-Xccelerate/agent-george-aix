@@ -69,6 +69,97 @@ export type ComposioCall<T = unknown> =
   | { ok: true; data: T; logId?: string }
   | { ok: false; error: string };
 
+/**
+ * Composio trigger subscriptions (e.g. OUTLOOK_MESSAGE_TRIGGER — the
+ * near-real-time "new mail" webhook) aren't exposed by the @composio/core
+ * SDK we're on (0.9.x has no triggers module), so this hits the REST API
+ * directly, same pattern as scripts/verify-composio.ts.
+ *
+ * IMPORTANT: a trigger instance is pinned to a specific connected_account_id,
+ * not to the org's Composio identity in general. Reconnecting/re-authing an
+ * integration mints a NEW connected_account_id, which silently orphans any
+ * trigger tied to the old one — Composio does not migrate it. That's why
+ * this is called from the OAuth callback (see
+ * src/app/api/integrations/composio/callback/route.ts) every time a
+ * connection completes, not just once at initial setup.
+ */
+export async function ensureTrigger(
+  triggerName: string,
+  connectedAccountId: string,
+): Promise<ComposioCall<{ trigger_id: string }>> {
+  const apiKey = process.env.COMPOSIO_API_KEY;
+  if (!apiKey) return { ok: false, error: "COMPOSIO_API_KEY is not set." };
+  try {
+    const res = await fetch(
+      `https://backend.composio.dev/api/v3/trigger_instances/${triggerName}/upsert`,
+      {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connected_account_id: connectedAccountId,
+          trigger_config: {},
+        }),
+      },
+    );
+    const body = (await res.json()) as { trigger_id?: string; error?: { message?: string } };
+    if (!res.ok || !body.trigger_id) {
+      const message = body.error?.message ?? `HTTP ${res.status}`;
+      console.error("[composio] trigger upsert failed", { triggerName, connectedAccountId, message });
+      return { ok: false, error: message };
+    }
+    return { ok: true, data: { trigger_id: body.trigger_id } };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown Composio failure";
+    console.error("[composio] trigger upsert threw", { triggerName, connectedAccountId, message });
+    return { ok: false, error: message };
+  }
+}
+
+/** The org's currently-active connected account for a toolkit, if any. */
+export async function activeConnectedAccountId(
+  orgId: string,
+  toolkitSlug: string,
+): Promise<string | null> {
+  const apiKey = process.env.COMPOSIO_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(
+      `https://backend.composio.dev/api/v3/connected_accounts?user_ids=${encodeURIComponent(composioOrgIdentity(orgId))}&toolkit_slugs=${toolkitSlug.toLowerCase()}`,
+      { headers: { "x-api-key": apiKey } },
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      items?: { id: string; status: string; toolkit?: { slug?: string } }[];
+    };
+    return body.items?.find((a) => a.status === "ACTIVE")?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a trigger instance is currently active for this exact connected account. */
+export async function isTriggerActiveFor(
+  triggerName: string,
+  connectedAccountId: string,
+): Promise<boolean> {
+  const apiKey = process.env.COMPOSIO_API_KEY;
+  if (!apiKey) return false;
+  try {
+    const res = await fetch("https://backend.composio.dev/api/v3/trigger_instances/active", {
+      headers: { "x-api-key": apiKey },
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as {
+      items?: { connected_account_id: string; trigger_name: string }[];
+    };
+    return (body.items ?? []).some(
+      (t) => t.connected_account_id === connectedAccountId && t.trigger_name === triggerName,
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function callAction<T = Record<string, unknown>>(
   slug: string,
   orgId: string,

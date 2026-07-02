@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { ensureTrigger } from "@/lib/composio/client";
+
+// Toolkit -> Composio trigger(s) that must be (re)pointed at a fresh
+// connected_account_id every time that toolkit finishes (re)connecting.
+// A trigger is pinned to one connected_account_id and does NOT migrate when
+// the account is re-authed, so without this a reconnect silently kills
+// real-time delivery until someone notices mail is only arriving on the
+// 10-minute mailbox_sync backstop (see mailbox-sync.ts).
+const TOOLKIT_TRIGGERS: Record<string, string[]> = {
+  OUTLOOK: ["OUTLOOK_MESSAGE_TRIGGER"],
+};
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +60,22 @@ export async function GET(req: NextRequest) {
     action: "integration.connected",
     payload: { toolkit, connected_account_id: connectedAccountId },
   });
+
+  // Re-point any real-time triggers this toolkit needs at the new connection.
+  // Best-effort: a failure here shouldn't block the connect itself, but it
+  // should be visible in audit_log rather than silently leaving George on
+  // the slow backstop sync.
+  for (const triggerName of TOOLKIT_TRIGGERS[toolkit] ?? []) {
+    const result = await ensureTrigger(triggerName, connectedAccountId);
+    await admin.from("audit_log").insert({
+      org_id: user.orgId,
+      actor: "system",
+      action: result.ok ? "integration.trigger_armed" : "integration.trigger_failed",
+      payload: result.ok
+        ? { toolkit, trigger: triggerName, trigger_id: result.data.trigger_id }
+        : { toolkit, trigger: triggerName, error: result.error },
+    });
+  }
 
   return NextResponse.redirect(
     new URL(`/settings/integrations?connected=${toolkit.toLowerCase()}`, redirectBase),

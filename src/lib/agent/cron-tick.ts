@@ -19,6 +19,7 @@ import { syncMailbox, MAILBOX_SYNC_INTERVAL_MS, type MailboxSyncResult } from ".
 import { syncTranscripts, type TranscriptSyncResult } from "./transcript-sync";
 import { runProactiveScan, type ProactiveScanResult } from "./run-proactive-scan";
 import { isScribeAvailable } from "@/lib/scribe/client";
+import { activeConnectedAccountId, isTriggerActiveFor, ensureTrigger } from "@/lib/composio/client";
 
 // Per-tick wall budget. Bounded so a tick can't run forever; leaves headroom
 // for the last job to finalize.
@@ -35,6 +36,16 @@ const STUCK_THRESHOLD_MS = 5 * 60_000; // process anything pending > 5 min
 const TRANSCRIPT_SYNC_INTERVAL_MS = 10 * 60_000;
 // Proactive book sweep — heavy (a full autonomous run per org), so infrequent.
 const PROACTIVE_SCAN_INTERVAL_MS = 6 * 60 * 60_000;
+// Trigger health self-heal — cheap (two Composio API reads per org), so it
+// can run fairly often without meaningfully eating the tick budget.
+const TRIGGER_HEALTH_INTERVAL_MS = 60 * 60_000;
+// Toolkit -> trigger(s) that must stay armed for real-time delivery. Mirrors
+// TOOLKIT_TRIGGERS in api/integrations/composio/callback/route.ts, which
+// re-arms on every fresh (re)connect; this catches everything else (a
+// subscription Microsoft Graph itself let lapse, Composio-side hiccups).
+const REQUIRED_TRIGGERS: Record<string, string[]> = {
+  outlook: ["OUTLOOK_MESSAGE_TRIGGER"],
+};
 
 type DueJob = {
   id: string;
@@ -65,7 +76,16 @@ export type CronTickResult = {
   mailbox_sync: MailboxSyncResult[];
   transcript_sync: TranscriptSyncResult[];
   proactive_scan: ProactiveScanResult[];
+  trigger_health: TriggerHealthResult[];
   errors: string[];
+};
+
+export type TriggerHealthResult = {
+  org_id: string;
+  toolkit: string;
+  trigger: string;
+  status: "healthy" | "rearmed" | "no_connection" | "rearm_failed";
+  detail?: string;
 };
 
 export async function runCronTick(): Promise<CronTickResult> {
@@ -215,6 +235,20 @@ export async function runCronTick(): Promise<CronTickResult> {
     }
   }
 
+  // Trigger health self-heal — cheap; re-arms a real-time webhook that went
+  // quiet for a reason other than a fresh (re)connect (which already
+  // re-arms itself in the OAuth callback).
+  let triggerHealth: TriggerHealthResult[] = [];
+  if (TICK_BUDGET_MS - (Date.now() - startedAt) > 20_000) {
+    try {
+      triggerHealth = await runDueTriggerHealthChecks(admin);
+    } catch (err) {
+      const msg = `trigger health: ${err instanceof Error ? err.message : String(err)}`;
+      console.error("[cron tick] trigger health check failed", err);
+      errors.push(msg);
+    }
+  }
+
   return {
     started_at: new Date(startedAt).toISOString(),
     elapsed_ms: Date.now() - startedAt,
@@ -226,6 +260,7 @@ export async function runCronTick(): Promise<CronTickResult> {
     mailbox_sync: mailboxSync,
     transcript_sync: transcriptSync,
     proactive_scan: proactiveScan,
+    trigger_health: triggerHealth,
     errors,
   };
 }
@@ -313,6 +348,69 @@ async function runDueMailboxSyncs(
     const lastMs = latest?.synced_at ? Date.parse(latest.synced_at as string) : 0;
     if (Date.now() - lastMs < MAILBOX_SYNC_INTERVAL_MS) continue;
     out.push(await syncMailbox(orgId));
+  }
+  return out;
+}
+
+/**
+ * Confirms each org's required triggers (REQUIRED_TRIGGERS) are still armed
+ * against its *current* connected account, and re-arms any that aren't.
+ * Throttled per-org via agent_scan_state(kind='trigger_health') since it's
+ * an external API round-trip, not free.
+ */
+async function runDueTriggerHealthChecks(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+): Promise<TriggerHealthResult[]> {
+  const { data: orgs } = await admin.from("orgs").select("id");
+  const out: TriggerHealthResult[] = [];
+
+  for (const org of orgs ?? []) {
+    const orgId = org.id as string;
+    const { data: state } = await admin
+      .from("agent_scan_state")
+      .select("last_run_at")
+      .eq("org_id", orgId)
+      .eq("kind", "trigger_health")
+      .maybeSingle();
+    const lastMs = state?.last_run_at ? Date.parse(state.last_run_at as string) : 0;
+    if (Date.now() - lastMs < TRIGGER_HEALTH_INTERVAL_MS) continue;
+
+    await admin
+      .from("agent_scan_state")
+      .upsert(
+        { org_id: orgId, kind: "trigger_health", last_run_at: new Date().toISOString() },
+        { onConflict: "org_id,kind" },
+      );
+
+    for (const [toolkit, triggers] of Object.entries(REQUIRED_TRIGGERS)) {
+      const connectedAccountId = await activeConnectedAccountId(orgId, toolkit);
+      if (!connectedAccountId) {
+        // Not connected at all — nothing to arm, and not this check's job to
+        // flag (settings/integrations already surfaces connection state).
+        continue;
+      }
+      for (const triggerName of triggers) {
+        const healthy = await isTriggerActiveFor(triggerName, connectedAccountId);
+        if (healthy) {
+          out.push({ org_id: orgId, toolkit, trigger: triggerName, status: "healthy" });
+          continue;
+        }
+        const rearm = await ensureTrigger(triggerName, connectedAccountId);
+        out.push({
+          org_id: orgId,
+          toolkit,
+          trigger: triggerName,
+          status: rearm.ok ? "rearmed" : "rearm_failed",
+          detail: rearm.ok ? undefined : rearm.error,
+        });
+        await admin.from("audit_log").insert({
+          org_id: orgId,
+          actor: "system",
+          action: rearm.ok ? "integration.trigger_rearmed" : "integration.trigger_failed",
+          payload: { toolkit, trigger: triggerName, connected_account_id: connectedAccountId, error: rearm.ok ? undefined : rearm.error },
+        });
+      }
+    }
   }
   return out;
 }
