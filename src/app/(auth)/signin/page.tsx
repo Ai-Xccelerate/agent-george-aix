@@ -22,9 +22,11 @@ function SignInInner() {
       ? "Your email isn't on an authorized domain. Agent George only allows getonyx.ai and aixccelerate.com."
       : urlError === "no_invite"
         ? "Your account isn't linked to an org yet. Ask an admin to invite you."
-        : urlError
-          ? `Sign-in failed: ${urlError}`
-          : null;
+        : urlError?.toLowerCase().includes("code verifier")
+          ? "This link was opened in a different browser than the one you requested it from — email apps often do this automatically. Go back to where you clicked \"Send magic link\" (or the invite email) and open the link there instead, or request a new one and open it in the same browser or tab."
+          : urlError
+            ? `Sign-in failed: ${urlError}`
+            : null;
   const [pwState, pwAction, pwPending] = useActionState<AuthResult, FormData>(
     signInAction,
     {},
