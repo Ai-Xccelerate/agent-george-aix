@@ -80,7 +80,7 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
         .eq("direction", "inbound");
       for (const externalId of unreadIds) {
         await callAction("OUTLOOK_UPDATE_EMAIL", user.orgId, {
-          messageId: externalId,
+          message_id: externalId,
           is_read: true,
         }).catch(() => {});
       }

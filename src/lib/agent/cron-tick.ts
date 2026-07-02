@@ -15,7 +15,7 @@ import { runGeorgeJob } from "./run-job";
 import { processAgentEvent } from "./process-event";
 import { computeNextRun } from "./cron";
 import { runObjectivesScan, type ObjectivesScanResult } from "./run-objectives-scan";
-import { syncMailbox, type MailboxSyncResult } from "./mailbox-sync";
+import { syncMailbox, MAILBOX_SYNC_INTERVAL_MS, type MailboxSyncResult } from "./mailbox-sync";
 import { syncTranscripts, type TranscriptSyncResult } from "./transcript-sync";
 import { runProactiveScan, type ProactiveScanResult } from "./run-proactive-scan";
 import { isScribeAvailable } from "@/lib/scribe/client";
@@ -28,9 +28,8 @@ const PER_JOB_BUDGET_MS = 180_000;
 // Belt-and-braces event sweep tuning.
 const SWEEP_MAX_PER_TICK = 5;
 const STUCK_THRESHOLD_MS = 5 * 60_000; // process anything pending > 5 min
-// Mailbox mirror is throttled: the OUTLOOK webhook handles real-time arrival,
-// so the delta-based catch-up only needs to run periodically, not every tick.
-const MAILBOX_SYNC_INTERVAL_MS = 10 * 60_000;
+// Mailbox mirror throttle interval lives in mailbox-sync.ts (MAILBOX_SYNC_INTERVAL_MS)
+// so the UI's "next sync" estimate can't drift from the scheduler's actual cadence.
 // Transcript mirror: Scribe finishes processing a meeting a few minutes after
 // it ends, so a periodic pull is the right cadence — no real-time webhook.
 const TRANSCRIPT_SYNC_INTERVAL_MS = 10 * 60_000;

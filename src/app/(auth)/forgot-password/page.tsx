@@ -15,7 +15,7 @@ export default function ForgotPasswordPage() {
       <div className="space-y-2">
         <h1 className="text-[28px] font-bold text-[var(--color-fg)]">Reset your password</h1>
         <p className="text-sm text-[var(--color-fg-secondary)]">
-          Enter your work email and we'll send you a link to set a new password.
+          Enter your work email and we&apos;ll send you a link to set a new password.
         </p>
       </div>
 

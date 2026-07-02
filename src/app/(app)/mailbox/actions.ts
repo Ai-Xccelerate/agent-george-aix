@@ -4,6 +4,33 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
+import { syncMailbox } from "@/lib/agent/mailbox-sync";
+
+export type SyncResult = { error?: string; info?: string };
+
+/**
+ * Manual "Sync now" — runs the same delta catch-up the scheduler runs every
+ * MAILBOX_SYNC_INTERVAL_MS, on demand. Any signed-in org member can trigger
+ * it (read-only from Outlook's perspective; worst case it's a wasted API
+ * call, not a destructive action).
+ */
+export async function syncMailboxNowAction(): Promise<SyncResult> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not signed in." };
+
+  const result = await syncMailbox(user.orgId);
+  if (result.errors.length > 0) {
+    return { error: result.errors[0] };
+  }
+
+  revalidatePath("/mailbox");
+  return {
+    info:
+      result.events_enqueued > 0
+        ? `Synced — ${result.messages_upserted} message(s), ${result.events_enqueued} new for George to act on.`
+        : `Synced — ${result.messages_upserted} message(s), nothing new for George.`,
+  };
+}
 
 /**
  * Delete an email — moves it to Outlook's Deleted Items (recoverable there) and
@@ -74,7 +101,7 @@ export async function sendMailboxDraftAction(formData: FormData): Promise<void> 
   }
 
   const res = await callAction("OUTLOOK_SEND_DRAFT", user.orgId, {
-    messageId: externalId,
+    message_id: externalId,
   });
   if (!res.ok) {
     console.error("[mailbox] send draft failed", { externalId, error: res.error });

@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { CheckCheck, Flag, Mail, Paperclip, Search, Trash2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { MAILBOX_SYNC_INTERVAL_MS } from "@/lib/agent/mailbox-sync";
 import { deleteEmailAction, toggleFlagAction } from "./actions";
+import { SyncStatus } from "./_sync-status";
 
 export const dynamic = "force-dynamic";
 
@@ -48,9 +50,13 @@ export default async function MailboxPage({
 
   const { data: folderData } = await supabase
     .from("mail_folders")
-    .select("external_id, display_name, unread_item_count, total_item_count")
+    .select("external_id, display_name, unread_item_count, total_item_count, synced_at")
     .eq("org_id", user.orgId);
-  const folders = (folderData ?? []) as Folder[];
+  const folders = (folderData ?? []) as (Folder & { synced_at: string | null })[];
+  const lastSyncedAt = folders.reduce<string | null>((latest, f) => {
+    if (!f.synced_at) return latest;
+    return !latest || f.synced_at > latest ? f.synced_at : latest;
+  }, null);
   folders.sort((a, b) => {
     const ai = FOLDER_ORDER.indexOf(a.display_name);
     const bi = FOLDER_ORDER.indexOf(b.display_name);
@@ -89,11 +95,14 @@ export default async function MailboxPage({
 
   return (
     <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
-      <header className="mb-5">
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Mailbox</h1>
-        <p className="text-sm text-[var(--color-fg-secondary)]">
-          George&apos;s Microsoft 365 mailbox (agent.george@getonyx.ai), mirrored locally.
-        </p>
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Mailbox</h1>
+          <p className="text-sm text-[var(--color-fg-secondary)]">
+            George&apos;s Microsoft 365 mailbox (agent.george@getonyx.ai), mirrored locally.
+          </p>
+        </div>
+        <SyncStatus lastSyncedAt={lastSyncedAt} intervalMs={MAILBOX_SYNC_INTERVAL_MS} />
       </header>
 
       <div className="flex flex-col gap-5 md:flex-row">

@@ -26,6 +26,11 @@ const EVENT_PAGE = 100;
 // Folders Outlook reports as ours-sent; messages in them are outbound.
 const OUTBOUND_FOLDERS = new Set(["sent items", "drafts", "outbox"]);
 
+// How often the periodic catch-up sync runs per org — the single source of
+// truth for both the scheduler's throttle (cron-tick.ts) and any "next sync"
+// estimate shown in the UI (mailbox page).
+export const MAILBOX_SYNC_INTERVAL_MS = 10 * 60_000;
+
 export type MailboxSyncResult = {
   folders: number;
   messages_upserted: number;
