@@ -66,6 +66,50 @@ export async function magicLinkAction(_: AuthResult, formData: FormData): Promis
   return { info: "If that email is registered, a magic link is on its way." };
 }
 
+export async function requestPasswordResetAction(
+  _: AuthResult,
+  formData: FormData,
+): Promise<AuthResult> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { error: "Enter your email." };
+  if (!isAllowedEmail(email)) {
+    return { error: "This email isn't authorized for Agent George." };
+  }
+
+  const supabase = await createSupabaseServer();
+  const origin = (await headers()).get("origin") ?? "http://localhost:3001";
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/callback?next=/reset-password`,
+  });
+  if (error) return { error: error.message };
+  return { info: "If that email is registered, a reset link is on its way." };
+}
+
+export async function updatePasswordAction(
+  _: AuthResult,
+  formData: FormData,
+): Promise<AuthResult> {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+  if (!password || password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+  if (password !== confirm) {
+    return { error: "Passwords don't match." };
+  }
+
+  const supabase = await createSupabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "This reset link has expired. Request a new one." };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+
+  redirect("/dashboard");
+}
+
 export async function signOutAction() {
   const supabase = await createSupabaseServer();
   await supabase.auth.signOut();

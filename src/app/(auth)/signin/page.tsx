@@ -3,7 +3,7 @@
 import { Suspense, useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signInAction, magicLinkAction, type AuthResult } from "../actions";
-import { AuthField, AuthInput, PrimaryButton } from "../_components/auth-input";
+import { AuthField, AuthInput, PrimaryButton, GhostLink } from "../_components/auth-input";
 
 export default function SignInPage() {
   return (
@@ -52,7 +52,7 @@ function SignInInner() {
           <AuthInput
             type="email"
             name="email"
-            placeholder="you@onyx.ai"
+            placeholder="you@getonyx.ai"
             autoComplete="email"
             required
           />
@@ -68,6 +68,10 @@ function SignInInner() {
           />
         </AuthField>
 
+        <div className="flex justify-end">
+          <GhostLink href="/forgot-password">Forgot password?</GhostLink>
+        </div>
+
         {pwState.error && <Alert tone="error">{pwState.error}</Alert>}
 
         <PrimaryButton type="submit" disabled={pwPending}>
@@ -82,7 +86,7 @@ function SignInInner() {
           <AuthInput
             type="email"
             name="email"
-            placeholder="you@onyx.ai"
+            placeholder="you@getonyx.ai"
             autoComplete="email"
             required
           />
