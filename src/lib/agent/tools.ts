@@ -1715,12 +1715,83 @@ export function buildGeorgeMcpServer(
     },
   );
 
+  // ---- request_domain_approval --------------------------------------
+  const requestDomainApproval = tool(
+    "request_domain_approval",
+    "Ask a human to approve an external email domain so you can draft-and-send to it directly, instead of every message to that domain needing manual review. Use this when a customer/partner domain keeps coming up (e.g. you keep having to tell the user to send it themselves). This does NOT grant access — it stages a request; an owner, admin, or CSM approves it in Settings → Agent George → Email domains. Until approved, send_email_draft still refuses that domain.",
+    {
+      domain: z
+        .string()
+        .min(3)
+        .describe("Domain only, no scheme or path, e.g. 'acmecorp.com'."),
+      reason: z.string().min(1).describe("Why George needs to email this domain directly."),
+      customer_id: z.string().uuid().optional().describe("The customer this domain belongs to, if known."),
+    },
+    async ({ domain, reason, customer_id }) => {
+      const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+      if (clean === "getonyx.ai" || clean === "aixccelerate.com") {
+        return ok({ note: "That domain is already internal — no approval needed." });
+      }
+      const { data, error } = await db
+        .from("domain_allowlist")
+        .insert({
+          org_id: orgId,
+          domain: clean,
+          reason,
+          customer_id: customer_id ?? null,
+          requested_by: null, // George proposed it, not a human
+        })
+        .select("id, domain, status")
+        .single();
+      if (error) {
+        if (error.message.includes("domain_allowlist_org_domain_idx")) {
+          const existing = await db
+            .from("domain_allowlist")
+            .select("domain, status")
+            .eq("org_id", orgId)
+            .ilike("domain", clean)
+            .maybeSingle();
+          return ok({
+            note: `${clean} is already on the list with status '${existing.data?.status ?? "unknown"}'.`,
+          });
+        }
+        return fail(error.message);
+      }
+      return ok({
+        request: data,
+        note: "Staged for approval. Tell the user it's waiting in Settings → Agent George → Email domains — you still can't send there until it's approved.",
+      });
+    },
+  );
+
+  // ---- list_domain_allowlist ------------------------------------------
+  const listDomainAllowlist = tool(
+    "list_domain_allowlist",
+    "List this org's email domain allowlist — pending requests and decided (approved/rejected) domains. Read-only. Use this before telling a user a domain needs approval, in case it's already pending or already approved.",
+    {
+      status: z.enum(["pending", "approved", "rejected"]).optional(),
+    },
+    async ({ status }) => {
+      let query = db
+        .from("domain_allowlist")
+        .select("id, domain, status, reason, decision_note, created_at, decided_at")
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false });
+      if (status) query = query.eq("status", status);
+      const { data, error } = await query;
+      if (error) return fail(error.message);
+      return ok({ domains: data ?? [], count: (data ?? []).length });
+    },
+  );
+
   const supabaseTools = [
     findCustomer,
     listCustomers,
     getCustomer,
     raiseDecision,
     listOpenDecisions,
+    requestDomainApproval,
+    listDomainAllowlist,
     createCustomer,
     addContact,
     recordContract,

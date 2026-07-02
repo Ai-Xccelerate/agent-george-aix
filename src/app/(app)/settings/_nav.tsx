@@ -7,6 +7,7 @@ import {
   BrainCircuit,
   Building2,
   BookOpen,
+  Globe2,
   Network,
   Puzzle,
   ScrollText,
@@ -21,6 +22,7 @@ type Item = {
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   adminOnly?: boolean;
+  approverOnly?: boolean;
 };
 
 type Section = { title: string; items: Item[] };
@@ -31,6 +33,7 @@ const SECTIONS: Section[] = [
     items: [
       { href: "/settings/agent", label: "Identity", icon: Bot, adminOnly: true },
       { href: "/settings/agent/policy", label: "Operating model", icon: ScrollText, adminOnly: true },
+      { href: "/settings/agent/domains", label: "Email domains", icon: Globe2, approverOnly: true },
       { href: "/settings/agent/knowledge", label: "Knowledge review", icon: BrainCircuit, adminOnly: true },
       { href: "/settings/agent/graph", label: "Knowledge graph", icon: Network, adminOnly: true },
       { href: "/settings/integrations", label: "Integrations", icon: Puzzle, adminOnly: true },
@@ -47,7 +50,13 @@ const SECTIONS: Section[] = [
   },
 ];
 
-export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
+export function SettingsNav({
+  isAdmin,
+  isApprover,
+}: {
+  isAdmin: boolean;
+  isApprover: boolean;
+}) {
   const pathname = usePathname();
 
   // Pick the single best-matching href (longest prefix) so nested routes like
@@ -60,14 +69,16 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
   return (
     <nav className="space-y-5">
       {SECTIONS.map((section) => {
-        const visible = section.items.filter((i) => !i.adminOnly || isAdmin);
+        const visible = section.items.filter(
+          (i) => (!i.adminOnly || isAdmin) && (!i.approverOnly || isApprover),
+        );
         if (visible.length === 0) return null;
         return (
           <div key={section.title} className="space-y-0.5">
             <h3 className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
               {section.title}
             </h3>
-            {visible.map(({ href, label, icon: Icon, adminOnly }) => {
+            {visible.map(({ href, label, icon: Icon, adminOnly, approverOnly }) => {
               const active = href === activeHref;
               return (
                 <Link
@@ -87,11 +98,11 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
                     )}
                   />
                   <span className="flex-1">{label}</span>
-                  {adminOnly && (
+                  {(adminOnly || approverOnly) && (
                     <ShieldCheck
                       size={11}
                       className="text-[var(--color-fg-muted)]"
-                      aria-label="admin only"
+                      aria-label={adminOnly ? "admin only" : "owner, admin, or CSM"}
                     />
                   )}
                 </Link>

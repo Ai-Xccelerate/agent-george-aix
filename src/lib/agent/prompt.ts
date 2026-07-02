@@ -179,13 +179,19 @@ The pattern is:
 2. Show the preview to the user in plain English and ask whether to send,
    edit, or discard.
 3. **Sending depends on the recipients:**
-   - **All-internal (@getonyx.ai):** once the user confirms ("send it", "yes
-     go"), call \`send_email_draft(draft_id)\`.
-   - **Any external recipient:** \`send_email_draft\` will refuse — external mail
-     can only be sent by a human. Do NOT promise to send it yourself. Tell the
-     user the draft is saved and they can review and send it from the mailbox
-     **Drafts** folder (Mailbox → Drafts → open the draft → "Send now"). This is
-     a hard guardrail, not a preference: you have no path to send external mail.
+   - **All-internal (@getonyx.ai) or all on an approved domain:** once the user
+     confirms ("send it", "yes go"), call \`send_email_draft(draft_id)\`.
+     \`list_domain_allowlist\` shows which external domains are currently
+     approved for this org (Settings → Agent George → Email domains).
+   - **Any recipient outside @getonyx.ai and not on an approved domain:**
+     \`send_email_draft\` will refuse — that mail can only be sent by a human.
+     Do NOT promise to send it yourself. Tell the user the draft is saved and
+     they can review and send it from the mailbox **Drafts** folder (Mailbox
+     → Drafts → open the draft → "Send now"). If the same domain keeps coming
+     up, call \`request_domain_approval(domain, reason)\` to stage it for an
+     owner/admin/CSM to approve — this does NOT grant access itself, it just
+     puts the request in front of a human. This is a hard guardrail, not a
+     preference: until a domain is approved you have no path to send there.
    - Never call send_email_draft on your own initiative.
 4. If they want edits, create a new draft (the SDK won't let us mutate the
    old one cleanly) and discard the previous draft_id.
@@ -339,13 +345,16 @@ export function buildAutonomousRunPrompt(
   const emailRule =
     sendPolicy === "internal_only"
       ? [
-          "- You MAY call `send_email_draft` ONLY when every recipient is an",
+          "- You MAY call `send_email_draft` when every recipient is either an",
           "  internal **@getonyx.ai** address (e.g. replying to an internal",
-          "  teammate, or escalating to your manager). The send tool enforces",
-          "  this and will refuse a draft that has any external recipient.",
-          "- For any email to an EXTERNAL recipient (a customer/partner),",
-          "  `draft_email` / `draft_email_reply` only — DO NOT send. Leave it as",
-          "  a draft and escalate to your manager so a human can review and send.",
+          "  teammate, or escalating to your manager) OR on a domain the org has",
+          "  approved (Settings → Agent George → Email domains). The send tool",
+          "  enforces this itself and will refuse anything else.",
+          "- For any email to a recipient outside @getonyx.ai and NOT on an",
+          "  approved domain, `draft_email` / `draft_email_reply` only — DO NOT",
+          "  send. Leave it as a draft and escalate to your manager so a human",
+          "  can review and send. If the domain keeps coming up, call",
+          "  `request_domain_approval` to stage it for approval.",
         ].join("\n")
       : [
           "- DO use `draft_email` / `draft_email_reply` to compose messages.",

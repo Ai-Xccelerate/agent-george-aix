@@ -98,6 +98,22 @@ async function audit(
   });
 }
 
+/**
+ * The org's approved external domains (Settings → Agent George → Email
+ * domains, or George's own request_domain_approval tool). Fails closed —
+ * a query error yields an empty set, not "allow everything" — since
+ * send_email_draft treats this as an allowlist, not a denylist.
+ */
+async function approvedDomains(ctx: Ctx): Promise<Set<string>> {
+  const { data, error } = await ctx.db
+    .from("domain_allowlist")
+    .select("domain")
+    .eq("org_id", ctx.orgId)
+    .eq("status", "approved");
+  if (error || !data) return new Set();
+  return new Set(data.map((r: { domain: string }) => r.domain.toLowerCase()));
+}
+
 export function buildComposioTools(ctx: Ctx) {
   // ---- DRAFT NEW EMAIL ---------------------------------------------
   const draftEmail = tool(
@@ -272,16 +288,19 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- SEND DRAFT --------------------------------------------------
   const sendDraft = tool(
     "send_email_draft",
-    "Send a previously created draft — ONLY when every recipient is internal (@getonyx.ai). Drafts with any external recipient are always refused: those must be sent by a human from the mailbox Drafts folder. This holds in chat and in autonomous runs alike.",
+    "Send a previously created draft — every recipient must be internal (@getonyx.ai) OR on the org's approved domain allowlist (Settings → Agent George → Email domains). Anything else is always refused: those must be sent by a human from the mailbox Drafts folder, or you can call request_domain_approval to ask for that domain to be allowed. This holds in chat and in autonomous runs alike.",
     {
       draft_id: z.string().min(1),
     },
     async ({ draft_id }) => {
       // Hard guard, ALWAYS ON (chat + autonomous): this tool may only send
-      // drafts whose recipients are ALL internal. External sends require an
-      // explicit human action (mailbox Drafts → Send), so a prompt injection
-      // driving George to read untrusted content can never exfiltrate via an
-      // auto-send. Do NOT re-scope this behind emailSendPolicy again.
+      // drafts whose recipients are ALL internal or on the approved-domain
+      // allowlist. Anything else requires an explicit human action (mailbox
+      // Drafts → Send), so a prompt injection driving George to read
+      // untrusted content can never exfiltrate via an auto-send. Do NOT
+      // re-scope this behind emailSendPolicy again — the allowlist is the
+      // only sanctioned way to widen it, and it's an explicit human
+      // approval per domain, not a policy flag.
       const draft = await callAction<Record<string, unknown>>(
         "OUTLOOK_GET_MESSAGE",
         ctx.orgId,
@@ -291,28 +310,35 @@ export function buildComposioTools(ctx: Ctx) {
       const body = (draft.data?.data ?? draft.data ?? {}) as Record<string, unknown>;
       const addresses = recipientAddresses(body);
       // Fail CLOSED: if we can't positively read the recipients, we can't
-      // prove they're all internal — refuse rather than risk an external send.
+      // prove they're all internal/approved — refuse rather than risk it.
       if (addresses.length === 0) {
         await audit(ctx, "email.send_blocked", { draft_id, reason: "recipients_unparsed" });
         return fail(
-          "Refused to send: couldn't confirm this draft's recipients are all internal. " +
+          "Refused to send: couldn't confirm this draft's recipients are all internal or approved. " +
             "The draft is saved — a human can send it from the mailbox Drafts folder.",
         );
       }
       const external = externalRecipients(addresses);
       if (external.length > 0) {
-        await audit(ctx, "email.send_blocked", { draft_id, external });
-        return fail(
-          `Refused to send: this draft has external recipient(s) [${external.join(", ")}]. ` +
-            "You can only send internal (@getonyx.ai) mail directly. The draft is saved — " +
-            "tell the user to review it and send it from the mailbox Drafts folder.",
+        const allowed = await approvedDomains(ctx);
+        const notAllowed = external.filter(
+          (a) => !allowed.has((a.split("@")[1] ?? "").toLowerCase()),
         );
+        if (notAllowed.length > 0) {
+          await audit(ctx, "email.send_blocked", { draft_id, external, not_allowed: notAllowed });
+          return fail(
+            `Refused to send: this draft has recipient(s) on a domain that isn't approved [${notAllowed.join(", ")}]. ` +
+              "You can only send to internal (@getonyx.ai) or org-approved domains directly. The draft is saved — " +
+              "tell the user to review it and send it from the mailbox Drafts folder, or call request_domain_approval " +
+              "if that domain should be allowed going forward.",
+          );
+        }
       }
       const res = await callAction("OUTLOOK_SEND_DRAFT", ctx.orgId, {
         message_id: draft_id,
       });
       if (!res.ok) return fail(connectHintIfNeeded(res.error, "Outlook"));
-      await audit(ctx, "email.sent", { draft_id });
+      await audit(ctx, "email.sent", { draft_id, external_approved: external });
       return ok({ sent: true, draft_id });
     },
   );
