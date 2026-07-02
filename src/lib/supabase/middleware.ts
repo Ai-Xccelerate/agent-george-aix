@@ -35,6 +35,7 @@ export async function updateSession(request: NextRequest) {
   const PUBLIC_PREFIXES = [
     "/signin",
     "/signup",
+    "/forgot-password",
     "/auth",
     "/api/webhooks",
     "/_next",
