@@ -410,7 +410,7 @@ keeping `full_name` and parsing on display.
 
 **Where:** new `src/app/api/messages/route.ts`; reuses `src/lib/agent/{prompt,tools,composio-tools}.ts`; new `teams/` manifest folder.
 
-**Status:** Backlogged 2026-06-29 (deferred by Rahul — focus on Composio first). Research complete; meeting-scope fork (A vs B) is the gating decision. `cs.getonyx.ai` domain already live, so the messaging endpoint is ready when we build.
+**Status:** Backlogged 2026-06-29 (deferred by Rahul — focus on Composio first); **picked back up and built 2026-07-03.** In-repo build is done: `src/app/api/messages/route.ts` (tenant gate → typing ack → `agent_events` persist → `after()` dispatch), `src/lib/teams/{adapter,process-event,tenant-gate}.ts` (CloudAdapter via `processActivityDirect`/`continueConversationAsync` — no req/res shim needed, see adapter.ts comments), `teams/manifest.json` + placeholder icons. Went with meeting-scope fork A (text-in-meeting-chat via @mention) per the original plan; B remains out of scope. Blocked on the Azure provisioning steps below (Entra app registration, Azure Bot resource, Railway env vars) — those are Rahul's to do outside this repo before it can be tested end-to-end.
 
 ---
 
