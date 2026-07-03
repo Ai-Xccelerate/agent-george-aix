@@ -2,7 +2,7 @@
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.19/MicrosoftTeams.schema.json",
   "manifestVersion": "1.19",
   "version": "0.1.0",
-  "id": "00000000-0000-0000-0000-000000000000",
+  "id": "e2675daf-2980-49ed-8dd4-4008407142aa",
   "developer": {
     "name": "AIXccelerate",
     "websiteUrl": "https://cs.getonyx.ai",
@@ -24,7 +24,7 @@
   "accentColor": "#6D45F5",
   "bots": [
     {
-      "botId": "00000000-0000-0000-0000-000000000000",
+      "botId": "e2675daf-2980-49ed-8dd4-4008407142aa",
       "scopes": ["personal", "groupChat", "team"],
       "supportsFiles": false,
       "isNotificationOnly": false
