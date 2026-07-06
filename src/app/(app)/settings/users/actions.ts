@@ -95,6 +95,60 @@ export async function inviteUserAction(
   return { info: `Invite sent to ${email}.` };
 }
 
+export async function resendInviteAction(
+  _: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const { user } = auth;
+
+  const inviteId = String(formData.get("invite_id") ?? "");
+  if (!inviteId) return { error: "Missing invite." };
+
+  const admin = createSupabaseAdmin();
+  const invite = await admin
+    .from("invites")
+    .select("email, full_name, role")
+    .eq("id", inviteId)
+    .eq("org_id", user.orgId)
+    .eq("status", "pending")
+    .maybeSingle();
+  if (invite.error || !invite.data) {
+    return { error: "Invite not found or no longer pending." };
+  }
+  const { email, full_name, role } = invite.data;
+
+  // Supabase won't re-invite an address that already has an auth user, and the
+  // first send already created one. Remove that stale, unconfirmed user (safe —
+  // they never signed in and have no membership) so a fresh invite + email can
+  // be minted. Refuse if they've actually confirmed (they'd be a member).
+  const list = await admin.auth.admin.listUsers({ perPage: 200 });
+  if (list.error) return { error: list.error.message };
+  const existing = list.data.users.find(
+    (u) => u.email?.toLowerCase() === email.toLowerCase(),
+  );
+  if (existing) {
+    if (existing.email_confirmed_at) {
+      return { error: `${email} has already accepted — they're a member.` };
+    }
+    const del = await admin.auth.admin.deleteUser(existing.id);
+    if (del.error) return { error: `Couldn't reset the old invite: ${del.error.message}` };
+  }
+
+  const origin =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    `${(await headers()).get("x-forwarded-proto") ?? "http"}://${(await headers()).get("host")}`;
+  const sent = await admin.auth.admin.inviteUserByEmail(email, {
+    data: { full_name, invited_role: role },
+    redirectTo: `${origin}/auth/callback`,
+  });
+  if (sent.error) return { error: `Couldn't resend: ${sent.error.message}` };
+
+  revalidatePath("/settings/users");
+  return { info: `Invite re-sent to ${email}.` };
+}
+
 export async function revokeInviteAction(formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return;

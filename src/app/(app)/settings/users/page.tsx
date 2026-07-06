@@ -9,10 +9,12 @@ import {
   changeRoleAction,
   inviteUserAction,
   removeMemberAction,
+  resendInviteAction,
   revokeInviteAction,
 } from "./actions";
 import { InviteForm } from "./_invite-form";
 import { RoleSelect } from "./_role-select";
+import { ResendInviteButton } from "./_resend-button";
 
 export const dynamic = "force-dynamic";
 
@@ -168,16 +170,19 @@ export default async function UsersSettingsPage() {
                 </div>
                 <Badge tone={ROLE_TONE[i.role] ?? "neutral"}>{i.role}</Badge>
                 {isAdmin && (
-                  <form action={revokeInviteAction}>
-                    <input type="hidden" name="invite_id" value={i.id} />
-                    <button
-                      type="submit"
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-error)]"
-                      aria-label="Revoke invite"
-                    >
-                      <X size={14} />
-                    </button>
-                  </form>
+                  <div className="ml-2 flex items-center gap-1">
+                    <ResendInviteButton inviteId={i.id} action={resendInviteAction} />
+                    <form action={revokeInviteAction}>
+                      <input type="hidden" name="invite_id" value={i.id} />
+                      <button
+                        type="submit"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-error)]"
+                        aria-label="Revoke invite"
+                      >
+                        <X size={14} />
+                      </button>
+                    </form>
+                  </div>
                 )}
               </li>
             ))}
