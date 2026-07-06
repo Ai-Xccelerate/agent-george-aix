@@ -129,9 +129,19 @@ export async function resendInviteAction(
     (u) => u.email?.toLowerCase() === email.toLowerCase(),
   );
   if (existing) {
-    if (existing.email_confirmed_at) {
-      return { error: `${email} has already accepted — they're a member.` };
+    // Gate on the actual org_members row, not email_confirmed_at: the old
+    // broken verify flow could mark an email confirmed without ever creating a
+    // membership, so a confirmed-but-not-member user must still be resendable.
+    const member = await admin
+      .from("org_members")
+      .select("user_id")
+      .eq("org_id", user.orgId)
+      .eq("user_id", existing.id)
+      .maybeSingle();
+    if (member.data) {
+      return { error: `${email} is already a member.` };
     }
+    // Delete the stale auth user (mints a fresh token and kills the old link).
     const del = await admin.auth.admin.deleteUser(existing.id);
     if (del.error) return { error: `Couldn't reset the old invite: ${del.error.message}` };
   }
