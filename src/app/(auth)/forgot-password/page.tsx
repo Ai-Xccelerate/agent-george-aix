@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
           <AuthInput
             type="email"
             name="email"
-            placeholder="you@getonyx.ai"
+            placeholder="you@aixccelerate.com"
             autoComplete="email"
             required
           />

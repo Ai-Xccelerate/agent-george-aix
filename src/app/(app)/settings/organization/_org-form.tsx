@@ -45,7 +45,7 @@ export function OrgForm({ action, defaults }: Props) {
           <input
             name="display_name"
             defaultValue={defaults.display_name}
-            placeholder="Onyx"
+            placeholder="AIX"
             className={inputClass}
           />
         </Field>
@@ -56,7 +56,7 @@ export function OrgForm({ action, defaults }: Props) {
           <input
             name="customer_brand_name"
             defaultValue={defaults.customer_brand_name}
-            placeholder="Onyx"
+            placeholder="AIX"
             className={inputClass}
           />
         </Field>

@@ -307,7 +307,7 @@ function Detail({
 
       <Field label="Who approves">
         <p className="text-[13px] text-[var(--color-fg-secondary)]">
-          {approver ?? "No manager set — assign one in Settings → Agent George."}
+          {approver ?? "No manager set — assign one in Settings → AIX George."}
         </p>
       </Field>
 

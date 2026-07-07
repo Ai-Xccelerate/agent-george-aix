@@ -31,10 +31,10 @@ import {
   Maximize2,
   Minimize2,
   PenSquare,
-  Sparkles,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GeorgeAvatar } from "@/components/brand-logo";
 import { ChatClient } from "../chat/_chat-client";
 import {
   createBubbleSessionAction,
@@ -223,10 +223,10 @@ export function FloatingChatBubble() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open Agent George"
-        className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-accent)] text-white shadow-lg shadow-[var(--color-accent)]/30 transition hover:scale-105 hover:bg-[var(--color-accent-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:ring-offset-2 focus:ring-offset-[var(--color-surface)]"
+        aria-label="Open AIX George"
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg shadow-orange-500/25 ring-2 ring-[var(--color-accent)]/20 transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:ring-offset-2 focus:ring-offset-[var(--color-surface)]"
       >
-        <Sparkles size={20} />
+        <GeorgeAvatar size={52} />
       </button>
     );
   }
@@ -234,7 +234,7 @@ export function FloatingChatBubble() {
   return (
     <div
       role="dialog"
-      aria-label="Agent George"
+      aria-label="AIX George"
       className={cn(
         "fixed z-40 flex flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl shadow-black/40",
         maximised
@@ -256,9 +256,9 @@ export function FloatingChatBubble() {
     >
       <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Sparkles size={14} className="shrink-0 text-[var(--color-accent)]" />
+          <GeorgeAvatar size={28} />
           <span className="truncate text-[13px] font-medium text-[var(--color-fg)]">
-            Agent George
+            AIX George
           </span>
         </div>
         <div className="flex items-center gap-1">

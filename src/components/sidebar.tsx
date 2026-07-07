@@ -42,7 +42,7 @@ export function Sidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col justify-between border-r border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-4 py-5">
+    <aside className="flex h-full w-60 shrink-0 flex-col justify-between border-r border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-4 py-5">
       <div className="space-y-6">
         <Link href="/dashboard" onClick={onNavigate} className="block px-2">
           <BrandLogo />

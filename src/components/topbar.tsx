@@ -15,7 +15,12 @@ export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   function toggle() {
     const next = !(dark ?? true);
     setDark(next);
-    document.documentElement.classList.toggle("dark", next);
+    const root = document.documentElement;
+    root.classList.toggle("dark", next);
+    // The AIX token CSS keys variables on BOTH `.dark` and `[data-theme]`
+    // (`.dark, [data-theme="dark"]`). Keep the attribute in sync with the class
+    // or the stale `data-theme` keeps the old palette winning after a toggle.
+    root.setAttribute("data-theme", next ? "dark" : "light");
     // 1-year cookie so the choice sticks across visits.
     document.cookie = `george-theme=${next ? "dark" : "light"}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
   }

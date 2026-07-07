@@ -50,12 +50,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && (pathname === "/signin" || pathname === "/signup")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    url.searchParams.delete("next");
-    return NextResponse.redirect(url);
-  }
+  // Don't bounce authed users off /signin — they may lack an org_members row
+  // yet. Forcing /dashboard before admission completes causes a redirect loop
+  // that leaves the UI stuck on "Rendering…". The app layout admits them.
 
   return response;
 }

@@ -23,6 +23,10 @@ import { Composio } from "@composio/core";
 
 let cached: Composio | null = null;
 
+export function isComposioConfigured(): boolean {
+  return Boolean(process.env.COMPOSIO_API_KEY?.trim());
+}
+
 export function getComposio(): Composio {
   if (cached) return cached;
   const apiKey = process.env.COMPOSIO_API_KEY;

@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
     data.user.id,
     data.user.email ?? null,
     (data.user.user_metadata?.full_name as string | undefined) ?? null,
+    supabase,
   );
 
   if (!verdict.ok) {

@@ -34,7 +34,7 @@ export function InviteForm({ action }: { action: ServerAction }) {
             type="email"
             name="email"
             required
-            placeholder="alex@getonyx.ai"
+            placeholder="alex@aixccelerate.com"
             className="h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
           />
         </Field>

@@ -59,7 +59,7 @@ export default async function AgentSettingsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Agent George</h1>
+        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">AIX George</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
           George&apos;s identity as an employee — who he is, how he sounds, who he
           reports to, and the accounts he operates from. These shape every chat
@@ -69,12 +69,13 @@ export default async function AgentSettingsPage() {
 
       {/* Identity card */}
       <section className="flex items-center gap-4 rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent-light)]">
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt={agent.name} className="h-full w-full object-cover" />
           ) : (
-            <span className="text-[22px] font-bold">{agent.name.slice(0, 1).toUpperCase()}</span>
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src="/george-avatar.png" alt={agent.name} className="h-full w-full object-contain p-0.5" />
           )}
         </div>
         <div>

@@ -17,6 +17,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const ALLOWED_DOMAINS = ["getonyx.ai", "aixccelerate.com"] as const;
 export const ONYX_ORG_ID = "00000000-0000-0000-0000-000000000001";
 
+/** Local dev / staging only — set NEXT_PUBLIC_OPEN_SIGNUP=true in .env.local */
+export function isOpenSignup(): boolean {
+  return process.env.NEXT_PUBLIC_OPEN_SIGNUP === "true";
+}
+
 export function emailDomain(email: string | null | undefined): string | null {
   if (!email) return null;
   const at = email.lastIndexOf("@");
@@ -25,17 +30,66 @@ export function emailDomain(email: string | null | undefined): string | null {
 }
 
 export function isAllowedEmail(email: string | null | undefined): boolean {
+  if (isOpenSignup() && email?.includes("@")) return true;
   const d = emailDomain(email);
   return !!d && (ALLOWED_DOMAINS as readonly string[]).includes(d);
 }
 
 export type AdmissionResult =
-  | { ok: true; role: string; orgId: string; fullName: string | null; reason: "existing_member" | "invite_accepted" | "bootstrap_owner" }
+  | { ok: true; role: string; orgId: string; fullName: string | null; reason: "existing_member" | "invite_accepted" | "bootstrap_owner" | "open_signup" }
   | { ok: false; reason: "domain_blocked" | "no_invite" };
+
+async function insertOrgMember(
+  clients: { admin: SupabaseClient; user?: SupabaseClient },
+  row: {
+    org_id: string;
+    user_id: string;
+    role: string;
+    full_name: string | null;
+    email: string | null;
+  },
+): Promise<boolean> {
+  const rpcArgs = {
+    p_org_id: row.org_id,
+    p_user_id: row.user_id,
+    p_role: row.role,
+    p_full_name: row.full_name,
+    p_email: row.email,
+  };
+
+  if (clients.user) {
+    const { error } = await clients.user.from("org_members").insert(row);
+    if (!error) return true;
+    console.error("[admitUser] user-session insert failed", error.message);
+
+    const { data: rpcOk, error: rpcErr } = await clients.user.rpc(
+      "admit_org_member",
+      rpcArgs,
+    );
+    if (!rpcErr && rpcOk) return true;
+    if (rpcErr) console.error("[admitUser] user rpc failed", rpcErr.message);
+  }
+
+  const { data: adminRpcOk, error: adminRpcErr } = await clients.admin.rpc(
+    "admit_org_member",
+    rpcArgs,
+  );
+  if (!adminRpcErr && adminRpcOk) return true;
+  if (adminRpcErr) console.error("[admitUser] admin rpc failed", adminRpcErr.message);
+
+  const { error } = await clients.admin.from("org_members").insert(row);
+  if (error) {
+    console.error("[admitUser] admin insert failed", error.message);
+    return false;
+  }
+  return true;
+}
 
 /**
  * Decide if a freshly-authed user is allowed into the system, and which
- * org/role they join. Call with the service-role admin client.
+ * org/role they join. Pass the service-role admin client for reads/writes
+ * that bypass RLS; pass `userClient` (the signed-in session) when available
+ * so org_members self-insert works on local Supabase.
  *
  * Side effects on success: inserts org_members and marks the invite accepted.
  */
@@ -44,6 +98,7 @@ export async function admitUser(
   userId: string,
   email: string | null,
   fullNameFromMetadata: string | null,
+  userClient?: SupabaseClient,
 ): Promise<AdmissionResult> {
   if (!isAllowedEmail(email)) {
     return { ok: false, reason: "domain_blocked" };
@@ -83,13 +138,14 @@ export async function admitUser(
     }
 
     const fullName = invite.data.full_name ?? fullNameFromMetadata;
-    await admin.from("org_members").insert({
+    const inserted = await insertOrgMember({ admin, user: userClient }, {
       org_id: invite.data.org_id,
       user_id: userId,
       role: invite.data.role,
       full_name: fullName,
       email,
     });
+    if (!inserted) return { ok: false, reason: "no_invite" };
     await admin
       .from("invites")
       .update({ status: "accepted", accepted_at: new Date().toISOString() })
@@ -111,18 +167,38 @@ export async function admitUser(
     .eq("org_id", ONYX_ORG_ID);
 
   if ((onyxCount ?? 0) === 0) {
-    await admin.from("org_members").insert({
+    const inserted = await insertOrgMember({ admin, user: userClient }, {
       org_id: ONYX_ORG_ID,
       user_id: userId,
       role: "owner",
       full_name: fullNameFromMetadata,
       email,
     });
+    if (!inserted) return { ok: false, reason: "no_invite" };
     return {
       ok: true,
       reason: "bootstrap_owner",
       orgId: ONYX_ORG_ID,
       role: "owner",
+      fullName: fullNameFromMetadata,
+    };
+  }
+
+  // 4. Local dev: auto-join the Onyx org without an invite.
+  if (isOpenSignup()) {
+    const inserted = await insertOrgMember({ admin, user: userClient }, {
+      org_id: ONYX_ORG_ID,
+      user_id: userId,
+      role: "csm",
+      full_name: fullNameFromMetadata,
+      email,
+    });
+    if (!inserted) return { ok: false, reason: "no_invite" };
+    return {
+      ok: true,
+      reason: "open_signup",
+      orgId: ONYX_ORG_ID,
+      role: "csm",
       fullName: fullNameFromMetadata,
     };
   }

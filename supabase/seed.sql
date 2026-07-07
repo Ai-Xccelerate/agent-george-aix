@@ -1,0 +1,2 @@
+-- Optional local seed data. Migrations include the AIX org bootstrap.
+-- Add dev fixtures here if needed; demo data lives in supabase/seeds/demo_customers.sql.

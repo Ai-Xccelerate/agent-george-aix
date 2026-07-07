@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { admitUser, isAllowedEmail } from "@/lib/auth/access-policy";
+import { admitUser, isAllowedEmail, isOpenSignup } from "@/lib/auth/access-policy";
 
 export type AuthResult = { error?: string; info?: string };
 
@@ -15,7 +15,7 @@ export async function signInAction(_: AuthResult, formData: FormData): Promise<A
 
   if (!email || !password) return { error: "Email and password are required." };
   if (!isAllowedEmail(email)) {
-    return { error: "This email isn't authorized for Agent George." };
+    return { error: "This email isn't authorized for AIX George." };
   }
 
   const supabase = await createSupabaseServer();
@@ -29,6 +29,7 @@ export async function signInAction(_: AuthResult, formData: FormData): Promise<A
     data.user.id,
     data.user.email ?? null,
     (data.user.user_metadata?.full_name as string | undefined) ?? null,
+    supabase,
   );
 
   if (!verdict.ok) {
@@ -36,9 +37,46 @@ export async function signInAction(_: AuthResult, formData: FormData): Promise<A
     return {
       error:
         verdict.reason === "domain_blocked"
-          ? "This email isn't authorized for Agent George."
+          ? "This email isn't authorized for AIX George."
           : "Your account isn't linked to an org. Ask an admin to invite you.",
     };
+  }
+
+  redirect(next);
+}
+
+export async function signUpAction(_: AuthResult, formData: FormData): Promise<AuthResult> {
+  if (!isOpenSignup()) {
+    return { error: "Sign-up is invite-only. Ask your admin for an invite." };
+  }
+
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const next = safeRedirectPath(String(formData.get("next") ?? ""));
+
+  if (!email || !password) return { error: "Email and password are required." };
+  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+  if (!isAllowedEmail(email)) {
+    return { error: "Enter a valid email address." };
+  }
+
+  const supabase = await createSupabaseServer();
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) return { error: error.message };
+  if (!data.user) return { error: "Sign-up failed." };
+
+  const admin = createSupabaseAdmin();
+  const verdict = await admitUser(
+    admin,
+    data.user.id,
+    data.user.email ?? email,
+    (data.user.user_metadata?.full_name as string | undefined) ?? null,
+    supabase,
+  );
+
+  if (!verdict.ok) {
+    await supabase.auth.signOut();
+    return { error: "Could not create your account. Try again or contact support." };
   }
 
   redirect(next);
@@ -48,7 +86,7 @@ export async function magicLinkAction(_: AuthResult, formData: FormData): Promis
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "Enter your email." };
   if (!isAllowedEmail(email)) {
-    return { error: "This email isn't authorized for Agent George." };
+    return { error: "This email isn't authorized for AIX George." };
   }
 
   const supabase = await createSupabaseServer();
@@ -57,13 +95,15 @@ export async function magicLinkAction(_: AuthResult, formData: FormData): Promis
     email,
     options: {
       emailRedirectTo: `${origin}/auth/callback`,
-      // Don't auto-create users — invite-only. If they don't exist, the
-      // user will see a generic "check your inbox" but no email will arrive.
-      shouldCreateUser: false,
+      shouldCreateUser: isOpenSignup(),
     },
   });
   if (error) return { error: error.message };
-  return { info: "If that email is registered, a magic link is on its way." };
+  return {
+    info: isOpenSignup()
+      ? "Check your inbox for a magic link."
+      : "If that email is registered, a magic link is on its way.",
+  };
 }
 
 export async function requestPasswordResetAction(
@@ -73,7 +113,7 @@ export async function requestPasswordResetAction(
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "Enter your email." };
   if (!isAllowedEmail(email)) {
-    return { error: "This email isn't authorized for Agent George." };
+    return { error: "This email isn't authorized for AIX George." };
   }
 
   const supabase = await createSupabaseServer();

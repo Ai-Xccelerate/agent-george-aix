@@ -1,0 +1,14 @@
+/**
+ * AIX Core base layer — local mirror of @ai-xccelerate/tokens/base.css
+ */
+
+html,
+body {
+  background: var(--aix-canvas);
+  color: var(--aix-fg);
+}
+
+::selection {
+  background: var(--aix-accent);
+  color: var(--aix-fg-inverse);
+}

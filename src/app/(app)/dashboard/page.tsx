@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle, ArrowRight, Bell, Flag, Mail } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { listOrgIntegrations } from "@/lib/composio/connections";
+import { listOrgIntegrations, COMPOSIO_NOT_CONFIGURED } from "@/lib/composio/connections";
 import { getScribeConnection } from "@/lib/agent/scribe";
 import { LifecycleBadge } from "@/components/ui/badge";
 import { Greeting } from "./_greeting";
@@ -134,6 +134,7 @@ export default async function DashboardPage() {
   // table that can go stale on token expiry. `ok: false` means Composio was
   // unreachable; we render that distinctly rather than implying "connected".
   const integrationsOk = integrationsRes.ok;
+  const integrationsError = integrationsRes.ok ? null : integrationsRes.error;
   const integrations = integrationsRes.ok ? integrationsRes.integrations : [];
   // Scribe is a direct MCP server, not a Composio integration — its status is
   // env-derived and independent of whether Composio could be reached.
@@ -279,7 +280,9 @@ export default async function DashboardPage() {
             </ul>
             {!integrationsOk && (
               <p className="mt-2 text-[12px] text-[var(--color-fg-muted)]">
-                Couldn&apos;t reach Composio for the rest — check back shortly.
+                {integrationsError === COMPOSIO_NOT_CONFIGURED
+                  ? "Outlook/Calendar integrations aren\u2019t configured locally. Add COMPOSIO_API_KEY to .env.local to enable."
+                  : "Couldn\u2019t reach Composio for the rest \u2014 check back shortly."}
               </p>
             )}
           </Card>

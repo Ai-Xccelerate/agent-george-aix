@@ -1,20 +1,17 @@
 /* eslint-disable @next/next/no-img-element */
 import { Sparkles, ShieldCheck, Zap } from "lucide-react";
+import { GeorgeAvatar } from "@/components/brand-logo";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen w-screen overflow-hidden">
-      {/* Left brand panel — purple/deep brand gradient with white logo */}
       <aside className="brand-gradient-vertical relative hidden w-[520px] flex-col justify-between p-12 text-white lg:flex">
-        <div className="flex items-center gap-3">
-          <img
-            src="/onyx-logo.svg"
-            alt="Onyx"
-            className="block h-8 w-auto"
-          />
-          <span className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/70">
-            George
-          </span>
+        <div className="flex items-center gap-4">
+          <GeorgeAvatar size={56} />
+          <div className="leading-tight">
+            <div className="text-[18px] font-bold">George</div>
+            <div className="text-[12px] text-white/75">AI Xccelerate</div>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -22,7 +19,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             Your AI Customer Success teammate.
           </h1>
           <p className="max-w-[400px] text-[15px] leading-relaxed text-white/85">
-            George handles onboarding, watches every customer’s health, and replies
+            AIX George handles onboarding, watches every customer&apos;s health, and replies
             to email — so your CSMs stay on the conversations only humans can have.
           </p>
 
@@ -34,11 +31,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         <p className="text-[12px] text-white/65">
-          © {new Date().getFullYear()} AIXccelerate · Built for Onyx
+          © {new Date().getFullYear()} AI Xccelerate · AIX George
         </p>
       </aside>
 
-      {/* Right content */}
       <main className="flex flex-1 items-center justify-center bg-[var(--color-surface)] px-8 py-16">
         <div className="w-full max-w-[420px]">{children}</div>
       </main>

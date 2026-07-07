@@ -52,7 +52,7 @@ export default async function TranscriptsPage() {
       {!scribe.connected ? (
         <Empty
           title="Scribe isn't connected"
-          text="Connect George's note-taker to pull meeting transcripts. Check Settings → Agent George."
+          text="Connect George's note-taker to pull meeting transcripts. Check Settings → AIX George."
         />
       ) : rows.length === 0 ? (
         <Empty

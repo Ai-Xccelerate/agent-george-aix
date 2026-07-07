@@ -1,0 +1,6 @@
+# Copy to .npmrc (or merge into your user ~/.npmrc) once you have GitHub Packages access
+# to @ai-xccelerate/* from https://github.com/Ai-Xccelerate/aix-design-system
+#
+# Create a classic PAT with read:packages (and repo if the org packages are private).
+# @ai-xccelerate:registry=https://npm.pkg.github.com
+# //npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}

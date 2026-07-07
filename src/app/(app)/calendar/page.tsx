@@ -85,7 +85,7 @@ export default async function CalendarPage({
           <p className="mt-0.5 text-sm text-[var(--color-fg-secondary)]">
             George&apos;s Microsoft 365 calendar — {tzLabel(tz)}. Change it in{" "}
             <Link href="/settings/agent" className="text-[var(--color-accent)] hover:underline">
-              Agent George → identity
+              AIX George → identity
             </Link>
             .
           </p>

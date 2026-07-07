@@ -1,17 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import { Open_Sans } from "next/font/google";
+import { Figtree } from "next/font/google";
 import "./globals.css";
 
-const openSans = Open_Sans({
+const figtree = Figtree({
   subsets: ["latin"],
-  variable: "--font-open-sans",
+  variable: "--font-figtree",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Agent George",
-  description: "Your AI Customer Success Manager.",
+  title: "AIX George",
+  description: "Your AI Customer Success teammate from AI Xccelerate.",
 };
 
 export const viewport: Viewport = {
@@ -23,16 +23,15 @@ export const viewport: Viewport = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // Dark-first: apply `.dark` unless the cookie explicitly says "light".
-  // Server-rendered classname so there's no FOUC.
   const cookieStore = await cookies();
   const themeCookie = cookieStore.get("george-theme")?.value;
-  const isDark = themeCookie !== "light";
+  const isDark = themeCookie === "dark";
 
   return (
     <html
       lang="en"
-      className={`${openSans.variable} h-full ${isDark ? "dark" : ""}`}
+      className={`${figtree.variable} h-full ${isDark ? "dark" : ""}`}
+      data-theme={isDark ? "dark" : "light"}
       suppressHydrationWarning
     >
       <body className="min-h-full antialiased">{children}</body>

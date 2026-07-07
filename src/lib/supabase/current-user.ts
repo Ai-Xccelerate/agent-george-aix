@@ -1,3 +1,5 @@
+import { admitUser } from "@/lib/auth/access-policy";
+import { createSupabaseAdmin } from "./admin";
 import { createSupabaseServer } from "./server";
 
 export type CurrentUser = {
@@ -21,14 +23,23 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: membership } = await supabase
-    .from("org_members")
-    .select("org_id, role, full_name, email, timezone, locale, orgs:org_id(name)")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
+  let membership = await loadMembership(supabase, user.id);
 
-  if (!membership) return null;
+  // Authed but not yet in an org — admit on the fly (fixes open-signup gaps
+  // and avoids a /dashboard ↔ /signin redirect loop).
+  if (!membership) {
+    const admin = createSupabaseAdmin();
+    const verdict = await admitUser(
+      admin,
+      user.id,
+      user.email ?? null,
+      (user.user_metadata?.full_name as string | undefined) ?? null,
+      supabase,
+    );
+    if (!verdict.ok) return null;
+    membership = await loadMembership(supabase, user.id);
+    if (!membership) return null;
+  }
 
   return {
     id: user.id,
@@ -40,7 +51,26 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     timezone: membership.timezone ?? null,
     locale: membership.locale ?? null,
     orgId: membership.org_id,
-    orgName: (membership.orgs as { name?: string } | null)?.name ?? "Onyx",
+    orgName: membership.orgName ?? "AIX",
     role: membership.role,
+  };
+}
+
+async function loadMembership(
+  supabase: Awaited<ReturnType<typeof createSupabaseServer>>,
+  userId: string,
+) {
+  const { data: membership } = await supabase
+    .from("org_members")
+    .select("org_id, role, full_name, email, timezone, locale, orgs:org_id(name)")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) return null;
+
+  return {
+    ...membership,
+    orgName: (membership.orgs as { name?: string } | null)?.name ?? "AIX",
   };
 }

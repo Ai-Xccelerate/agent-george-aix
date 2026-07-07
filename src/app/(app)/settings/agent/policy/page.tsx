@@ -75,7 +75,7 @@ export default async function OperatingModelPage() {
           Behaviors, limits & house rules
         </h2>
         <p className="mt-1 mb-4 text-[12px] text-[var(--color-fg-muted)]">
-          What the Onyx team controls. Changes take effect on George&apos;s next
+          What the AIX team controls. Changes take effect on George&apos;s next
           action.
         </p>
         <PolicyForm action={updateOperatingPolicyAction} values={values} />

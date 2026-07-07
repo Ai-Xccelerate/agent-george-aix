@@ -1,10 +1,10 @@
 -- =====================================================================
--- Seed: the Onyx org + a starter knowledge doc.
+-- Seed: the AIX org + a starter knowledge doc.
 -- Idempotent — safe to re-run.
 -- =====================================================================
 
 insert into public.orgs (id, name, domain)
-values ('00000000-0000-0000-0000-000000000001', 'Onyx', 'getonyx.ai')
+values ('00000000-0000-0000-0000-000000000001', 'AIX', 'getonyx.ai')
 on conflict (id) do nothing;
 
 insert into public.knowledge_docs (org_id, path, title, content_md, source)

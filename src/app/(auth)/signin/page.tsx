@@ -19,7 +19,7 @@ function SignInInner() {
   const urlError = params.get("error");
   const urlErrorMessage =
     urlError === "domain_blocked"
-      ? "Your email isn't on an authorized domain. Agent George only allows getonyx.ai and aixccelerate.com."
+      ? "Your email isn't on an authorized domain. AIX George only allows getonyx.ai and aixccelerate.com."
       : urlError === "no_invite"
         ? "Your account isn't linked to an org yet. Ask an admin to invite you."
         : urlError?.toLowerCase().includes("code verifier")
@@ -54,7 +54,7 @@ function SignInInner() {
           <AuthInput
             type="email"
             name="email"
-            placeholder="you@getonyx.ai"
+            placeholder="you@aixccelerate.com"
             autoComplete="email"
             required
           />
@@ -88,7 +88,7 @@ function SignInInner() {
           <AuthInput
             type="email"
             name="email"
-            placeholder="you@getonyx.ai"
+            placeholder="you@aixccelerate.com"
             autoComplete="email"
             required
           />
@@ -105,7 +105,14 @@ function SignInInner() {
       </form>
 
       <p className="text-center text-[12px] text-[var(--color-fg-muted)]">
-        Access is invite-only. Need an account? Ask your admin to invite you.
+        {process.env.NEXT_PUBLIC_OPEN_SIGNUP === "true" ? (
+          <>
+            No account yet?{" "}
+            <GhostLink href="/signup">Create one</GhostLink>
+          </>
+        ) : (
+          <>Access is invite-only. Need an account? Ask your admin to invite you.</>
+        )}
       </p>
     </div>
   );

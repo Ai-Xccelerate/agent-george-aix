@@ -1,7 +1,24 @@
 import Link from "next/link";
 import { Mail } from "lucide-react";
+import { SignUpForm } from "./_signup-form";
 
 export default function SignUpPage() {
+  const openSignup = process.env.NEXT_PUBLIC_OPEN_SIGNUP === "true";
+
+  if (openSignup) {
+    return (
+      <div className="space-y-7">
+        <div className="space-y-2">
+          <h1 className="text-[28px] font-bold text-[var(--color-fg)]">Create account</h1>
+          <p className="text-sm text-[var(--color-fg-secondary)]">
+            Sign up with any email to try AIX George locally.
+          </p>
+        </div>
+        <SignUpForm />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-7">
       <div className="space-y-2">
@@ -10,7 +27,7 @@ export default function SignUpPage() {
         </div>
         <h1 className="text-[28px] font-bold text-[var(--color-fg)]">Invite-only</h1>
         <p className="text-sm text-[var(--color-fg-secondary)]">
-          Agent George is invite-only. Ask your admin to send an invite to your
+          AIX George is invite-only. Ask your admin to send an invite to your
           work email — you&apos;ll get a sign-in link in your inbox.
         </p>
       </div>

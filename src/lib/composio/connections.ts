@@ -1,4 +1,4 @@
-import { getComposio, composioOrgIdentity } from "./client";
+import { getComposio, composioOrgIdentity, isComposioConfigured } from "./client";
 
 export type IntegrationSummary = {
   /** Composio auth-config id (the `ac_…` value). Required for Connect. */
@@ -26,6 +26,9 @@ export type ListIntegrationsResult =
   | { ok: true; integrations: IntegrationSummary[] }
   | { ok: false; error: string };
 
+/** Returned when COMPOSIO_API_KEY is unset — expected in local dev. */
+export const COMPOSIO_NOT_CONFIGURED = "COMPOSIO_NOT_CONFIGURED";
+
 /**
  * Pulls every auth config the workspace has defined in Composio and joins it
  * with the connected accounts for this org. New auth configs added in the
@@ -38,6 +41,10 @@ export type ListIntegrationsResult =
 export async function listOrgIntegrations(
   orgId: string,
 ): Promise<ListIntegrationsResult> {
+  if (!isComposioConfigured()) {
+    return { ok: false, error: COMPOSIO_NOT_CONFIGURED };
+  }
+
   let configs: RawAuthConfig[] = [];
   let accounts: RawConnectedAccount[] = [];
 
@@ -62,7 +69,8 @@ export async function listOrgIntegrations(
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Unknown Composio failure";
-    console.error("[composio] listOrgIntegrations failed", { orgId, message });
+    // Avoid console.error here — Next.js surfaces server console.error as a
+    // dev runtime overlay. Callers already render a muted fallback state.
     return { ok: false, error: message };
   }
 

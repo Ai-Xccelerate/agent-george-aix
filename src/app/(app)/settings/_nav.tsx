@@ -29,7 +29,7 @@ type Section = { title: string; items: Item[] };
 
 const SECTIONS: Section[] = [
   {
-    title: "Agent George",
+    title: "AIX George",
     items: [
       { href: "/settings/agent", label: "Identity", icon: Bot, adminOnly: true },
       { href: "/settings/agent/policy", label: "Operating model", icon: ScrollText, adminOnly: true },

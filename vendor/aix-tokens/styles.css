@@ -1,0 +1,64 @@
+/**
+ * AIX Core design tokens — local mirror of @ai-xccelerate/tokens/styles.css
+ * Palette aligned with Jules / AI Xccelerate workforce apps (warm orange accent).
+ */
+
+:root,
+[data-theme="light"] {
+  --aix-canvas: #f8f7f5;
+  --aix-surface-1: #ffffff;
+  --aix-surface-2: #f3f2ef;
+  --aix-surface-card: #ffffff;
+  --aix-fg: #1c1917;
+  --aix-fg-secondary: #57534e;
+  --aix-fg-muted: #a8a29e;
+  --aix-fg-inverse: #ffffff;
+  --aix-border: #e7e5e4;
+  --aix-border-subtle: #f0eeeb;
+  --aix-accent: #f97316;
+  --aix-accent-hover: #ea580c;
+  --aix-accent-secondary: #fb923c;
+  --aix-accent-deep: #c2410c;
+  --aix-accent-light: #fff7ed;
+  --aix-accent-magenta: #f59e0b;
+  --aix-success: #16a34a;
+  --aix-success-light: #dcfce7;
+  --aix-error: #dc2626;
+  --aix-warning: #d97706;
+  --aix-info: #0284c7;
+  --aix-radius-sm: 6px;
+  --aix-radius-md: 8px;
+  --aix-radius-lg: 12px;
+  --aix-radius-xl: 16px;
+  --aix-shadow-cta: 0 4px 12px rgba(249, 115, 22, 0.28);
+  --aix-shadow-cta-strong: 0 4px 14px rgba(249, 115, 22, 0.36);
+  --aix-shadow-brand-glow: 0 0 80px rgba(249, 115, 22, 0.22);
+}
+
+.dark,
+[data-theme="dark"] {
+  --aix-canvas: #1c1917;
+  --aix-surface-1: #292524;
+  --aix-surface-2: #44403c;
+  --aix-surface-card: #292524;
+  --aix-fg: #fafaf9;
+  --aix-fg-secondary: #d6d3d1;
+  --aix-fg-muted: #a8a29e;
+  --aix-fg-inverse: #ffffff;
+  --aix-border: #44403c;
+  --aix-border-subtle: #353230;
+  --aix-accent: #fb923c;
+  --aix-accent-hover: #f97316;
+  --aix-accent-secondary: #fdba74;
+  --aix-accent-deep: #ea580c;
+  --aix-accent-light: #431407;
+  --aix-accent-magenta: #fbbf24;
+  --aix-success: #22c55e;
+  --aix-success-light: #14532d;
+  --aix-error: #f87171;
+  --aix-warning: #fbbf24;
+  --aix-info: #38bdf8;
+  --aix-shadow-cta: 0 4px 12px rgba(251, 146, 60, 0.32);
+  --aix-shadow-cta-strong: 0 4px 14px rgba(251, 146, 60, 0.4);
+  --aix-shadow-brand-glow: 0 0 80px rgba(251, 146, 60, 0.24);
+}
