@@ -38,6 +38,7 @@ export async function updateSession(request: NextRequest) {
     "/forgot-password",
     "/auth",
     "/api/webhooks",
+    "/api/messages",
     "/_next",
     "/favicon.ico",
   ];
