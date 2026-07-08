@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { Figtree } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -28,13 +29,15 @@ export default async function RootLayout({
   const isDark = themeCookie === "dark";
 
   return (
-    <html
-      lang="en"
-      className={`${figtree.variable} h-full ${isDark ? "dark" : ""}`}
-      data-theme={isDark ? "dark" : "light"}
-      suppressHydrationWarning
-    >
-      <body className="min-h-full antialiased">{children}</body>
-    </html>
+    <ClerkProvider>
+      <html
+        lang="en"
+        className={`${figtree.variable} h-full ${isDark ? "dark" : ""}`}
+        data-theme={isDark ? "dark" : "light"}
+        suppressHydrationWarning
+      >
+        <body className="min-h-full antialiased">{children}</body>
+      </html>
+    </ClerkProvider>
   );
 }

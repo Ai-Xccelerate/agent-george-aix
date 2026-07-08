@@ -1,0 +1,373 @@
+
+> george@0.1.0 dev D:\agent-george-new
+> next dev
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.21.32.1:3000
+- Environments: .env.local
+✓ Ready in 1078ms
+[scheduler] disabled — set SCHEDULER_ENABLED=true to run the in-process cron locally
+- Experiments (use with caution):
+  · serverActions
+
+ GET /signin?next=%2Ftranscripts 200 in 763ms (next.js: 193ms, proxy.ts: 273ms, application-code: 297ms)
+ GET /signin 200 in 86ms (next.js: 6ms, proxy.ts: 6ms, application-code: 74ms)
+ GET /signin?next=%2F 200 in 528ms (next.js: 33ms, proxy.ts: 38ms, application-code: 457ms)
+ POST /signin?next=%2F 200 in 743ms (next.js: 5ms, proxy.ts: 10ms, application-code: 728ms)
+  └─ ƒ signInAction({}, {}) in 703ms src/app/(auth)/actions.ts
+ POST /signin?next=%2F 200 in 374ms (next.js: 2ms, proxy.ts: 4ms, application-code: 368ms)
+  └─ ƒ signInAction({"error":"Invalid login credentials"}, {}) in 360ms src/app/(auth)/actions.ts
+ GET /forgot-password 200 in 633ms (next.js: 559ms, proxy.ts: 4ms, application-code: 70ms)
+ GET /signin 200 in 59ms (next.js: 4ms, proxy.ts: 9ms, application-code: 46ms)
+ POST /signin 200 in 5.2s (next.js: 6ms, proxy.ts: 7ms, application-code: 5.1s)
+  └─ ƒ signInAction({}, {}) in 5128ms src/app/(auth)/actions.ts
+ POST /signin 200 in 319ms (next.js: 6ms, proxy.ts: 4ms, application-code: 309ms)
+  └─ ƒ signInAction({"error":"Invalid login credentials"}, {}) in 297ms src/app/(auth)/actions.ts
+ GET /forgot-password 200 in 56ms (next.js: 4ms, proxy.ts: 5ms, application-code: 46ms)
+ POST /forgot-password 200 in 297ms (next.js: 4ms, proxy.ts: 9ms, application-code: 285ms)
+  └─ ƒ requestPasswordResetAction({}, {}) in 256ms src/app/(auth)/actions.ts
+ GET /signin 200 in 68ms (next.js: 4ms, proxy.ts: 9ms, application-code: 55ms)
+ POST /signin 200 in 447ms (next.js: 3ms, proxy.ts: 4ms, application-code: 440ms)
+  └─ ƒ signInAction({}, {}) in 427ms src/app/(auth)/actions.ts
+ POST /signin 200 in 500ms (next.js: 4ms, proxy.ts: 6ms, application-code: 490ms)
+  └─ ƒ signInAction({"error":"Invalid login credentials"}, {}) in 478ms src/app/(auth)/actions.ts
+ POST /signin 200 in 224ms (next.js: 3ms, proxy.ts: 4ms, application-code: 218ms)
+  └─ ƒ signInAction({"error":"Invalid login credentials"}, {}) in 208ms src/app/(auth)/actions.ts
+ POST /signin 200 in 212ms (next.js: 3ms, proxy.ts: 5ms, application-code: 204ms)
+  └─ ƒ signInAction({"error":"Invalid login credentials"}, {}) in 196ms src/app/(auth)/actions.ts
+ POST /signin 200 in 220ms (next.js: 5ms, proxy.ts: 4ms, application-code: 211ms)
+  └─ ƒ signInAction({"error":"Invalid login credentials"}, {}) in 205ms src/app/(auth)/actions.ts
+ POST /signin 200 in 233ms (next.js: 3ms, proxy.ts: 5ms, application-code: 225ms)
+  └─ ƒ signInAction({"error":"Invalid login credentials"}, {}) in 215ms src/app/(auth)/actions.ts
+ POST /signin 200 in 212ms (next.js: 2ms, proxy.ts: 4ms, application-code: 205ms)
+  └─ ƒ signInAction({"error":"Invalid login credentials"}, {}) in 195ms src/app/(auth)/actions.ts
+ GET /signup 200 in 239ms (next.js: 124ms, proxy.ts: 7ms, application-code: 108ms)
+[admitUser] user-session insert failed new row violates row-level security policy for table "org_members"
+ GET /signin?next=%2Fdashboard 200 in 44ms (next.js: 4ms, proxy.ts: 5ms, application-code: 35ms)
+ POST /signup 303 in 2.7s (next.js: 8ms, proxy.ts: 8ms, application-code: 2.7s)
+  └─ ƒ signUpAction({}, {}) in 2614ms src/app/(auth)/actions.ts
+ POST /signin?next=%2Fdashboard 200 in 686ms (next.js: 2ms, proxy.ts: 5ms, application-code: 678ms)
+  └─ ƒ signInAction({}, {}) in 671ms src/app/(auth)/actions.ts
+ POST /signin?next=%2Fdashboard 200 in 319ms (next.js: 3ms, proxy.ts: 5ms, application-code: 312ms)
+  └─ ƒ signInAction({"error":"Email not confirmed"}, {}) in 302ms src/app/(auth)/actions.ts
+ GET /signin?next=%2Fdashboard 200 in 73ms (next.js: 4ms, proxy.ts: 4ms, application-code: 65ms)
+ GET /signup 200 in 55ms (next.js: 4ms, proxy.ts: 5ms, application-code: 46ms)
+[admitUser] user-session insert failed new row violates row-level security policy for table "org_members"
+[admitUser] user rpc failed insert or update on table "org_members" violates foreign key constraint "org_members_user_id_fkey"
+[admitUser] admin rpc failed insert or update on table "org_members" violates foreign key constraint "org_members_user_id_fkey"
+[admitUser] admin insert failed insert or update on table "org_members" violates foreign key constraint "org_members_user_id_fkey"
+ POST /signup 200 in 1593ms (next.js: 3ms, proxy.ts: 4ms, application-code: 1586ms)
+  └─ ƒ signUpAction({}, {}) in 1558ms src/app/(auth)/actions.ts
+ GET /signin 200 in 43ms (next.js: 6ms, proxy.ts: 5ms, application-code: 31ms)
+ POST /signin 200 in 288ms (next.js: 3ms, proxy.ts: 5ms, application-code: 281ms)
+  └─ ƒ signInAction({}, {}) in 273ms src/app/(auth)/actions.ts
+ GET /signin 200 in 67ms (next.js: 4ms, proxy.ts: 4ms, application-code: 58ms)
+2026-07-08T15:15:16.912Z - 🚀 Upgrade available! Your composio-core version (0.9.1) is behind. Latest version: 0.13.1.
+ GET /dashboard 200 in 2.6s (next.js: 197ms, proxy.ts: 167ms, application-code: 2.2s)
+ POST /signin 303 in 3.1s (next.js: 3ms, proxy.ts: 5ms, application-code: 3.1s)
+  └─ ƒ signInAction({}, {}) in 488ms src/app/(auth)/actions.ts
+ GET /signin?next=%2Ftranscripts 200 in 181ms (next.js: 14ms, proxy.ts: 8ms, application-code: 159ms)
+✓ Finished writing to filesystem cache in 21.5s
+ GET /signin?next=%2Fdashboard 200 in 667ms (next.js: 83ms, proxy.ts: 64ms, application-code: 520ms)
+ GET /dashboard 200 in 4.0s (next.js: 57ms, proxy.ts: 453ms, application-code: 3.5s)
+ POST /signin?next=%2Fdashboard 303 in 5.4s (next.js: 10ms, proxy.ts: 20ms, application-code: 5.4s)
+  └─ ƒ signInAction({}, {}) in 1338ms src/app/(auth)/actions.ts
+ POST /actions 200 in 1061ms (next.js: 32ms, proxy.ts: 273ms, application-code: 755ms)
+  └─ ƒ createBubbleSessionAction() in 725ms src/app/(app)/_bubble/actions.ts
+ GET /actions 200 in 8.5s (next.js: 223ms, proxy.ts: 202ms, application-code: 8.1s)
+ GET /customers 200 in 937ms (next.js: 319ms, proxy.ts: 188ms, application-code: 429ms)
+ GET /mailbox 200 in 1380ms (next.js: 400ms, proxy.ts: 198ms, application-code: 781ms)
+ GET /transcripts 200 in 1504ms (next.js: 318ms, proxy.ts: 162ms, application-code: 1025ms)
+○ Compiling /calendar ...
+ GET /calendar 200 in 14.9s (next.js: 13.4s, proxy.ts: 170ms, application-code: 1359ms)
+ GET /dashboard 200 in 2.0s (next.js: 15ms, proxy.ts: 449ms, application-code: 1573ms)
+ GET /actions 200 in 925ms (next.js: 34ms, proxy.ts: 228ms, application-code: 664ms)
+  Reload env: .env.local
+2026-07-08T18:16:29.297Z - 🚀 Upgrade available! Your composio-core version (0.9.1) is behind. Latest version: 0.13.1.
+ GET /actions 200 in 7.0s (next.js: 838ms, proxy.ts: 5.2s, application-code: 959ms)
+ GET /dashboard 200 in 7.5s (next.js: 544ms, proxy.ts: 5.3s, application-code: 1733ms)
+✓ Compiled in 321ms
+2026-07-08T18:16:43.907Z - 🚀 Upgrade available! Your composio-core version (0.9.1) is behind. Latest version: 0.13.1.
+ GET /actions 200 in 2.9s (next.js: 233ms, proxy.ts: 2.4s, application-code: 236ms)
+ GET /actions 200 in 475ms (next.js: 10ms, proxy.ts: 328ms, application-code: 137ms)
+ GET /dashboard 200 in 3.6s (next.js: 517ms, proxy.ts: 651ms, application-code: 2.4s)
+ GET /actions 200 in 309ms (next.js: 14ms, proxy.ts: 175ms, application-code: 121ms)
+ GET /dashboard 200 in 3.0s (next.js: 8ms, proxy.ts: 2.3s, application-code: 742ms)
+ GET /actions 200 in 838ms (next.js: 35ms, proxy.ts: 361ms, application-code: 442ms)
+ GET /dashboard 200 in 1225ms (next.js: 40ms, proxy.ts: 419ms, application-code: 766ms)
+ GET /actions 200 in 889ms (next.js: 38ms, proxy.ts: 282ms, application-code: 569ms)
+ GET /actions 200 in 1282ms (next.js: 9ms, proxy.ts: 362ms, application-code: 910ms)
+ GET /dashboard 200 in 1685ms (next.js: 27ms, proxy.ts: 417ms, application-code: 1241ms)
+ GET /dashboard 200 in 1704ms (next.js: 14ms, proxy.ts: 625ms, application-code: 1065ms)
+ GET /dashboard 200 in 2.2s (next.js: 19ms, proxy.ts: 934ms, application-code: 1239ms)
+ GET /dashboard 200 in 2.2s (next.js: 134ms, proxy.ts: 934ms, application-code: 1125ms)
+ GET /actions 200 in 1409ms (next.js: 72ms, proxy.ts: 382ms, application-code: 956ms)
+ GET /dashboard 200 in 2.5s (next.js: 15ms, proxy.ts: 1282ms, application-code: 1208ms)
+ GET /actions 200 in 857ms (next.js: 18ms, proxy.ts: 251ms, application-code: 587ms)
+ GET /dashboard 200 in 1910ms (next.js: 33ms, proxy.ts: 1069ms, application-code: 808ms)
+ GET /actions 200 in 860ms (next.js: 128ms, proxy.ts: 253ms, application-code: 478ms)
+ GET /actions 200 in 860ms (next.js: 262ms, proxy.ts: 255ms, application-code: 343ms)
+ GET /dashboard 200 in 1239ms (next.js: 14ms, proxy.ts: 669ms, application-code: 555ms)
+✓ Compiled in 8.3s
+2026-07-08T18:18:18.660Z - 🚀 Upgrade available! Your composio-core version (0.9.1) is behind. Latest version: 0.13.1.
+Attention: Clerk collects telemetry data from its SDKs when connected to development instances.
+The data collected is used to inform Clerk's product roadmap.
+To learn more, including how to opt-out from the telemetry program, visit: https://clerk.com/docs/telemetry.
+
+ GET /actions 200 in 9.6s (next.js: 505ms, proxy.ts: 6.4s, application-code: 2.7s)
+ GET /dashboard 200 in 10.5s (next.js: 1907ms, proxy.ts: 6.6s, application-code: 1950ms)
+ GET /actions 200 in 1442ms (next.js: 27ms, proxy.ts: 894ms, application-code: 521ms)
+ GET /actions 200 in 1885ms (next.js: 654ms, proxy.ts: 610ms, application-code: 621ms)
+ GET /dashboard 200 in 3.3s (next.js: 165ms, proxy.ts: 896ms, application-code: 2.2s)
+ GET /dashboard 200 in 2.0s (next.js: 63ms, proxy.ts: 534ms, application-code: 1419ms)
+ GET /dashboard 200 in 2.0s (next.js: 111ms, proxy.ts: 533ms, application-code: 1370ms)
+ GET /dashboard 200 in 2.0s (next.js: 401ms, proxy.ts: 551ms, application-code: 1064ms)
+ GET /dashboard 200 in 1929ms (next.js: 706ms, proxy.ts: 491ms, application-code: 733ms)
+ GET /actions 200 in 6.6s (next.js: 59ms, proxy.ts: 3.2s, application-code: 3.3s)
+ GET /dashboard 200 in 2.5s (next.js: 13ms, proxy.ts: 178ms, application-code: 2.3s)
+ GET /dashboard 200 in 2.4s (next.js: 225ms, proxy.ts: 323ms, application-code: 1897ms)
+ GET /dashboard 200 in 2.5s (next.js: 68ms, proxy.ts: 331ms, application-code: 2.1s)
+ GET /dashboard 200 in 2.5s (next.js: 614ms, proxy.ts: 350ms, application-code: 1492ms)
+ GET /dashboard 200 in 2.5s (next.js: 711ms, proxy.ts: 345ms, application-code: 1397ms)
+ GET /dashboard 200 in 9.1s (next.js: 140ms, proxy.ts: 3.2s, application-code: 5.7s)
+[browser] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview (https://genuine-seahorse-26.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:12:6133)
+✓ Compiled in 3.4s
+Clerk - DEPRECATION WARNING: "createRouteMatcher" is deprecated and will be removed in the next major release.
+Use resource-based auth checks instead. Move auth checks into each page, layout, API route, or Server Function that accesses protected data. Middleware-based auth checks rely on path matching, which can diverge from how Next.js routes requests and leave protected resources reachable. For a migration guide, see: https://clerk.com/docs/guides/development/upgrading/upgrade-guides/migrate-from-create-route-matcher
+ GET /dashboard 404 in 3.4s (next.js: 2.5s, proxy.ts: 351ms, application-code: 553ms)
+ GET /actions 404 in 3.4s (next.js: 2.7s, proxy.ts: 354ms, application-code: 385ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 495ms (next.js: 115ms, proxy.ts: 61ms, application-code: 319ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 341ms (next.js: 32ms, proxy.ts: 146ms, application-code: 163ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1678ms (next.js: 389ms, proxy.ts: 156ms, application-code: 1134ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1094ms (next.js: 23ms, proxy.ts: 84ms, application-code: 987ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1130ms (next.js: 196ms, proxy.ts: 128ms, application-code: 806ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 638ms (next.js: 368ms, proxy.ts: 74ms, application-code: 195ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 894ms (next.js: 89ms, proxy.ts: 35ms, application-code: 770ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 661ms (next.js: 251ms, proxy.ts: 81ms, application-code: 329ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1240ms (next.js: 20ms, proxy.ts: 77ms, application-code: 1143ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 595ms (next.js: 106ms, proxy.ts: 235ms, application-code: 253ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 604ms (next.js: 163ms, proxy.ts: 236ms, application-code: 205ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1099ms (next.js: 39ms, proxy.ts: 97ms, application-code: 963ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1105ms (next.js: 116ms, proxy.ts: 78ms, application-code: 911ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 680ms (next.js: 41ms, proxy.ts: 237ms, application-code: 402ms)
+[browser] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview (https://genuine-seahorse-26.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:12:6133)
+⚠ Failed to reload dynamic routes: Error: You cannot define a route with the same specificity as a optional catch-all route ("/signin" and "/signin[[...sign-in]]").
+    at ignore-listed frames
+Clerk - DEPRECATION WARNING: "createRouteMatcher" is deprecated and will be removed in the next major release.
+Use resource-based auth checks instead. Move auth checks into each page, layout, API route, or Server Function that accesses protected data. Middleware-based auth checks rely on path matching, which can diverge from how Next.js routes requests and leave protected resources reachable. For a migration guide, see: https://clerk.com/docs/guides/development/upgrading/upgrade-guides/migrate-from-create-route-matcher
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1195ms (next.js: 350ms, proxy.ts: 125ms, application-code: 720ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1206ms (next.js: 217ms, proxy.ts: 125ms, application-code: 864ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1079ms (next.js: 50ms, proxy.ts: 54ms, application-code: 975ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1141ms (next.js: 178ms, proxy.ts: 37ms, application-code: 925ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 978ms (next.js: 37ms, proxy.ts: 130ms, application-code: 811ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 975ms (next.js: 129ms, proxy.ts: 129ms, application-code: 717ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 979ms (next.js: 80ms, proxy.ts: 129ms, application-code: 770ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 983ms (next.js: 195ms, proxy.ts: 130ms, application-code: 659ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 960ms (next.js: 289ms, proxy.ts: 68ms, application-code: 603ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 959ms (next.js: 346ms, proxy.ts: 67ms, application-code: 546ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 980ms (next.js: 476ms, proxy.ts: 68ms, application-code: 437ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 980ms (next.js: 418ms, proxy.ts: 70ms, application-code: 492ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 854ms (next.js: 24ms, proxy.ts: 195ms, application-code: 636ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 996ms (next.js: 96ms, proxy.ts: 198ms, application-code: 702ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 905ms (next.js: 28ms, proxy.ts: 32ms, application-code: 845ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1014ms (next.js: 93ms, proxy.ts: 32ms, application-code: 889ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 943ms (next.js: 87ms, proxy.ts: 143ms, application-code: 713ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 948ms (next.js: 35ms, proxy.ts: 144ms, application-code: 769ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 950ms (next.js: 152ms, proxy.ts: 144ms, application-code: 654ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 943ms (next.js: 236ms, proxy.ts: 142ms, application-code: 566ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 937ms (next.js: 284ms, proxy.ts: 134ms, application-code: 519ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 924ms (next.js: 359ms, proxy.ts: 166ms, application-code: 398ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1011ms (next.js: 369ms, proxy.ts: 137ms, application-code: 505ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 932ms (next.js: 416ms, proxy.ts: 60ms, application-code: 457ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1009ms (next.js: 24ms, proxy.ts: 104ms, application-code: 881ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 964ms (next.js: 58ms, proxy.ts: 61ms, application-code: 845ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 985ms (next.js: 28ms, proxy.ts: 33ms, application-code: 923ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1076ms (next.js: 144ms, proxy.ts: 31ms, application-code: 901ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1082ms (next.js: 32ms, proxy.ts: 206ms, application-code: 843ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1016ms (next.js: 124ms, proxy.ts: 147ms, application-code: 745ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1002ms (next.js: 196ms, proxy.ts: 132ms, application-code: 673ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1013ms (next.js: 299ms, proxy.ts: 132ms, application-code: 582ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 992ms (next.js: 383ms, proxy.ts: 115ms, application-code: 495ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1016ms (next.js: 372ms, proxy.ts: 186ms, application-code: 458ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1072ms (next.js: 412ms, proxy.ts: 194ms, application-code: 466ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1071ms (next.js: 453ms, proxy.ts: 195ms, application-code: 422ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1057ms (next.js: 26ms, proxy.ts: 42ms, application-code: 990ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1056ms (next.js: 73ms, proxy.ts: 41ms, application-code: 942ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 980ms (next.js: 84ms, proxy.ts: 44ms, application-code: 852ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1055ms (next.js: 110ms, proxy.ts: 71ms, application-code: 874ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1089ms (next.js: 49ms, proxy.ts: 205ms, application-code: 836ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1074ms (next.js: 104ms, proxy.ts: 203ms, application-code: 767ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1060ms (next.js: 195ms, proxy.ts: 189ms, application-code: 675ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 996ms (next.js: 255ms, proxy.ts: 126ms, application-code: 616ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 986ms (next.js: 312ms, proxy.ts: 185ms, application-code: 488ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 999ms (next.js: 262ms, proxy.ts: 189ms, application-code: 547ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1033ms (next.js: 264ms, proxy.ts: 328ms, application-code: 442ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1032ms (next.js: 309ms, proxy.ts: 327ms, application-code: 396ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1076ms (next.js: 30ms, proxy.ts: 34ms, application-code: 1012ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1139ms (next.js: 63ms, proxy.ts: 40ms, application-code: 1036ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1053ms (next.js: 32ms, proxy.ts: 80ms, application-code: 941ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1123ms (next.js: 49ms, proxy.ts: 108ms, application-code: 967ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1134ms (next.js: 43ms, proxy.ts: 165ms, application-code: 926ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1137ms (next.js: 189ms, proxy.ts: 174ms, application-code: 773ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1145ms (next.js: 88ms, proxy.ts: 174ms, application-code: 883ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1090ms (next.js: 424ms, proxy.ts: 122ms, application-code: 544ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1097ms (next.js: 302ms, proxy.ts: 123ms, application-code: 672ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1098ms (next.js: 372ms, proxy.ts: 123ms, application-code: 603ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1099ms (next.js: 288ms, proxy.ts: 325ms, application-code: 486ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1101ms (next.js: 338ms, proxy.ts: 327ms, application-code: 436ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1125ms (next.js: 17ms, proxy.ts: 44ms, application-code: 1064ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1120ms (next.js: 65ms, proxy.ts: 27ms, application-code: 1028ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1090ms (next.js: 73ms, proxy.ts: 141ms, application-code: 875ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1090ms (next.js: 149ms, proxy.ts: 82ms, application-code: 859ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1104ms (next.js: 60ms, proxy.ts: 237ms, application-code: 807ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1104ms (next.js: 91ms, proxy.ts: 256ms, application-code: 758ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1115ms (next.js: 146ms, proxy.ts: 260ms, application-code: 710ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1119ms (next.js: 261ms, proxy.ts: 234ms, application-code: 625ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1123ms (next.js: 321ms, proxy.ts: 235ms, application-code: 566ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1080ms (next.js: 324ms, proxy.ts: 221ms, application-code: 535ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1050ms (next.js: 405ms, proxy.ts: 197ms, application-code: 448ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1048ms (next.js: 453ms, proxy.ts: 196ms, application-code: 399ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1009ms (next.js: 19ms, proxy.ts: 36ms, application-code: 954ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1007ms (next.js: 64ms, proxy.ts: 26ms, application-code: 916ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 973ms (next.js: 66ms, proxy.ts: 168ms, application-code: 739ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 962ms (next.js: 102ms, proxy.ts: 132ms, application-code: 728ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1111ms (next.js: 81ms, proxy.ts: 167ms, application-code: 863ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1074ms (next.js: 95ms, proxy.ts: 174ms, application-code: 805ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1066ms (next.js: 155ms, proxy.ts: 170ms, application-code: 740ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1063ms (next.js: 252ms, proxy.ts: 168ms, application-code: 643ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1068ms (next.js: 205ms, proxy.ts: 165ms, application-code: 699ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1001ms (next.js: 341ms, proxy.ts: 157ms, application-code: 503ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1005ms (next.js: 298ms, proxy.ts: 154ms, application-code: 553ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1007ms (next.js: 252ms, proxy.ts: 154ms, application-code: 602ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1064ms (next.js: 24ms, proxy.ts: 34ms, application-code: 1006ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1080ms (next.js: 88ms, proxy.ts: 33ms, application-code: 960ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1047ms (next.js: 56ms, proxy.ts: 236ms, application-code: 756ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 944ms (next.js: 88ms, proxy.ts: 69ms, application-code: 787ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 983ms (next.js: 50ms, proxy.ts: 169ms, application-code: 764ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 967ms (next.js: 176ms, proxy.ts: 174ms, application-code: 618ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 972ms (next.js: 133ms, proxy.ts: 176ms, application-code: 664ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 986ms (next.js: 74ms, proxy.ts: 184ms, application-code: 728ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 961ms (next.js: 298ms, proxy.ts: 165ms, application-code: 498ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 976ms (next.js: 235ms, proxy.ts: 176ms, application-code: 566ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 969ms (next.js: 315ms, proxy.ts: 206ms, application-code: 448ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 934ms (next.js: 362ms, proxy.ts: 164ms, application-code: 407ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1077ms (next.js: 23ms, proxy.ts: 67ms, application-code: 986ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1058ms (next.js: 48ms, proxy.ts: 121ms, application-code: 890ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 937ms (next.js: 41ms, proxy.ts: 95ms, application-code: 801ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 972ms (next.js: 96ms, proxy.ts: 105ms, application-code: 771ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 963ms (next.js: 52ms, proxy.ts: 195ms, application-code: 716ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 953ms (next.js: 160ms, proxy.ts: 195ms, application-code: 598ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 953ms (next.js: 210ms, proxy.ts: 195ms, application-code: 547ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 959ms (next.js: 96ms, proxy.ts: 196ms, application-code: 667ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 960ms (next.js: 304ms, proxy.ts: 200ms, application-code: 456ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 900ms (next.js: 397ms, proxy.ts: 201ms, application-code: 303ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1042ms (next.js: 298ms, proxy.ts: 262ms, application-code: 482ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 990ms (next.js: 341ms, proxy.ts: 210ms, application-code: 438ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 916ms (next.js: 13ms, proxy.ts: 30ms, application-code: 873ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 913ms (next.js: 29ms, proxy.ts: 63ms, application-code: 820ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 871ms (next.js: 37ms, proxy.ts: 84ms, application-code: 749ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 870ms (next.js: 119ms, proxy.ts: 91ms, application-code: 660ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 866ms (next.js: 47ms, proxy.ts: 198ms, application-code: 620ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 969ms (next.js: 83ms, proxy.ts: 203ms, application-code: 684ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 982ms (next.js: 125ms, proxy.ts: 205ms, application-code: 652ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 984ms (next.js: 168ms, proxy.ts: 207ms, application-code: 609ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 921ms (next.js: 221ms, proxy.ts: 185ms, application-code: 515ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 910ms (next.js: 267ms, proxy.ts: 176ms, application-code: 467ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 908ms (next.js: 178ms, proxy.ts: 313ms, application-code: 417ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 908ms (next.js: 224ms, proxy.ts: 313ms, application-code: 371ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 943ms (next.js: 24ms, proxy.ts: 31ms, application-code: 888ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 937ms (next.js: 27ms, proxy.ts: 80ms, application-code: 830ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 942ms (next.js: 39ms, proxy.ts: 214ms, application-code: 688ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 889ms (next.js: 88ms, proxy.ts: 167ms, application-code: 634ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 829ms (next.js: 43ms, proxy.ts: 161ms, application-code: 626ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 820ms (next.js: 85ms, proxy.ts: 160ms, application-code: 575ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 875ms (next.js: 162ms, proxy.ts: 164ms, application-code: 549ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 895ms (next.js: 217ms, proxy.ts: 174ms, application-code: 504ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 838ms (next.js: 141ms, proxy.ts: 230ms, application-code: 467ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 840ms (next.js: 195ms, proxy.ts: 231ms, application-code: 414ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 829ms (next.js: 174ms, proxy.ts: 292ms, application-code: 363ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 835ms (next.js: 214ms, proxy.ts: 292ms, application-code: 330ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1069ms (next.js: 28ms, proxy.ts: 32ms, application-code: 1009ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1069ms (next.js: 40ms, proxy.ts: 92ms, application-code: 937ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1066ms (next.js: 38ms, proxy.ts: 166ms, application-code: 862ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1008ms (next.js: 114ms, proxy.ts: 109ms, application-code: 786ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1068ms (next.js: 96ms, proxy.ts: 130ms, application-code: 842ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1143ms (next.js: 103ms, proxy.ts: 193ms, application-code: 846ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1150ms (next.js: 196ms, proxy.ts: 203ms, application-code: 751ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1139ms (next.js: 178ms, proxy.ts: 260ms, application-code: 701ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1086ms (next.js: 145ms, proxy.ts: 298ms, application-code: 643ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1086ms (next.js: 191ms, proxy.ts: 298ms, application-code: 596ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1085ms (next.js: 260ms, proxy.ts: 299ms, application-code: 526ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1128ms (next.js: 265ms, proxy.ts: 331ms, application-code: 531ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1029ms (next.js: 46ms, proxy.ts: 29ms, application-code: 955ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1021ms (next.js: 151ms, proxy.ts: 47ms, application-code: 823ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1046ms (next.js: 45ms, proxy.ts: 244ms, application-code: 757ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 923ms (next.js: 90ms, proxy.ts: 132ms, application-code: 701ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 835ms (next.js: 101ms, proxy.ts: 110ms, application-code: 624ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 888ms (next.js: 122ms, proxy.ts: 165ms, application-code: 601ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 923ms (next.js: 108ms, proxy.ts: 241ms, application-code: 574ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 929ms (next.js: 168ms, proxy.ts: 246ms, application-code: 516ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 928ms (next.js: 209ms, proxy.ts: 244ms, application-code: 476ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 892ms (next.js: 253ms, proxy.ts: 261ms, application-code: 377ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 943ms (next.js: 213ms, proxy.ts: 304ms, application-code: 425ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 890ms (next.js: 237ms, proxy.ts: 265ms, application-code: 388ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1013ms (next.js: 22ms, proxy.ts: 63ms, application-code: 928ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 997ms (next.js: 77ms, proxy.ts: 53ms, application-code: 867ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 962ms (next.js: 52ms, proxy.ts: 137ms, application-code: 773ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 914ms (next.js: 111ms, proxy.ts: 120ms, application-code: 682ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 903ms (next.js: 135ms, proxy.ts: 181ms, application-code: 588ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 836ms (next.js: 113ms, proxy.ts: 221ms, application-code: 501ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 806ms (next.js: 155ms, proxy.ts: 282ms, application-code: 369ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 827ms (next.js: 113ms, proxy.ts: 295ms, application-code: 419ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 725ms (next.js: 250ms, proxy.ts: 285ms, application-code: 190ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 729ms (next.js: 213ms, proxy.ts: 283ms, application-code: 232ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 814ms (next.js: 182ms, proxy.ts: 357ms, application-code: 275ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 648ms (next.js: 203ms, proxy.ts: 307ms, application-code: 138ms)
+Clerk - DEPRECATION WARNING: "createRouteMatcher" is deprecated and will be removed in the next major release.
+Use resource-based auth checks instead. Move auth checks into each page, layout, API route, or Server Function that accesses protected data. Middleware-based auth checks rely on path matching, which can diverge from how Next.js routes requests and leave protected resources reachable. For a migration guide, see: https://clerk.com/docs/guides/development/upgrading/upgrade-guides/migrate-from-create-route-matcher
+Clerk - DEPRECATION WARNING: "createRouteMatcher" is deprecated and will be removed in the next major release.
+Use resource-based auth checks instead. Move auth checks into each page, layout, API route, or Server Function that accesses protected data. Middleware-based auth checks rely on path matching, which can diverge from how Next.js routes requests and leave protected resources reachable. For a migration guide, see: https://clerk.com/docs/guides/development/upgrading/upgrade-guides/migrate-from-create-route-matcher
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 5.6s (next.js: 4.4s, proxy.ts: 562ms, application-code: 616ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 5.0s (next.js: 4.2s, proxy.ts: 115ms, application-code: 617ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1117ms (next.js: 60ms, proxy.ts: 37ms, application-code: 1021ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1203ms (next.js: 207ms, proxy.ts: 39ms, application-code: 957ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1088ms (next.js: 95ms, proxy.ts: 183ms, application-code: 810ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1093ms (next.js: 155ms, proxy.ts: 185ms, application-code: 753ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1029ms (next.js: 232ms, proxy.ts: 128ms, application-code: 669ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1031ms (next.js: 362ms, proxy.ts: 127ms, application-code: 541ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1046ms (next.js: 306ms, proxy.ts: 128ms, application-code: 612ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1131ms (next.js: 445ms, proxy.ts: 63ms, application-code: 623ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1131ms (next.js: 499ms, proxy.ts: 63ms, application-code: 569ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1229ms (next.js: 561ms, proxy.ts: 64ms, application-code: 604ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1351ms (next.js: 497ms, proxy.ts: 195ms, application-code: 659ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1378ms (next.js: 554ms, proxy.ts: 195ms, application-code: 629ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 1075ms (next.js: 57ms, proxy.ts: 33ms, application-code: 985ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 1066ms (next.js: 227ms, proxy.ts: 24ms, application-code: 815ms)
+[browser] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview (https://genuine-seahorse-26.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:12:6133)
+ GET /signin/SignIn_clerk_catchall_check_1783534838294 200 in 155ms (next.js: 19ms, proxy.ts: 16ms, application-code: 120ms)
+ GET /signin/SignIn_clerk_catchall_check_1783534841058 200 in 161ms (next.js: 31ms, proxy.ts: 11ms, application-code: 120ms)
+[?25h
+
+D:\agent-george-new>node  "D:\agent-george-new\node_modules\.bin\\..\.pnpm\next@16.2.6_@babel+core@7.2_7d7ddfdd25bda7360fc181e5027d31b3\node_modules\next\dist\bin\next" dev 
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.21.32.1:3000
+- Environments: .env.local
+✓ Ready in 1801ms
+[scheduler] disabled — set SCHEDULER_ENABLED=true to run the in-process cron locally
+- Experiments (use with caution):
+  · serverActions
+
+Clerk - DEPRECATION WARNING: "createRouteMatcher" is deprecated and will be removed in the next major release.
+Use resource-based auth checks instead. Move auth checks into each page, layout, API route, or Server Function that accesses protected data. Middleware-based auth checks rely on path matching, which can diverge from how Next.js routes requests and leave protected resources reachable. For a migration guide, see: https://clerk.com/docs/guides/development/upgrading/upgrade-guides/migrate-from-create-route-matcher
+Attention: Clerk collects telemetry data from its SDKs when connected to development instances.
+The data collected is used to inform Clerk's product roadmap.
+To learn more, including how to opt-out from the telemetry program, visit: https://clerk.com/docs/telemetry.
+
+[browser] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview (https://genuine-seahorse-26.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:12:6133)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard 200 in 8.3s (next.js: 5.5s, proxy.ts: 1522ms, application-code: 1302ms)
+ GET /signin?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Factions 200 in 3.5s (next.js: 2.2s, proxy.ts: 21ms, application-code: 1303ms)
+[browser] Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview (https://genuine-seahorse-26.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js:12:6133)
+ GET /signin/SignIn_clerk_catchall_check_1783534869999 200 in 259ms (next.js: 35ms, proxy.ts: 23ms, application-code: 201ms)
+ GET /signin/SignIn_clerk_catchall_check_1783534875304 200 in 206ms (next.js: 36ms, proxy.ts: 27ms, application-code: 144ms)

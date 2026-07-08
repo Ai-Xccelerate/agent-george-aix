@@ -27,6 +27,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.139",
     "@anthropic-ai/claude-agent-sdk-linux-x64": "0.2.139",
     "@anthropic-ai/sdk": "^0.95.2",
+    "@clerk/nextjs": "^7.5.14",
     "@composio/core": "^0.9.1",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
