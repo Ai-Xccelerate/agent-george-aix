@@ -1504,7 +1504,7 @@ export function buildGeorgeMcpServer(
   // ---- search_mailbox ----------------------------------------------
   const searchMailbox = tool(
     "search_mailbox",
-    "Search George's OWN mirrored M365 mailbox (agent.george@getonyx.ai) — inbox, sent, and all folders — by text, sender, direction, and date. This reads the local mirror, so it is fast and works across full history; prefer it over the live Outlook tools for 'what did we say / what came in' questions. Returns concise message rows (subject, sender, preview, dates, conversation_id). Use get_email_thread(conversation_id) to read a full exchange.",
+    "Search George's OWN mirrored M365 mailbox (manasa@aixccelerate.com) — inbox, sent, and all folders — by text, sender, direction, and date. This reads the local mirror, so it is fast and works across full history; prefer it over the live Outlook tools for 'what did we say / what came in' questions. Returns concise message rows (subject, sender, preview, dates, conversation_id). Use get_email_thread(conversation_id) to read a full exchange.",
     {
       query: z
         .string()

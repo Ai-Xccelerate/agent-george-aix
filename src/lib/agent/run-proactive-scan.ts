@@ -105,7 +105,7 @@ function buildScanPrompt(manager: { name: string | null; email: string | null } 
     "## Act (don't just observe)",
     "- Create or advance objectives (`create_objective` / `update_objective`) for",
     "  anything that needs to move.",
-    "- Draft prep notes, agendas, or recap/nudge emails. Internal (@getonyx.ai)",
+    "- Draft prep notes, agendas, or recap/nudge emails. Internal (@aixccelerate.com)",
     "  recipients you may send; customer-facing email is draft-only for human review.",
     `- When you don't know what to do or it needs a human call, use \`raise_decision\` (it lands on the team's Needs-you queue) and send a one-line heads-up to your manager: ${managerLine}.`,
     "- Don't invent pricing, SKUs, or commitments; ground customer-facing work in the",
