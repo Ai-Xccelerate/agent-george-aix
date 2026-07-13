@@ -1,12 +1,10 @@
-import { SignIn } from "@clerk/nextjs";
+import { RedirectToSignIn } from "@clerk/nextjs";
 
-// AIX Core auth: Clerk hosts the sign-in. In production the shared Clerk
-// session across *.aiworkforce.md means users usually arrive already
-// authenticated (from Core); this page is the fallback / local-dev sign-in.
+// George does NOT host its own sign-in UI. Auth lives on AIX Core — the shared
+// Clerk session across *.aiworkforce.md logs users in once for all agents.
+// This route just bounces anyone who lands here to the Clerk-configured
+// (Core) sign-in, matching the AIXDraw/Jules pattern. No env override of
+// NEXT_PUBLIC_CLERK_SIGN_IN_URL — we use the instance default (Core).
 export default function SignInPage() {
-  return (
-    <div className="flex justify-center">
-      <SignIn />
-    </div>
-  );
+  return <RedirectToSignIn />;
 }
