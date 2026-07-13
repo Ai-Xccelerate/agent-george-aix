@@ -1,76 +1,66 @@
-import { admitUser } from "@/lib/auth/access-policy";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { createSupabaseAdmin } from "./admin";
-import { createSupabaseServer } from "./server";
+import { checkCoreAccess, CoreAccessError } from "@/lib/aix-core/access";
+import { ensureTenantRows, normalizeClerkRole } from "@/lib/aix-core/jit-mirror";
 
 export type CurrentUser = {
-  id: string;
+  id: string; // Clerk user id
   email: string | null;
   fullName: string | null;
   timezone: string | null;
   locale: string | null;
-  orgId: string;
+  orgId: string; // LOCAL org uuid (mirror of the Clerk org)
   orgName: string;
   role: string;
 };
 
 /**
- * Server-side lookup of the signed-in user + their (first) org membership.
- * Returns null when not signed in OR when the user has no org row yet
- * (shouldn't happen after auth callbacks finish, but we handle it).
+ * Server-side identity + tenant resolution under AIX Core auth.
+ *
+ * Flow: verify the Clerk session → enforce Core /access (fail-closed) →
+ * JIT-mirror the local org/membership rows → return the local tenant context.
+ *
+ * Returns null when there's no Clerk session or no active Clerk org (the
+ * middleware/layout redirect to sign-in handles that). Throws CoreAccessError
+ * when Core denies or is unavailable so the app layout can render the denied
+ * screen — allowed users never see the throw (checkCoreAccess returns ok, and
+ * its ≤60s cache keeps repeat calls cheap).
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const supabase = await createSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { userId: clerkUserId, orgId: clerkOrgId, orgRole, orgSlug, getToken } = await auth();
+  if (!clerkUserId) return null; // not signed in
+  if (!clerkOrgId) return null; // no active org selected yet
 
-  let membership = await loadMembership(supabase, user.id);
+  const token = await getToken();
+  if (!token) return null;
 
-  // Authed but not yet in an org — admit on the fly (fixes open-signup gaps
-  // and avoids a /dashboard ↔ /signin redirect loop).
-  if (!membership) {
-    const admin = createSupabaseAdmin();
-    const verdict = await admitUser(
-      admin,
-      user.id,
-      user.email ?? null,
-      (user.user_metadata?.full_name as string | undefined) ?? null,
-      supabase,
-    );
-    if (!verdict.ok) return null;
-    membership = await loadMembership(supabase, user.id);
-    if (!membership) return null;
-  }
+  // Core entitlement gate — before any tenant-row creation.
+  const outcome = await checkCoreAccess(clerkUserId, token);
+  if (!outcome.ok) throw new CoreAccessError(outcome);
 
-  return {
-    id: user.id,
-    email: membership.email ?? user.email ?? null,
-    fullName:
-      membership.full_name ??
-      (user.user_metadata?.full_name as string | undefined) ??
-      null,
-    timezone: membership.timezone ?? null,
-    locale: membership.locale ?? null,
-    orgId: membership.org_id,
-    orgName: membership.orgName ?? "AIX",
-    role: membership.role,
-  };
-}
+  const profile = await currentUser();
+  const email = profile?.primaryEmailAddress?.emailAddress ?? null;
+  const fullName =
+    [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || null;
 
-async function loadMembership(
-  supabase: Awaited<ReturnType<typeof createSupabaseServer>>,
-  userId: string,
-) {
-  const { data: membership } = await supabase
-    .from("org_members")
-    .select("org_id, role, full_name, email, timezone, locale, orgs:org_id(name)")
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle();
-
-  if (!membership) return null;
+  const admin = createSupabaseAdmin();
+  const { orgId, orgName, role } = await ensureTenantRows(admin, {
+    clerkUserId,
+    clerkOrgId,
+    orgRole: normalizeClerkRole(orgRole),
+    orgSlug,
+    email,
+    fullName,
+  });
 
   return {
-    ...membership,
-    orgName: (membership.orgs as { name?: string } | null)?.name ?? "AIX",
+    id: clerkUserId,
+    email,
+    fullName,
+    timezone: null,
+    locale: null,
+    orgId,
+    orgName,
+    role,
   };
 }
