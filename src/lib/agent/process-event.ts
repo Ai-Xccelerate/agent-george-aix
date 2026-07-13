@@ -22,6 +22,7 @@ import { runGeorgeAutonomous } from "./run-autonomous";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
 import { isSenderAllowed } from "./sender-allowlist";
+import { isInternalDomain } from "./identity";
 
 type EventRow = {
   id: string;
@@ -223,7 +224,7 @@ export async function processAgentEvent(
     timeBudgetMs: PROCESS_TIME_BUDGET_MS,
     clientAppTag: "agent-george-event/0.1",
     sessionId,
-    // George may send to internal (@getonyx.ai) recipients — reply to an
+    // George may send to internal (@aixccelerate.com) recipients — reply to an
     // internal thread, escalate to his manager — but the send tool refuses
     // any draft with an external recipient.
     emailSendPolicy: "internal_only",
@@ -450,7 +451,7 @@ function buildOutlookFramingPrompt(
     : "(unknown sender)";
 
   const senderDomain = (email.from?.address?.split("@")[1] ?? "").toLowerCase();
-  const senderInternal = senderDomain === "getonyx.ai";
+  const senderInternal = isInternalDomain(senderDomain);
   const managerLine = manager?.email
     ? `${manager.name ?? "your manager"} <${manager.email}>`
     : "your manager (no manager email is configured — note this in your summary instead of emailing)";
@@ -468,8 +469,8 @@ function buildOutlookFramingPrompt(
     "- **Escalate** — it needs a human judgement call (pricing, commitments, contract/legal, anything you're unsure about, or any reply that must go to an EXTERNAL recipient). See Step 3.",
     "",
     "## Step 3 — How to respond (trust boundary = recipient domain)",
-    `- The sender here is **${senderInternal ? "INTERNAL (@getonyx.ai)" : "EXTERNAL"}**.`,
-    "- **Internal recipients (@getonyx.ai):** you MAY draft AND send (`draft_email_reply` → `send_email_draft`). Replies to an internal teammate and notes to your manager are fine to send.",
+    `- The sender here is **${senderInternal ? "INTERNAL (@aixccelerate.com)" : "EXTERNAL"}**.`,
+    "- **Internal recipients (@aixccelerate.com):** you MAY draft AND send (`draft_email_reply` → `send_email_draft`). Replies to an internal teammate and notes to your manager are fine to send.",
     "- **External recipients (customers/partners):** `draft_email_reply` ONLY — do NOT send. Leave the draft for human review and escalate (the send tool will refuse external recipients anyway).",
     `- **When in doubt, escalate:** call \`raise_decision\` (title, detail, your recommendation, and 1–4 concrete \`suggested_actions\` the reviewer can click to hand back to you) to put it on the team's Needs-you queue, then send a one-line internal heads-up to your manager ${managerLine}. Don't guess on anything customer-facing or commercial.`,
     "- Ground every draft in the org's playbook — use `read_knowledge_doc` for wording/process.",
@@ -670,7 +671,7 @@ function buildTranscriptFramingPrompt(
       ? `3. This meeting is tied to customer \`${transcript.customer_id}\`. Update their onboarding plan and objectives from what was decided (\`get_customer\`, \`create_objective\` / \`update_objective\`, onboarding step tools).`
       : "3. Identify the customer from the attendees (`find_contact` / `find_customer`) and tie the meeting to them; update their plan/objectives from what was decided.",
     "4. Draft a concise recap (decisions, owners, next steps).",
-    "   - If the recap goes to an INTERNAL teammate / your manager (@getonyx.ai), you may send it.",
+    "   - If the recap goes to an INTERNAL teammate / your manager (@aixccelerate.com), you may send it.",
     "   - If it goes to the customer (external), draft only — leave it for human review.",
     `5. When something needs a human call, call \`raise_decision\` (it goes on the team's Needs-you queue) and send a one-line heads-up to your manager: ${managerLine}.`,
     "",

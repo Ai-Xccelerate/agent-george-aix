@@ -15,6 +15,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callAction } from "@/lib/composio/client";
 import { wrapGeorgeEmailHtml, injectReplyHtml } from "@/lib/agent/email-branding";
+import { GEORGE_ADDRESS, isInternalAddress } from "@/lib/agent/identity";
 
 type Ctx = {
   orgId: string;
@@ -28,20 +29,13 @@ type Ctx = {
   /**
    * "chat" (default): a human confirmed the send, no guard. "internal_only":
    * autonomous run — send_email_draft refuses any draft whose recipients
-   * aren't all @getonyx.ai, so George can't email a customer without review.
+   * aren't all @aixccelerate.com, so George can't email a customer without review.
    */
   emailSendPolicy?: "chat" | "internal_only";
   db: SupabaseClient;
 };
 
-const INTERNAL_DOMAIN = "getonyx.ai";
-const GEORGE_ADDRESS = "agent.george@getonyx.ai";
-
 type Recipient = { address: string; name?: string };
-
-function isInternalAddress(addr: string): boolean {
-  return (addr.split("@")[1] ?? "").toLowerCase() === INTERNAL_DOMAIN;
-}
 
 /** Pull {address, name} pairs out of a Graph recipient array (or string[]). */
 function extractRecipients(list: unknown): Recipient[] {
@@ -71,7 +65,7 @@ function recipientAddresses(msg: Record<string, unknown>): string[] {
 }
 
 function externalRecipients(addresses: string[]): string[] {
-  return addresses.filter((a) => (a.split("@")[1] ?? "") !== INTERNAL_DOMAIN);
+  return addresses.filter((a) => !isInternalAddress(a));
 }
 
 const ok = (data: unknown) => ({
@@ -118,7 +112,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- DRAFT NEW EMAIL ---------------------------------------------
   const draftEmail = tool(
     "draft_email",
-    "Create a draft email in agent.george@getonyx.ai's Outlook. Returns the draft id + preview so you can show it to the user. The user MUST confirm before you call send_email_draft.",
+    "Create a draft email in manasa@aixccelerate.com's Outlook. Returns the draft id + preview so you can show it to the user. The user MUST confirm before you call send_email_draft.",
     {
       to: z.array(z.string().email()).min(1),
       cc: z.array(z.string().email()).optional(),
@@ -177,7 +171,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- DRAFT REPLY -------------------------------------------------
   const draftReply = tool(
     "draft_email_reply",
-    "Reply in an existing Outlook thread. Replies to ALL internal @getonyx.ai people on the thread (sender + To + Cc) and EXCLUDES any external customer/partner. Returns the draft id, the recipients it will go to, and `excluded_external` (external addresses left off). Surface excluded_external to the user and ask before adding anyone external. User MUST confirm before send_email_draft.",
+    "Reply in an existing Outlook thread. Replies to ALL internal @aixccelerate.com people on the thread (sender + To + Cc) and EXCLUDES any external customer/partner. Returns the draft id, the recipients it will go to, and `excluded_external` (external addresses left off). Surface excluded_external to the user and ask before adding anyone external. User MUST confirm before send_email_draft.",
     {
       message_id: z.string().min(1).describe("Outlook message id (from get_email / list_recent_emails)."),
       body_html: z.string().min(1),
@@ -288,7 +282,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- SEND DRAFT --------------------------------------------------
   const sendDraft = tool(
     "send_email_draft",
-    "Send a previously created draft — every recipient must be internal (@getonyx.ai) OR on the org's approved domain allowlist (Settings → Agent George → Email domains). Anything else is always refused: those must be sent by a human from the mailbox Drafts folder, or you can call request_domain_approval to ask for that domain to be allowed. This holds in chat and in autonomous runs alike.",
+    "Send a previously created draft — every recipient must be internal (@aixccelerate.com) OR on the org's approved domain allowlist (Settings → Agent George → Email domains). Anything else is always refused: those must be sent by a human from the mailbox Drafts folder, or you can call request_domain_approval to ask for that domain to be allowed. This holds in chat and in autonomous runs alike.",
     {
       draft_id: z.string().min(1),
     },
@@ -328,7 +322,7 @@ export function buildComposioTools(ctx: Ctx) {
           await audit(ctx, "email.send_blocked", { draft_id, external, not_allowed: notAllowed });
           return fail(
             `Refused to send: this draft has recipient(s) on a domain that isn't approved [${notAllowed.join(", ")}]. ` +
-              "You can only send to internal (@getonyx.ai) or org-approved domains directly. The draft is saved — " +
+              "You can only send to internal (@aixccelerate.com) or org-approved domains directly. The draft is saved — " +
               "tell the user to review it and send it from the mailbox Drafts folder, or call request_domain_approval " +
               "if that domain should be allowed going forward.",
           );
@@ -346,7 +340,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- LIST INBOX --------------------------------------------------
   const listRecentEmails = tool(
     "list_recent_emails",
-    "List recent messages from agent.george@getonyx.ai's inbox. Use to find a thread to reply in or to check who's written in. Returns most recent first.",
+    "List recent messages from manasa@aixccelerate.com's inbox. Use to find a thread to reply in or to check who's written in. Returns most recent first.",
     {
       folder: z.enum(["inbox", "sent", "drafts"]).default("inbox").optional(),
       limit: z.number().int().min(1).max(50).default(20).optional(),
@@ -451,7 +445,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- CREATE CALENDAR EVENT --------------------------------------
   const createCalendarEvent = tool(
     "create_calendar_event",
-    "Create an event on agent.george@getonyx.ai's calendar. Use to schedule kickoffs, check-ins, etc. Returns the new event id and join URL if it's a Teams meeting.",
+    "Create an event on manasa@aixccelerate.com's calendar. Use to schedule kickoffs, check-ins, etc. Returns the new event id and join URL if it's a Teams meeting.",
     {
       subject: z.string().min(1),
       start_iso: z.string().datetime().describe("ISO 8601 start time (with timezone)."),
@@ -495,7 +489,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- LIST CALENDAR ----------------------------------------------
   const listCalendarEvents = tool(
     "list_calendar_events",
-    "List agent.george@getonyx.ai's upcoming calendar events. Use to check availability or find an existing meeting.",
+    "List manasa@aixccelerate.com's upcoming calendar events. Use to check availability or find an existing meeting.",
     {
       start_iso: z.string().datetime().optional().describe("Defaults to now."),
       end_iso: z.string().datetime().optional().describe("Defaults to 14 days from now."),
