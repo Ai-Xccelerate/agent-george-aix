@@ -60,12 +60,27 @@ export async function signUpAction(_: AuthResult, formData: FormData): Promise<A
     return { error: "Enter a valid email address." };
   }
 
-  const supabase = await createSupabaseServer();
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) return { error: error.message };
-  if (!data.user) return { error: "Sign-up failed." };
-
+  // Open-signup (dev/staging only) creates an ALREADY-CONFIRMED user via the
+  // admin API, then signs them in — skipping the email round-trip because cloud
+  // Supabase's default confirmation mailer is unreliable. Prod stays invite-only
+  // (isOpenSignup() is false there), so this path never runs in production.
   const admin = createSupabaseAdmin();
+  const { error: createErr } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (createErr) {
+    if (/already|registered|exists/i.test(createErr.message)) {
+      return { error: "An account with this email already exists — sign in instead." };
+    }
+    return { error: createErr.message };
+  }
+
+  const supabase = await createSupabaseServer();
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error || !data.user) return { error: error?.message ?? "Sign-up failed." };
+
   const verdict = await admitUser(
     admin,
     data.user.id,
@@ -76,7 +91,7 @@ export async function signUpAction(_: AuthResult, formData: FormData): Promise<A
 
   if (!verdict.ok) {
     await supabase.auth.signOut();
-    return { error: "Could not create your account. Try again or contact support." };
+    return { error: "Could not link your account to an org. Contact support." };
   }
 
   redirect(next);
