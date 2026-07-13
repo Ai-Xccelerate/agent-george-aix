@@ -23,57 +23,52 @@ export async function ensureTenantRows(
   admin: SupabaseClient,
   input: MirrorInput,
 ): Promise<MirroredTenant> {
-  // 1. Local org row, keyed by clerk_org_id. Create with a placeholder name if
-  //    absent (backfilled later from Core's canonical org name).
-  const existingOrg = await admin
+  // 1. Local org row, keyed by clerk_org_id. Upsert-then-read is race-safe:
+  //    concurrent getCurrentUser calls (layout + page render in parallel) won't
+  //    collide on the unique constraint. ignoreDuplicates keeps the existing
+  //    name if the row is already there.
+  const name = input.orgSlug || input.clerkOrgId;
+  const upsertedOrg = await admin
+    .from("orgs")
+    .upsert({ clerk_org_id: input.clerkOrgId, name }, { onConflict: "clerk_org_id", ignoreDuplicates: true });
+  if (upsertedOrg.error) {
+    throw new Error(`jit-mirror: could not upsert org — ${upsertedOrg.error.message}`);
+  }
+  const org = await admin
     .from("orgs")
     .select("id, name")
     .eq("clerk_org_id", input.clerkOrgId)
-    .maybeSingle();
+    .single();
+  if (org.error || !org.data) {
+    throw new Error(`jit-mirror: could not read org — ${org.error?.message}`);
+  }
+  const orgId = org.data.id;
+  const orgName = org.data.name;
 
-  let orgId: string;
-  let orgName: string;
-  if (existingOrg.data) {
-    orgId = existingOrg.data.id;
-    orgName = existingOrg.data.name;
-  } else {
-    const name = input.orgSlug || input.clerkOrgId;
-    const created = await admin
-      .from("orgs")
-      .insert({ clerk_org_id: input.clerkOrgId, name })
-      .select("id, name")
-      .single();
-    if (created.error || !created.data) {
-      throw new Error(`jit-mirror: could not create org — ${created.error?.message}`);
-    }
-    orgId = created.data.id;
-    orgName = created.data.name;
+  // 2. Membership row, keyed by (org_id, clerk user_id). Same race-safe upsert;
+  //    ignoreDuplicates preserves an existing member's role.
+  const upsertedMember = await admin.from("org_members").upsert(
+    {
+      org_id: orgId,
+      user_id: input.clerkUserId,
+      role: input.orgRole,
+      email: input.email,
+      full_name: input.fullName,
+    },
+    { onConflict: "org_id,user_id", ignoreDuplicates: true },
+  );
+  if (upsertedMember.error) {
+    throw new Error(`jit-mirror: could not upsert membership — ${upsertedMember.error.message}`);
   }
 
-  // 2. Membership row, keyed by (org_id, clerk user_id). Idempotent.
-  const existingMember = await admin
+  const member = await admin
     .from("org_members")
     .select("role")
     .eq("org_id", orgId)
     .eq("user_id", input.clerkUserId)
-    .maybeSingle();
+    .single();
 
-  if (existingMember.data) {
-    return { orgId, orgName, role: existingMember.data.role };
-  }
-
-  const inserted = await admin.from("org_members").insert({
-    org_id: orgId,
-    user_id: input.clerkUserId,
-    role: input.orgRole,
-    email: input.email,
-    full_name: input.fullName,
-  });
-  if (inserted.error) {
-    throw new Error(`jit-mirror: could not create membership — ${inserted.error.message}`);
-  }
-
-  return { orgId, orgName, role: input.orgRole };
+  return { orgId, orgName, role: member.data?.role ?? input.orgRole };
 }
 
 /** Map a Clerk org role (e.g. "org:admin") to a valid George org_members role. */
