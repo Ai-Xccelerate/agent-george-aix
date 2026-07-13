@@ -1,20 +1,18 @@
 import { redirect } from "next/navigation";
 import { Mail, Trash2, UserPlus, X } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { Badge } from "@/components/ui/badge";
 import { initials } from "@/lib/utils";
 import { ALLOWED_DOMAINS } from "@/lib/auth/access-policy";
 import {
   changeRoleAction,
-  inviteUserAction,
   removeMemberAction,
-  resendInviteAction,
   revokeInviteAction,
 } from "./actions";
-import { InviteForm } from "./_invite-form";
 import { RoleSelect } from "./_role-select";
-import { ResendInviteButton } from "./_resend-button";
+
+const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL ?? "https://app-staging.aiworkforce.md";
 
 export const dynamic = "force-dynamic";
 
@@ -48,14 +46,14 @@ export default async function UsersSettingsPage() {
   const isAdmin = user.role === "owner" || user.role === "admin";
   if (!isAdmin) redirect("/settings/profile");
 
-  const supabase = await createSupabaseServer();
+  const admin = createSupabaseAdmin();
   const [membersRes, invitesRes] = await Promise.all([
-    supabase
+    admin
       .from("org_members")
       .select("user_id, role, full_name, email")
       .eq("org_id", user.orgId)
       .order("role"),
-    supabase
+    admin
       .from("invites")
       .select("id, email, full_name, role, status, created_at, expires_at")
       .eq("org_id", user.orgId)
@@ -85,13 +83,22 @@ export default async function UsersSettingsPage() {
 
       {isAdmin && (
         <div className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-2 flex items-center gap-2">
             <UserPlus size={16} className="text-[var(--color-accent)]" />
             <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">
               Invite a teammate
             </h2>
           </div>
-          <InviteForm action={inviteUserAction} />
+          <p className="mb-4 text-[13px] text-[var(--color-fg-secondary)]">
+            Teammates are invited and granted George access from the AIX Core
+            dashboard. New members show up here once they sign in.
+          </p>
+          <a
+            href={CORE_URL}
+            className="inline-flex h-9 items-center justify-center rounded-md bg-[var(--color-accent)] px-4 text-[13px] font-medium text-white hover:bg-[var(--color-accent-hover)]"
+          >
+            Manage access in AIX Core
+          </a>
         </div>
       )}
 
@@ -171,7 +178,6 @@ export default async function UsersSettingsPage() {
                 <Badge tone={ROLE_TONE[i.role] ?? "neutral"}>{i.role}</Badge>
                 {isAdmin && (
                   <div className="ml-2 flex items-center gap-1">
-                    <ResendInviteButton inviteId={i.id} action={resendInviteAction} />
                     <form action={revokeInviteAction}>
                       <input type="hidden" name="invite_id" value={i.id} />
                       <button

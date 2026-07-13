@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { createSupabaseServer } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { type ActionResult } from "@/lib/actions";
 
@@ -46,6 +45,9 @@ export async function updateProfileAction(
   const fullName = `${first_name} ${last_name}`.trim();
 
   const admin = createSupabaseAdmin();
+  // full_name/timezone/locale live on the local org_members mirror; the
+  // canonical name is owned by Clerk (edited in AIX Core), but George reads
+  // this row for its own UI so we keep it in sync from here.
   const update = await admin
     .from("org_members")
     .update({ full_name: fullName, timezone, locale })
@@ -53,48 +55,6 @@ export async function updateProfileAction(
     .eq("user_id", user.id);
   if (update.error) return { error: update.error.message };
 
-  // Keep auth metadata in sync so the name is right in invite/magic-link
-  // emails and anything else that reads user_metadata.
-  await admin.auth.admin.updateUserById(user.id, {
-    user_metadata: { full_name: fullName },
-  });
-
   revalidatePath("/settings/profile");
   return { info: "Profile updated." };
-}
-
-const PasswordSchema = z
-  .object({
-    new_password: z.string().min(8, "Password must be at least 8 characters."),
-    confirm_password: z.string(),
-  })
-  .refine((d) => d.new_password === d.confirm_password, {
-    message: "Passwords don't match.",
-    path: ["confirm_password"],
-  });
-
-export async function updatePasswordAction(
-  _: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  const supabase = await createSupabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not signed in." };
-
-  const parsed = PasswordSchema.safeParse({
-    new_password: formData.get("new_password"),
-    confirm_password: formData.get("confirm_password"),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid password." };
-  }
-
-  const { error } = await supabase.auth.updateUser({
-    password: parsed.data.new_password,
-  });
-  if (error) return { error: error.message };
-
-  return { info: "Password updated." };
 }

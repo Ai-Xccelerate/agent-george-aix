@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from "@/lib/agent/agent-settings";
 import { WeekGrid, type CalEvent } from "./_week-grid";
 
@@ -43,7 +43,9 @@ export default async function CalendarPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
-  const supabase = await createSupabaseServer();
+  // Service-role client (identity/entitlement enforced upstream by
+  // getCurrentUser → Clerk + Core /access); every query is org-scoped explicitly.
+  const supabase = createSupabaseAdmin();
   const sp = await searchParams;
   const offset = Number.parseInt(sp.week ?? "0", 10) || 0;
 

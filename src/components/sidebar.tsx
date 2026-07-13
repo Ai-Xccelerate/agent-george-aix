@@ -13,8 +13,8 @@ import {
   HelpCircle,
   LogOut,
 } from "lucide-react";
+import { useClerk } from "@clerk/nextjs";
 import { cn, initials } from "@/lib/utils";
-import { signOutAction } from "@/app/(auth)/actions";
 import { BrandLogo } from "@/components/brand-logo";
 
 const primaryNav = [
@@ -113,6 +113,7 @@ function UserFooter({
   onNavigate?: () => void;
   pathname: string | null;
 }) {
+  const { signOut } = useClerk();
   const handle = user.email ? "@" + user.email.split("@")[0] : null;
   const settingsActive =
     pathname === "/settings" || (pathname?.startsWith("/settings/") ?? false);
@@ -177,15 +178,14 @@ function UserFooter({
         Settings
       </Link>
 
-      <form action={signOutAction}>
-        <button
-          type="submit"
-          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-2)]"
-        >
-          <LogOut size={16} className="text-[var(--color-fg-muted)]" />
-          Log out
-        </button>
-      </form>
+      <button
+        type="button"
+        onClick={() => signOut({ redirectUrl: "/signin" })}
+        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-2)]"
+      >
+        <LogOut size={16} className="text-[var(--color-fg-muted)]" />
+        Log out
+      </button>
     </div>
   );
 }

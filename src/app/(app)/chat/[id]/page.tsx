@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { notFound, redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/supabase/current-user";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { ChatClient, type AttachmentMeta, type InitialMessage } from "../_chat-client";
 
 export const dynamic = "force-dynamic";
@@ -18,15 +19,19 @@ export default async function ChatSessionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createSupabaseServer();
+  const user = await getCurrentUser();
+  if (!user) redirect("/signin");
+  const supabase = createSupabaseAdmin();
 
   // Allow human chat sessions and all autonomous-run sessions (inbound email,
   // transcript recaps, and proactive scans — all channel 'cron'/'email') so the
-  // reviewer can open George's write-up and resume the thread.
+  // reviewer can open George's write-up and resume the thread. Scoped to the
+  // caller's org so a session id from another tenant 404s.
   const session = await supabase
     .from("agent_sessions")
     .select("id, channel")
     .eq("id", id)
+    .eq("org_id", user.orgId)
     .in("channel", ["chat", "email", "cron", "transcript"])
     .maybeSingle();
   if (!session.data) notFound();
