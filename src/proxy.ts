@@ -1,5 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
+import { coreSignInUrl } from "@/lib/auth/core-signin";
 
 // Public routes: the sign-in surface + machine-to-machine webhooks that carry
 // their own auth (Composio HMAC, Bot Framework JWT), not a Clerk session.
@@ -21,30 +22,32 @@ function publicOrigin(request: NextRequest): string {
   return host ? `${proto}://${host}` : request.nextUrl.origin;
 }
 
-// AIX Core auth (Jules pattern): unauthenticated users are redirected to Core's
-// sign-in with a redirect_url back to this agent, e.g.
+// AIX Core auth (Jules pattern): on a deployed *.aiworkforce.md host,
+// unauthenticated users are redirected to Core's sign-in with a redirect_url
+// back to this agent, e.g.
 //   app-staging.aiworkforce.md/login?redirect_url=https://george-staging.aiworkforce.md/dashboard
 // Core signs them in; the shared *.aiworkforce.md session returns them here.
-//   - staging/prod: NEXT_PUBLIC_CLERK_SIGN_IN_URL = https://app-*.aiworkforce.md/login
-//   - local:        NEXT_PUBLIC_CLERK_SIGN_IN_URL = /signin (embedded, localhost
-//                    can't share Core's cross-subdomain cookie)
+// The destination is derived from NEXT_PUBLIC_CORE_URL (set on staging/prod) by
+// coreSignInUrl() — no per-env NEXT_PUBLIC_CLERK_SIGN_IN_URL required. On
+// localhost coreSignInUrl() returns null and we fall back to George's embedded
+// widget (localhost can't share Core's cross-subdomain cookie).
 export const proxy = clerkMiddleware(async (auth, request) => {
   if (isPublicRoute(request)) return;
 
   const { userId } = await auth();
   if (userId) return;
 
-  const signIn = process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL || "/signin";
-  const returnUrl = `${publicOrigin(request)}${request.nextUrl.pathname}`;
+  const origin = publicOrigin(request);
+  const core = coreSignInUrl(new URL(origin).host);
 
-  if (/^https?:\/\//.test(signIn)) {
-    const dest = new URL(signIn); // Core login (absolute)
-    dest.searchParams.set("redirect_url", returnUrl);
+  if (core) {
+    const dest = new URL(core); // Core login (absolute)
+    dest.searchParams.set("redirect_url", `${origin}${request.nextUrl.pathname}`);
     return NextResponse.redirect(dest);
   }
 
-  const local = request.nextUrl.clone(); // local same-origin page
-  local.pathname = signIn;
+  const local = request.nextUrl.clone(); // localhost: embedded Clerk widget
+  local.pathname = "/signin";
   local.search = "";
   return NextResponse.redirect(local);
 });
