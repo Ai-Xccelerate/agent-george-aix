@@ -6,6 +6,7 @@ import { coreSignInUrl } from "@/lib/auth/core-signin";
 // their own auth (Composio HMAC, Bot Framework JWT), not a Clerk session.
 const isPublicRoute = createRouteMatcher([
   "/signin(.*)",
+  "/api/health(.*)",
   "/api/webhooks(.*)",
   "/api/messages(.*)",
   "/api/cron(.*)",
