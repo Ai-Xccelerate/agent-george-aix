@@ -180,7 +180,7 @@ function UserFooter({
 
       <button
         type="button"
-        onClick={() => signOut({ redirectUrl: "/signin" })}
+        onClick={() => signOut({ redirectUrl: "/" })}
         className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-2)]"
       >
         <LogOut size={16} className="text-[var(--color-fg-muted)]" />
