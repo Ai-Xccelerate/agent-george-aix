@@ -90,6 +90,7 @@ export type ComposioCall<T = unknown> =
 export async function ensureTrigger(
   triggerName: string,
   connectedAccountId: string,
+  userId: string,
 ): Promise<ComposioCall<{ trigger_id: string }>> {
   const apiKey = process.env.COMPOSIO_API_KEY;
   if (!apiKey) return { ok: false, error: "COMPOSIO_API_KEY is not set." };
@@ -99,8 +100,13 @@ export async function ensureTrigger(
       {
         method: "POST",
         headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+        // `user_id` is required when the Composio project has 2FA enabled
+        // ("2FA is enabled for this project: user_id is required to create or
+        // update a trigger"). It's the org's Composio identity (org-<orgId>) —
+        // the same user_id the connected account lives under.
         body: JSON.stringify({
           connected_account_id: connectedAccountId,
+          user_id: userId,
           trigger_config: {},
         }),
       },
