@@ -39,11 +39,6 @@ const signUpUrl = process.env.CLERK_SIGN_UP_URL;
 export const proxy = clerkMiddleware(
   async (auth, request) => {
     if (isPublicRoute(request)) return;
-    // TEMP debug: does george-staging see the shared Core session here?
-    const a = await auth();
-    console.log(
-      `[auth-debug] path=${request.nextUrl.pathname} userId=${a.userId ? "yes" : "NO"} orgId=${a.orgId ? "yes" : "NO"}`,
-    );
     await auth.protect();
   },
   { authorizedParties, signInUrl, signUpUrl },
