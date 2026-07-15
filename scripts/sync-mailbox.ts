@@ -1,5 +1,5 @@
 /**
- * Manually run a mailbox + calendar sync for the Onyx org.
+ * Manually run a mailbox + calendar sync for the default (AIX) org.
  *
  *   pnpm tsx scripts/sync-mailbox.ts
  *
@@ -12,7 +12,7 @@ loadEnv({ path: path.resolve(process.cwd(), ".env.local") });
 
 import { syncMailbox } from "../src/lib/agent/mailbox-sync";
 
-const ORG = process.env.ONYX_ORG_ID ?? "00000000-0000-0000-0000-000000000001";
+const ORG = process.env.AIX_ORG_ID ?? "00000000-0000-0000-0000-000000000001";
 
 (async () => {
   console.log(`Syncing mailbox for org ${ORG} …`);

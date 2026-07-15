@@ -9,8 +9,8 @@
  * Core.
  */
 
-export const ALLOWED_DOMAINS = ["getonyx.ai", "aixccelerate.com"] as const;
-export const ONYX_ORG_ID = "00000000-0000-0000-0000-000000000001";
+export const ALLOWED_DOMAINS = ["aixccelerate.com"] as const;
+export const AIX_ORG_ID = "00000000-0000-0000-0000-000000000001";
 
 /** Local dev / staging only — set NEXT_PUBLIC_OPEN_SIGNUP=true in .env.local */
 export function isOpenSignup(): boolean {
