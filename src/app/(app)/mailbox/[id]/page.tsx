@@ -3,7 +3,6 @@ import { after } from "next/server";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft, Paperclip, Send } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
-import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
 import { sendMailboxDraftAction } from "../actions";
@@ -33,7 +32,7 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
 
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
-  const supabase = await createSupabaseServer();
+  const supabase = createSupabaseAdmin();
 
   const { data } = await supabase
     .from("email_messages")

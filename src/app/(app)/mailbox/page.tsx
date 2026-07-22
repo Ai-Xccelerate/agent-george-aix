@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCheck, Flag, Mail, Paperclip, Search, Trash2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { MAILBOX_SYNC_INTERVAL_MS } from "@/lib/agent/mailbox-sync";
 import { deleteEmailAction, toggleFlagAction } from "./actions";
 import { SyncStatus } from "./_sync-status";
@@ -46,7 +46,7 @@ export default async function MailboxPage({
   if (!user) redirect("/signin");
   const sp = (await searchParams) ?? {};
   const q = (sp.q ?? "").trim();
-  const supabase = await createSupabaseServer();
+  const supabase = createSupabaseAdmin();
 
   const { data: folderData } = await supabase
     .from("mail_folders")

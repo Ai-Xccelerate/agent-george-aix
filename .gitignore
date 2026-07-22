@@ -42,3 +42,6 @@ next-env.d.ts
 
 # local dev logs
 .dev*.log
+
+# local reference clones (not part of the app)
+/reference/

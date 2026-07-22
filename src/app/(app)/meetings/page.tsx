@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { CalendarClock, CalendarDays, Repeat, Video } from "lucide-react";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/current-user";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,9 @@ type CadenceRow = {
 };
 
 export default async function MeetingsPage() {
-  const supabase = await createSupabaseServer();
+  const user = await getCurrentUser();
+  if (!user) redirect("/signin");
+  const supabase = createSupabaseAdmin();
   const nowIso = new Date().toISOString();
 
   const cols =
@@ -26,6 +30,7 @@ export default async function MeetingsPage() {
     supabase
       .from("cadences")
       .select(cols)
+      .eq("customers.org_id", user.orgId)
       .eq("active", true)
       .not("next_meeting_at", "is", null)
       .gte("next_meeting_at", nowIso)
@@ -34,6 +39,7 @@ export default async function MeetingsPage() {
     supabase
       .from("cadences")
       .select(cols)
+      .eq("customers.org_id", user.orgId)
       .not("last_met_at", "is", null)
       .order("last_met_at", { ascending: false })
       .limit(15),

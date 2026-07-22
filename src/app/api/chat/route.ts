@@ -281,11 +281,6 @@ export async function POST(req: NextRequest) {
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.error("[chat] query failed", {
-          sessionId: dbSession!.id,
-          message,
-          stack: err instanceof Error ? err.stack : undefined,
-        });
         // Some Agent SDK builds THROW on resume miss instead of streaming
         // it (the streamed-text version is handled inside runOnce via the
         // "stale_resume" return). Mirror that recovery here: clear the
@@ -295,6 +290,12 @@ export async function POST(req: NextRequest) {
           dbSession!.sdk_session_id &&
           /No conversation found with session ID/i.test(message)
         ) {
+          // Expected, not an error: Railway wipes the SDK's session store on
+          // restart, so a stored sdk_session_id stops resolving. Log quietly
+          // and self-heal — the retry below produces the reply.
+          console.log("[chat] resume miss — starting a fresh SDK session", {
+            sessionId: dbSession!.id,
+          });
           await admin
             .from("agent_sessions")
             .update({ sdk_session_id: null })
@@ -322,6 +323,11 @@ export async function POST(req: NextRequest) {
             send("error", { message: retryMsg });
           }
         } else {
+          console.error("[chat] query failed", {
+            sessionId: dbSession!.id,
+            message,
+            stack: err instanceof Error ? err.stack : undefined,
+          });
           send("error", { message });
         }
       } finally {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { ensureTrigger } from "@/lib/composio/client";
+import { ensureTrigger, composioOrgIdentity } from "@/lib/composio/client";
 
 // Toolkit -> Composio trigger(s) that must be (re)pointed at a fresh
 // connected_account_id every time that toolkit finishes (re)connecting.
@@ -66,7 +66,11 @@ export async function GET(req: NextRequest) {
   // should be visible in audit_log rather than silently leaving George on
   // the slow backstop sync.
   for (const triggerName of TOOLKIT_TRIGGERS[toolkit] ?? []) {
-    const result = await ensureTrigger(triggerName, connectedAccountId);
+    const result = await ensureTrigger(
+      triggerName,
+      connectedAccountId,
+      composioOrgIdentity(user.orgId),
+    );
     await admin.from("audit_log").insert({
       org_id: user.orgId,
       actor: "system",

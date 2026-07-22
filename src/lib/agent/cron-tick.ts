@@ -19,7 +19,12 @@ import { syncMailbox, MAILBOX_SYNC_INTERVAL_MS, type MailboxSyncResult } from ".
 import { syncTranscripts, type TranscriptSyncResult } from "./transcript-sync";
 import { runProactiveScan, type ProactiveScanResult } from "./run-proactive-scan";
 import { isScribeAvailable } from "@/lib/scribe/client";
-import { activeConnectedAccountId, isTriggerActiveFor, ensureTrigger } from "@/lib/composio/client";
+import {
+  activeConnectedAccountId,
+  isTriggerActiveFor,
+  ensureTrigger,
+  composioOrgIdentity,
+} from "@/lib/composio/client";
 
 // Per-tick wall budget. Bounded so a tick can't run forever; leaves headroom
 // for the last job to finalize.
@@ -338,15 +343,31 @@ async function runDueMailboxSyncs(
   const out: MailboxSyncResult[] = [];
   for (const org of orgs ?? []) {
     const orgId = org.id as string;
-    const { data: latest } = await admin
-      .from("mail_folders")
-      .select("synced_at")
+
+    // Throttle on ATTEMPT, not last success. The throttle used to key on
+    // mail_folders.synced_at — but a sync that fails before it writes any
+    // folder (e.g. a broken/expired connection makes OUTLOOK_LIST_MAIL_FOLDERS
+    // throw) never updates synced_at, so lastMs stayed 0 and that org retried
+    // EVERY tick (60s), stack-dumping each time. Stamping the attempt in
+    // agent_scan_state backs off success and failure alike to the interval.
+    const { data: state } = await admin
+      .from("agent_scan_state")
+      .select("last_run_at")
       .eq("org_id", orgId)
-      .order("synced_at", { ascending: false })
-      .limit(1)
+      .eq("kind", "mailbox_sync")
       .maybeSingle();
-    const lastMs = latest?.synced_at ? Date.parse(latest.synced_at as string) : 0;
+    const lastMs = state?.last_run_at ? Date.parse(state.last_run_at as string) : 0;
     if (Date.now() - lastMs < MAILBOX_SYNC_INTERVAL_MS) continue;
+    await admin
+      .from("agent_scan_state")
+      .upsert(
+        { org_id: orgId, kind: "mailbox_sync", last_run_at: new Date().toISOString() },
+        { onConflict: "org_id,kind" },
+      );
+
+    // Skip orgs with no active mailbox connection: calling Composio for them
+    // just throws and spams the log. Same guard the trigger-health check uses.
+    if (!(await activeConnectedAccountId(orgId, "outlook"))) continue;
     out.push(await syncMailbox(orgId));
   }
   return out;
@@ -395,7 +416,11 @@ async function runDueTriggerHealthChecks(
           out.push({ org_id: orgId, toolkit, trigger: triggerName, status: "healthy" });
           continue;
         }
-        const rearm = await ensureTrigger(triggerName, connectedAccountId);
+        const rearm = await ensureTrigger(
+          triggerName,
+          connectedAccountId,
+          composioOrgIdentity(orgId),
+        );
         out.push({
           org_id: orgId,
           toolkit,

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ChevronLeft, ExternalLink, Users } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { Markdown } from "@/components/markdown";
 import { LifecycleBadge } from "@/components/ui/badge";
 import { TranscriptPanel } from "./_transcript-panel";
@@ -40,7 +40,7 @@ export default async function TranscriptDetailPage({
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
   const { id } = await params;
-  const supabase = await createSupabaseServer();
+  const supabase = createSupabaseAdmin();
 
   const { data } = await supabase
     .from("meeting_transcripts")

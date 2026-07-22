@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
   Bell,
@@ -21,7 +21,8 @@ import {
   Target,
   Users,
 } from "lucide-react";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/current-user";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { resolveEscalationAction } from "../../dashboard/actions";
 import {
   HealthBadge,
@@ -172,7 +173,11 @@ export default async function CustomerPage(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const supabase = await createSupabaseServer();
+  const user = await getCurrentUser();
+  if (!user) redirect("/signin");
+  // Service-role client (auth/entitlement enforced by getCurrentUser); the root
+  // customer fetch is org-scoped so an out-of-org id 404s instead of leaking.
+  const supabase = createSupabaseAdmin();
 
   const [{ data: customer }, contactsRes, contractsRes, planRes, healthRes] =
     await Promise.all([
@@ -182,6 +187,7 @@ export default async function CustomerPage(
           "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, size, notes, owner_user_id, created_at, updated_at",
         )
         .eq("id", id)
+        .eq("org_id", user.orgId)
         .maybeSingle<Customer>(),
       supabase
         .from("contacts")
@@ -229,6 +235,7 @@ export default async function CustomerPage(
           .from("customers")
           .select("id, name, domain, customer_kind")
           .eq("id", customer.parent_customer_id)
+          .eq("org_id", user.orgId)
           .maybeSingle<RelatedCustomer>()
       : Promise.resolve({ data: null as RelatedCustomer | null }),
     customer.customer_kind === "partner"
@@ -236,6 +243,7 @@ export default async function CustomerPage(
           .from("customers")
           .select("id, name, domain, lifecycle, updated_at")
           .eq("parent_customer_id", customer.id)
+          .eq("org_id", user.orgId)
           .order("updated_at", { ascending: false })
       : Promise.resolve({ data: [] as RelatedCustomer[] }),
     supabase
@@ -265,6 +273,7 @@ export default async function CustomerPage(
           .from("org_members")
           .select("user_id, full_name, email")
           .eq("user_id", customer.owner_user_id)
+          .eq("org_id", user.orgId)
           .maybeSingle<Owner>()
       : Promise.resolve({ data: null as Owner | null }),
     supabase
@@ -322,7 +331,8 @@ export default async function CustomerPage(
     const usersRes = await supabase
       .from("org_members")
       .select("user_id, full_name, email")
-      .in("user_id", uploaderIds);
+      .in("user_id", uploaderIds)
+      .eq("org_id", user.orgId);
     for (const u of (usersRes.data ?? []) as Array<{
       user_id: string;
       full_name: string | null;

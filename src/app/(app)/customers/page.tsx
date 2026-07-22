@@ -1,5 +1,7 @@
 import { Users } from "lucide-react";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/supabase/current-user";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { NewPartnerButton } from "./_partner-form";
 import { PartnersView, type PartnerRow } from "./_partners-view";
 
@@ -17,12 +19,17 @@ type CustomerRow = {
 };
 
 export default async function CustomersPage() {
-  const supabase = await createSupabaseServer();
+  const user = await getCurrentUser();
+  if (!user) redirect("/signin");
+  // Service-role client (auth/entitlement enforced by getCurrentUser); scope
+  // every read to the caller's org explicitly since RLS no longer applies.
+  const supabase = createSupabaseAdmin();
   const { data: customers } = await supabase
     .from("customers")
     .select(
       "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, updated_at",
     )
+    .eq("org_id", user.orgId)
     .order("updated_at", { ascending: false })
     .limit(300);
 

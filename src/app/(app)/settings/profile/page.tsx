@@ -1,8 +1,8 @@
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { Badge } from "@/components/ui/badge";
 import { initials } from "@/lib/utils";
-import { PasswordForm, ProfileForm } from "./_profile-form";
-import { updatePasswordAction, updateProfileAction } from "./actions";
+import { ProfileForm } from "./_profile-form";
+import { updateProfileAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,8 @@ export default async function ProfilePage() {
       <header>
         <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Your profile</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
-          Update your name, timezone, locale, and password.
+          Update your name, timezone, and locale. Your password and email are
+          managed in AIX Core.
         </p>
       </header>
 
@@ -62,14 +63,6 @@ export default async function ProfilePage() {
             locale: user.locale ?? "",
           }}
         />
-      </section>
-
-      <section className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-        <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">Password</h2>
-        <p className="mt-1 mb-4 text-[12px] text-[var(--color-fg-muted)]">
-          Set a password so you can sign in without a magic link.
-        </p>
-        <PasswordForm action={updatePasswordAction} />
       </section>
     </div>
   );

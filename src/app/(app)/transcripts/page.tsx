@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FileText, Mic, Users } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getScribeConnection } from "@/lib/agent/scribe";
 import { SyncButton } from "./_sync-button";
 
@@ -23,7 +23,7 @@ type Row = {
 export default async function TranscriptsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
-  const supabase = await createSupabaseServer();
+  const supabase = createSupabaseAdmin();
   const scribe = getScribeConnection();
 
   const { data } = await supabase

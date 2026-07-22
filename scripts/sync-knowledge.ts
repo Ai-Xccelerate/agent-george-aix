@@ -37,7 +37,7 @@ import {
   hasEmbeddingProvider,
 } from "../src/lib/knowledge/embeddings";
 
-const ONYX_ORG_ID = "00000000-0000-0000-0000-000000000001";
+const AIX_ORG_ID = "00000000-0000-0000-0000-000000000001";
 const KNOWLEDGE_DIR = path.resolve(process.cwd(), "knowledge");
 
 const supabase = createClient(
@@ -87,7 +87,7 @@ async function main() {
     const { data: existing } = await supabase
       .from("knowledge_docs")
       .select("id, version, content_md")
-      .eq("org_id", ONYX_ORG_ID)
+      .eq("org_id", AIX_ORG_ID)
       .eq("path", relPath)
       .maybeSingle();
 
@@ -101,7 +101,7 @@ async function main() {
     const isCore = relPath.startsWith("core/");
 
     const upsertRow = {
-      org_id: ONYX_ORG_ID,
+      org_id: AIX_ORG_ID,
       path: relPath,
       title,
       content_md: content, // full raw file (incl. frontmatter) for round-trip
@@ -134,7 +134,7 @@ async function main() {
       const embeddings = embeddingsEnabled ? await embedBatch(chunks) : [];
       const rows = chunks.map((c, i) => ({
         doc_id: doc.id,
-        org_id: ONYX_ORG_ID,
+        org_id: AIX_ORG_ID,
         ordinal: i,
         content: c,
         metadata: { source_path: relPath, title },
@@ -153,7 +153,7 @@ async function main() {
   const { data: stale } = await supabase
     .from("knowledge_docs")
     .select("id, path")
-    .eq("org_id", ONYX_ORG_ID)
+    .eq("org_id", AIX_ORG_ID)
     .eq("source", "manual");
   const toDelete = (stale ?? []).filter((r) => !seenPaths.includes(r.path));
   if (toDelete.length > 0) {
@@ -171,7 +171,7 @@ async function main() {
       const { data: pending, error } = await supabase
         .from("knowledge_chunks")
         .select("id, content")
-        .eq("org_id", ONYX_ORG_ID)
+        .eq("org_id", AIX_ORG_ID)
         .is("embedding", null)
         .limit(128);
       if (error) throw error;
