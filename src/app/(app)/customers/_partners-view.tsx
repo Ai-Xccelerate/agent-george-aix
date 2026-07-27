@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { LayoutGrid, List as ListIcon, Target } from "lucide-react";
-import { HealthBadge, KindBadge, LifecycleBadge } from "@/components/ui/badge";
+import { HealthBadge, LifecycleBadge } from "@/components/ui/badge";
 
 export type PartnerRow = {
   id: string;
@@ -31,26 +31,19 @@ const STAGES: Array<{ key: string; label: string }> = [
 export function PartnersView({ rows }: { rows: PartnerRow[] }) {
   const [view, setView] = useState<"list" | "board">("list");
   const [stage, setStage] = useState<string>("all");
-  const [kind, setKind] = useState<"all" | "partner" | "end_customer">("partner");
-
-  // Kind filter applies first; stage tabs + their counts reflect the kind set.
-  const kindFiltered = kind === "all" ? rows : rows.filter((r) => r.kind === kind);
 
   const counts = new Map<string, number>();
-  for (const r of kindFiltered) counts.set(r.lifecycle, (counts.get(r.lifecycle) ?? 0) + 1);
+  for (const r of rows) counts.set(r.lifecycle, (counts.get(r.lifecycle) ?? 0) + 1);
 
   const filtered =
-    stage === "all" ? kindFiltered : kindFiltered.filter((r) => r.lifecycle === stage);
-
-  const partnerCount = rows.filter((r) => r.kind === "partner").length;
-  const customerCount = rows.length - partnerCount;
+    stage === "all" ? rows : rows.filter((r) => r.lifecycle === stage);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Stage filter tabs */}
         <div className="flex flex-wrap gap-1">
-          <StageTab active={stage === "all"} onClick={() => setStage("all")} label="All" count={kindFiltered.length} />
+          <StageTab active={stage === "all"} onClick={() => setStage("all")} label="All" count={rows.length} />
           {STAGES.filter((s) => (counts.get(s.key) ?? 0) > 0).map((s) => (
             <StageTab
               key={s.key}
@@ -62,50 +55,15 @@ export function PartnersView({ rows }: { rows: PartnerRow[] }) {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Partner / Customer filter — only when there are end customers */}
-          {customerCount > 0 && (
-            <div className="inline-flex rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] p-0.5">
-              <SegBtn active={kind === "partner"} onClick={() => setKind("partner")} label={`Partners ${partnerCount}`} />
-              <SegBtn active={kind === "end_customer"} onClick={() => setKind("end_customer")} label={`Customers ${customerCount}`} />
-              <SegBtn active={kind === "all"} onClick={() => setKind("all")} label="All" />
-            </div>
-          )}
-
-          {/* List / Board toggle */}
-          <div className="inline-flex rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] p-0.5">
-            <ToggleBtn active={view === "list"} onClick={() => setView("list")} icon={<ListIcon size={14} />} label="List" />
-            <ToggleBtn active={view === "board"} onClick={() => setView("board")} icon={<LayoutGrid size={14} />} label="Board" />
-          </div>
+        {/* List / Board toggle */}
+        <div className="inline-flex rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] p-0.5">
+          <ToggleBtn active={view === "list"} onClick={() => setView("list")} icon={<ListIcon size={14} />} label="List" />
+          <ToggleBtn active={view === "board"} onClick={() => setView("board")} icon={<LayoutGrid size={14} />} label="Board" />
         </div>
       </div>
 
       {view === "list" ? <ListView rows={filtered} /> : <BoardView rows={filtered} stage={stage} />}
     </div>
-  );
-}
-
-function SegBtn({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded px-2.5 py-1 text-[13px] ${
-        active
-          ? "bg-[var(--color-surface-3)] font-medium text-[var(--color-fg)]"
-          : "text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -116,7 +74,7 @@ function ListView({ rows }: { rows: PartnerRow[] }) {
       <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-3)] text-[12px] uppercase tracking-wide text-[var(--color-fg-secondary)]">
           <tr>
-            <th className="px-4 py-2.5 font-medium">Partner</th>
+            <th className="px-4 py-2.5 font-medium">Customer</th>
             <th className="px-4 py-2.5 font-medium">Stage</th>
             <th className="px-4 py-2.5 font-medium">Health</th>
             <th className="px-4 py-2.5 font-medium">Next step</th>
@@ -136,7 +94,6 @@ function ListView({ rows }: { rows: PartnerRow[] }) {
                     {c.name}
                   </span>
                   <span className="mt-0.5 flex items-center gap-2 text-[11px] text-[var(--color-fg-muted)]">
-                    {c.kind === "end_customer" && <KindBadge kind={c.kind} />}
                     {c.parentName ? `under ${c.parentName}` : c.domain ?? ""}
                   </span>
                 </Link>
@@ -298,7 +255,7 @@ function ToggleBtn({
 function Empty() {
   return (
     <div className="rounded-[12px] border border-dashed border-[var(--color-border-subtle)] px-4 py-12 text-center text-[13px] text-[var(--color-fg-muted)]">
-      No partners in this stage.
+      No customers in this stage.
     </div>
   );
 }
