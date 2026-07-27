@@ -20,7 +20,7 @@ import { BrandLogo } from "@/components/brand-logo";
 const primaryNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/actions", label: "AI Actions", icon: Sparkles },
-  { href: "/customers", label: "Partners", icon: Users },
+  { href: "/customers", label: "Customers", icon: Users },
 ];
 
 // George's communication channels — the surfaces he operates across.

@@ -49,7 +49,7 @@ export function NewPartnerButton({
       } catch (err) {
         // A thrown server action (e.g. session/auth failure) would otherwise
         // reject silently — the spinner stops and nothing happens. Surface it.
-        setError(err instanceof Error ? err.message : "Could not create partner. Try again.");
+        setError(err instanceof Error ? err.message : "Could not create customer. Try again.");
       }
     });
   }
@@ -63,13 +63,13 @@ export function NewPartnerButton({
     <>
       <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
         <Plus size={14} />
-        New partner
+        New customer
       </button>
 
       <Dialog
         open={open}
         onClose={close}
-        title="New channel partner"
+        title="New customer"
         description="Captures the basics. George can fill in contacts, contract, plan, and cadence afterwards."
         footer={
           <>
@@ -88,7 +88,7 @@ export function NewPartnerButton({
               className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
             >
               {pending && <Loader2 size={14} className="animate-spin" />}
-              Create partner
+              Create customer
             </button>
           </>
         }
