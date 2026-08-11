@@ -23,6 +23,8 @@
     "audit:shim": "tsx scripts/audit-shim-coverage.ts",
     "verify:pg-shim": "tsx scripts/verify-pg-shim.ts",
     "verify:tools": "tsx scripts/verify-tools-on-pg.ts",
+    "verify:r2": "tsx scripts/verify-r2-storage.ts",
+    "storage:copy": "tsx scripts/copy-storage-to-r2.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -30,6 +32,8 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.139",
     "@anthropic-ai/claude-agent-sdk-linux-x64": "0.2.139",
     "@anthropic-ai/sdk": "^0.95.2",
+    "@aws-sdk/client-s3": "^3.1107.0",
+    "@aws-sdk/s3-request-presigner": "^3.1107.0",
     "@clerk/nextjs": "^7.5.14",
     "@composio/core": "^0.9.1",
     "@supabase/ssr": "^0.10.3",
