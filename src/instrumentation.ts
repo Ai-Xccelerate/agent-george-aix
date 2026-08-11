@@ -22,6 +22,14 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.NEXT_PHASE === "phase-production-build") return;
 
+  // Fail the deploy, loudly, if STORAGE_DRIVER=r2 but the R2 variables are
+  // incomplete. Deliberately before the scheduler flag: this must run on every
+  // boot, not only where the cron is enabled. A half-configured storage driver
+  // would otherwise look healthy and only break on someone's first upload — the
+  // failure mode this whole switch exists to prevent.
+  const { assertStorageConfig } = await import("./lib/storage/r2");
+  assertStorageConfig();
+
   const flag = process.env.SCHEDULER_ENABLED;
   const enabled = flag
     ? flag.toLowerCase() === "true"

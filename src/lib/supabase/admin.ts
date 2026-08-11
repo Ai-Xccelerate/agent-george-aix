@@ -1,26 +1,31 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createPostgrestClient } from "@/lib/db/postgrest";
+import { createR2Storage, isR2Enabled } from "@/lib/storage/r2";
 
 /**
  * Server-only database handle — never import from a client component.
  *
- * MIGRATION SWITCH (Supabase -> Railway Postgres)
- * There are two backends behind this one function, chosen by whether
- * DATABASE_URL is set:
+ * TWO INDEPENDENT MIGRATION SWITCHES
+ * Both halves of the Supabase exit are selected here, by separate variables, so
+ * either can move — or roll back — without touching the other:
  *
- *   unset  -> supabase-js, talking to PostgREST. The original behaviour.
- *   set    -> `.from()` / `.rpc()` run as real SQL against Postgres via the
- *             shim in src/lib/db/postgrest.ts, while `.storage` still goes to
- *             Supabase Storage.
+ *   DATABASE_URL    unset -> supabase-js talking to PostgREST (original)
+ *                   set   -> `.from()` / `.rpc()` as real SQL against Postgres
+ *                            via src/lib/db/postgrest.ts
  *
- * Splitting it this way lets the database move ship and be verified on its own,
- * before file storage moves to Cloudflare R2. Storage is a separate concern with
- * a separate blast radius; coupling them would mean one deploy where a failure
- * could come from either half.
+ *   STORAGE_DRIVER  unset -> `.storage` goes to Supabase Storage (original)
+ *                   =r2   -> `.storage` goes to Cloudflare R2 via
+ *                            src/lib/storage/r2.ts
  *
- * Flipping back is deleting an environment variable — no code change, no
- * redeploy of anything else. That reversibility is the point: 143 call sites go
- * through here, so this is the only place the swap has to be correct.
+ * They are deliberately not one flag. The database is 33 tables and every
+ * feature; storage is two files. Coupling them would mean one deploy where a
+ * failure could have come from either half. Staging moved the database first,
+ * proved it, and only then moved storage.
+ *
+ * Flipping either back is deleting an environment variable — no code change, no
+ * redeploy of anything else. That reversibility is the point: 143 database call
+ * sites and 17 storage call sites go through here, so this is the only place the
+ * swap has to be correct.
  */
 function supabaseClient(): SupabaseClient {
   return createClient(
@@ -30,20 +35,37 @@ function supabaseClient(): SupabaseClient {
   );
 }
 
+/**
+ * Whichever backend serves files. Built lazily by the callers below because most
+ * requests never touch a bucket — and while the driver is still `supabase`, an
+ * eager client would demand the Supabase env vars on a deployment that has
+ * otherwise fully cut over to Postgres.
+ */
+function storageBackend() {
+  return isR2Enabled() ? createR2Storage() : supabaseClient().storage;
+}
+
 export function createSupabaseAdmin(): SupabaseClient {
-  if (!process.env.DATABASE_URL) return supabaseClient();
+  if (!process.env.DATABASE_URL) {
+    // Database still on Supabase. Storage may nonetheless have moved, so the
+    // driver is honoured here too rather than assuming the two travel together.
+    if (!isR2Enabled()) return supabaseClient();
+    const sb = supabaseClient();
+    return new Proxy(sb, {
+      get(target, prop, receiver) {
+        if (prop === "storage") return createR2Storage();
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as SupabaseClient;
+  }
 
   const pg = createPostgrestClient();
 
-  // Storage has no Postgres equivalent, so it keeps using Supabase until the R2
-  // migration lands. Built lazily: most requests never touch a bucket, and
-  // constructing the client eagerly would require the Supabase env vars to stay
-  // present on a deployment that has otherwise fully cut over.
   const hybrid = {
     from: pg.from.bind(pg),
     rpc: pg.rpc.bind(pg),
     get storage() {
-      return supabaseClient().storage;
+      return storageBackend();
     },
   };
 
