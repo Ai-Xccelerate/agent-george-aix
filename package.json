@@ -20,6 +20,9 @@
     "seed:reporting-job": "tsx scripts/seed-reporting-job.ts",
     "seed:knowledge-review-job": "tsx scripts/seed-knowledge-review-job.ts",
     "db:migrate": "bash scripts/db-migrate.sh",
+    "audit:shim": "tsx scripts/audit-shim-coverage.ts",
+    "verify:pg-shim": "tsx scripts/verify-pg-shim.ts",
+    "verify:tools": "tsx scripts/verify-tools-on-pg.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
