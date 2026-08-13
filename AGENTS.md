@@ -15,7 +15,7 @@ This file is the source of truth for orientation. Read top to bottom on a fresh 
 1. **`docs/00-high-level-requirements.md`** — full product brief (vision, scope, architecture, data model, open questions). Authoritative.
 2. **`docs/01-vercel-deployment.md`** — **superseded.** We deploy on **Railway** (see "Railway is the host" below), not Vercel. This doc captures the earlier Vercel-primitive design (Function vs Workflow vs DurableAgent vs Sandbox); keep it as a future-option reference only. For the current runtime model read the "Runtime — what's actually true on Railway" section below.
 3. **`docs/BACKLOG.md`** — every item deliberately deferred, grouped by area, with what / why / where / status. Authoritative for "what's next?". Cross-walked against the HLR — items tagged `[HLR]` come from the HLR audit.
-4. **`design/design-system.md`** — AIX Core + Onyx purple theme. Token names, gradients, layout patterns. §0 has explicit "apply this theme" instructions.
+4. **The AIX theme** — George's entire front end is the AI Xccelerate UI template, ported in 2026-08. The design language (colour, radius, type, glass chrome, liquid backdrop) lives in `src/app/globals.css`; primitives are in `src/components/ui/`, `src/components/form/`, `src/components/aix/`; app chrome is in `src/layout/` + `src/context/`. The upstream template repo is the reference — read it, don't guess. Template commit at port time: `91c44f0`.
 5. **`knowledge/core/*.md`** — the actual organizational playbook George ships with. **Listed in the manifest** prepended to George's system prompt every session; fetched in full on demand via the `read_knowledge_doc(path)` tool (see Knowledge Pipeline below).
 
 ## Tech stack — locked in
@@ -25,7 +25,10 @@ This file is the source of truth for orientation. Read top to bottom on a fresh 
 | Frontend | Next.js 16 (App Router, Turbopack), React 19, TypeScript |
 | Styling | Tailwind v4 with `@theme` tokens in `src/app/globals.css` |
 | Package manager | pnpm |
-| Database / Auth / Storage | Supabase (`https://ckpcvansksrytxbamuvy.supabase.co`) — `@supabase/ssr` for browser+server clients, `@supabase/supabase-js` admin client for service-role ops |
+| UI / design system | **AIX UI template** — Tailwind v4, self-hosted Inter / Geist / JetBrains Mono, brand orange `#F47920`, tight radii (controls 5px, cards 8px), glass chrome over `<LiquidBackdrop/>`. Dark-first with a light/dark/**system** preference. |
+| Auth | **Clerk** + the AIX Core entitlement gate. `src/proxy.ts` runs `clerkMiddleware` and `auth.protect()`; `src/lib/supabase/current-user.ts` verifies the session, calls `checkCoreAccess`, then JIT-mirrors org/membership rows. There is **no** George-local sign-in — Core hosts it. |
+| Database | **Postgres** via `src/lib/db/postgrest.ts` when `DATABASE_URL` is set, otherwise supabase-js against PostgREST. Selected in `src/lib/supabase/admin.ts`. |
+| Storage | **Cloudflare R2** when `STORAGE_DRIVER=r2` (`src/lib/storage/r2.ts`), otherwise Supabase Storage. Independent of the database switch — either half rolls back on its own. |
 | Agent runtime | Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`), model `claude-sonnet-4-6`. Server-side via `/api/chat` route handler streaming SSE. |
 | Integrations | Composio (`@composio/core`) for M365 Outlook + Calendar, Fireflies, OneDrive. Direct integrations only when Composio doesn't cover. |
 | Memory | Mem0 (long-term, **not yet wired**) + Supabase `memories` table (short/mid-term, schema only). See `docs/BACKLOG.md` #7/#28/#29. |
@@ -53,7 +56,7 @@ george/
 │   ├── proxy.ts            # Next 16 renamed `middleware.ts` → `proxy.ts`. Refreshes Supabase session, gates protected routes.
 │   ├── app/
 │   │   ├── layout.tsx      # Server: reads `george-theme` cookie, applies `dark` class. Dark-first default.
-│   │   ├── globals.css     # Tailwind v4 @theme — Onyx purple palette
+│   │   ├── globals.css     # AIX theme: @theme tokens, glass, liquid backdrop
 │   │   ├── (app)/          # Authenticated app shell (sidebar + topbar via (app)/layout.tsx)
 │   │   │   ├── dashboard/
 │   │   │   ├── chat/                   # /chat → newest session; /chat/[id] → that session
@@ -81,7 +84,7 @@ george/
 │   │       ├── integrations/composio/callback/route.ts
 │   │       └── webhooks/composio/route.ts   # Stub — persists to audit_log (auto-respond is backlog #1)
 │   ├── components/
-│   │   ├── sidebar.tsx, topbar.tsx     # App shell
+│   │   ├── ui/, form/, aix/, common/, header/  # AIX theme primitives
 │   │   ├── brand-logo.tsx              # Onyx wordmark (dark direct / light pill)
 │   │   └── ui/badge.tsx                # LifecycleBadge, HealthBadge, StepStatusBadge
 │   └── lib/
@@ -107,7 +110,9 @@ These are decided; **don't redo them without saying so**.
 - **Tool allowlist.** Built-ins enabled: `WebFetch` (SSRF-guarded), `WebSearch`, `AskUserQuestion`. Disabled: `Bash`, `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Task`, `TodoWrite`, `Skill`. Wired in `src/app/api/chat/route.ts`. **Never enable filesystem tools on the chat path** — would expose `.env.local` and the source tree to a prompt-injected agent.
 - **Email policy.** George must `draft_email` / `draft_email_reply`, surface preview, wait for explicit user confirm, then `send_email_draft`. Never auto-send. Calendar events go direct (less sensitive). Enforced in the system prompt; deviations would be a regression.
 - **Knowledge pipeline (manifest + on-demand).** The system prompt prepends a **manifest** — every knowledge doc's path + title, with `is_core=true` entries grouped at the top as the "core playbook." No `content_md` in the prompt. George fetches docs in full with `mcp__george__read_knowledge_doc(path)` when it knows which doc has the answer, or `mcp__george__search_knowledge(query)` (chunks span the full KB, core + supplemental) when it doesn't. Pattern is deliberate — CLAUDE.md-style: tiny preamble, deep content read lazily. Don't reintroduce eager full-load of core; it doesn't scale and the manifest gives the agent enough to pick the right doc. Customer-specific data still goes through the Supabase MCP tools, not the knowledge path.
-- **Theme.** Dark-first. Onyx purple palette (`#6D45F5` primary). Server-side cookie (`george-theme`) sets the `dark` class on `<html>` — no FOUC. Toggle in topbar.
+- **Theme.** Dark-first, on the AIX palette (brand orange `#F47920`). `src/app/layout.tsx` reads the `george-theme` cookie server-side and stamps `class="dark"` + `data-theme` on `<html>` — no FOUC. `src/context/ThemeContext.tsx` owns the client side and writes both `george-theme` (resolved) and `george-theme-pref` (light/dark/system). **Never** bootstrap the theme with an inline `<script>` — the security hook blocks it, which is why this is cookie-driven.
+- **The UI is the AIX template, not bespoke.** Reuse `src/components/ui/*`, `form/*`, `aix/*` before writing a component. Style with the theme's scale utilities (`bg-white dark:bg-white/[0.03]`, `text-gray-800 dark:text-white/90`, `bg-brand-500`) — **not** arbitrary hexes or `var(--color-*)`, which was the pre-port dialect and is fully removed. Cards `rounded-2xl`, controls `rounded-lg`; never hardcode a radius. Glass (`glass-surface`/`glass-float`/`glass-popover`) is for chrome only — content cards stay opaque.
+- **Icons.** Template SVGR icons (`@/icons`) for chrome; `lucide-react` for page content. Deliberate: the template ships 57 icons and George needs 54 distinct ones, only ~22 of which have equivalents. Keeping each surface internally consistent beats mixing two styles inside one page.
 - **Railway is the host.** Deployed on Railway as a persistent Docker container (`Dockerfile` → `next start`, Node 24), not on serverless functions. Project **Agent George - Onyx**, service `george-onyx`, builds from `rvbhavsar/george-onyx` via the Dockerfile (`railway.json`). Because it's a long-lived server there is **no 300s function ceiling** — long work is bounded only by deploys/restarts (single instance). The earlier Vercel-primitive plan (Fluid Compute / Workflow DevKit / DurableAgent / Sandbox) in `docs/01-vercel-deployment.md` is **superseded** — keep it as a future-option reference, not current reality. Supabase stays where it is; **never** migrate Postgres / Auth / Storage off it.
 
 ## Runtime — what's actually true on Railway

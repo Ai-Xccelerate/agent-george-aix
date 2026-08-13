@@ -57,8 +57,8 @@ export default async function KnowledgeGraphPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Knowledge graph</h1>
-        <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Knowledge graph</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           George&apos;s knowledge as a connected map — concepts colored by type,
           linked by their OKF cross-references. It grows as proposals are
           approved in Knowledge review.
@@ -66,9 +66,9 @@ export default async function KnowledgeGraphPage() {
       </header>
 
       {nodes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-12 text-center">
-          <Network size={22} className="text-[var(--color-fg-muted)]" />
-          <p className="text-sm text-[var(--color-fg-secondary)]">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] py-12 text-center">
+          <Network size={22} className="text-gray-400 dark:text-gray-500" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             No concepts yet. Run the knowledge sync, or approve proposals in
             Knowledge review, and they&apos;ll appear here.
           </p>
@@ -78,7 +78,7 @@ export default async function KnowledgeGraphPage() {
       )}
 
       {broken > 0 && (
-        <p className="text-[12px] text-[var(--color-fg-muted)]">
+        <p className="text-theme-xs text-gray-400 dark:text-gray-500">
           {broken} link{broken === 1 ? "" : "s"} point to concepts that don&apos;t
           exist yet (tolerated by OKF) — not drawn.
         </p>

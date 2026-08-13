@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, ExternalLink, Users } from "lucide-react";
+import { ExternalLink, Users } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { Markdown } from "@/components/markdown";
 import { LifecycleBadge } from "@/components/ui/badge";
+import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { TranscriptPanel } from "./_transcript-panel";
 
 export const dynamic = "force-dynamic";
@@ -60,19 +61,16 @@ export default async function TranscriptDetailPage({
 
   return (
     <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
-      <Link
-        href="/transcripts"
-        className="inline-flex items-center gap-1 text-[13px] text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"
-      >
-        <ChevronLeft size={14} />
-        All transcripts
-      </Link>
+      <PageBreadcrumb
+        pageTitle={t.title || "Untitled meeting"}
+        trail={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Transcripts", href: "/transcripts" },
+        ]}
+      />
 
-      <header className="mt-4">
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">
-          {t.title || "Untitled meeting"}
-        </h1>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-[var(--color-fg-muted)]">
+      <header className="-mt-3 mb-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-theme-xs text-gray-400 dark:text-gray-500">
           <span>{formatWhen(t.started_at ?? t.ended_at)}</span>
           {t.duration_min != null && <span>{t.duration_min} min</span>}
           {attendees.length > 0 && (
@@ -85,7 +83,7 @@ export default async function TranscriptDetailPage({
               href={meetingUrl}
               target="_blank"
               rel="noreferrer noopener"
-              className="inline-flex items-center gap-1 text-[var(--color-accent)] hover:underline"
+              className="inline-flex items-center gap-1 text-brand-500 dark:text-brand-400 hover:underline"
             >
               <ExternalLink size={11} /> Meeting link
             </a>
@@ -104,7 +102,7 @@ export default async function TranscriptDetailPage({
 
           {insightLists.map((list) => (
             <Section key={list.label} title={list.label}>
-              <ul className="list-disc space-y-1 pl-5 text-[14px] leading-relaxed text-[var(--color-fg-secondary)]">
+              <ul className="list-disc space-y-1 pl-5 text-theme-sm leading-relaxed text-gray-500 dark:text-gray-400">
                 {list.items.map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
@@ -118,7 +116,7 @@ export default async function TranscriptDetailPage({
                 {attendees.map((a, i) => (
                   <span
                     key={i}
-                    className="rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-2.5 py-1 text-[12px] text-[var(--color-fg-secondary)]"
+                    className="rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-2.5 py-1 text-theme-xs text-gray-500 dark:text-gray-400"
                   >
                     {a}
                   </span>
@@ -139,7 +137,7 @@ export default async function TranscriptDetailPage({
               <div className="space-y-2.5">
                 <Link
                   href={`/customers/${t.customer_id}`}
-                  className="block text-[14px] font-semibold text-[var(--color-accent)] hover:underline"
+                  className="block text-theme-sm font-semibold text-brand-500 dark:text-brand-400 hover:underline"
                 >
                   {t.customers.name ?? "Customer"}
                 </Link>
@@ -152,7 +150,7 @@ export default async function TranscriptDetailPage({
                 {t.customers.size && <Row label="Size">{t.customers.size}</Row>}
               </div>
             ) : (
-              <p className="text-[13px] text-[var(--color-fg-muted)]">
+              <p className="text-theme-sm text-gray-400 dark:text-gray-500">
                 Not linked to a customer yet.
               </p>
             )}
@@ -173,12 +171,12 @@ export default async function TranscriptDetailPage({
               <div className="space-y-2">
                 {insightLists.map((list) => (
                   <Row key={list.label} label={list.label}>
-                    <span className="font-medium text-[var(--color-fg)]">{list.items.length}</span>
+                    <span className="font-medium text-gray-800 dark:text-white/90">{list.items.length}</span>
                   </Row>
                 ))}
               </div>
             ) : (
-              <p className="text-[13px] text-[var(--color-fg-muted)]">
+              <p className="text-theme-sm text-gray-400 dark:text-gray-500">
                 No structured insights captured for this meeting.
               </p>
             )}
@@ -192,7 +190,7 @@ export default async function TranscriptDetailPage({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
+      <h2 className="mb-2 text-theme-sm font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
         {title}
       </h2>
       {children}
@@ -202,8 +200,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-4">
-      <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-4">
+      <h3 className="mb-3 text-theme-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
         {title}
       </h3>
       {children}
@@ -213,9 +211,9 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-[13px]">
-      <span className="shrink-0 text-[var(--color-fg-muted)]">{label}</span>
-      <span className="min-w-0 truncate text-right text-[var(--color-fg-secondary)]">{children}</span>
+    <div className="flex items-center justify-between gap-3 text-theme-sm">
+      <span className="shrink-0 text-gray-400 dark:text-gray-500">{label}</span>
+      <span className="min-w-0 truncate text-right text-gray-500 dark:text-gray-400">{children}</span>
     </div>
   );
 }

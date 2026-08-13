@@ -28,7 +28,7 @@ export function PolicyForm({ action, values }: Props) {
         title="Behaviors"
         hint="Optional behaviors the team can switch on or off. Defaults are on."
       >
-        <div className="divide-y divide-[var(--color-border-subtle)]">
+        <div className="divide-y divide-gray-100 dark:divide-gray-800">
           {behavior.map((p) => (
             <ToggleRow key={p.id} policy={p} checked={Boolean(values[p.id])} />
           ))}
@@ -59,7 +59,7 @@ export function PolicyForm({ action, values }: Props) {
             placeholder={houseRules.placeholder}
             className={`${inputClass} h-auto py-2 leading-relaxed`}
           />
-          <span className="mt-1 block text-[11px] text-[var(--color-fg-muted)]">
+          <span className="mt-1 block text-theme-xs text-gray-400 dark:text-gray-500">
             Up to {houseRules.maxLength} characters.
           </span>
         </Group>
@@ -78,8 +78,8 @@ function ToggleRow({ policy, checked }: { policy: Policy; checked: boolean }) {
   return (
     <label className="flex cursor-pointer items-start justify-between gap-4 py-3">
       <div className="min-w-0">
-        <div className="text-[14px] font-medium text-[var(--color-fg)]">{policy.label}</div>
-        <div className="mt-0.5 text-[12px] text-[var(--color-fg-muted)]">
+        <div className="text-theme-sm font-medium text-gray-800 dark:text-white/90">{policy.label}</div>
+        <div className="mt-0.5 text-theme-xs text-gray-400 dark:text-gray-500">
           {policy.description}
         </div>
       </div>
@@ -91,7 +91,7 @@ function ToggleRow({ policy, checked }: { policy: Policy; checked: boolean }) {
           defaultChecked={checked}
           className="peer sr-only"
         />
-        <span className="block h-5 w-9 rounded-full bg-[var(--color-surface-2)] transition-colors peer-checked:bg-[var(--color-accent)]" />
+        <span className="block h-5 w-9 rounded-full bg-gray-50 dark:bg-white/[0.03] transition-colors peer-checked:bg-brand-500" />
         <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
       </span>
     </label>
@@ -102,7 +102,7 @@ function TunableRow({ policy, value }: { policy: Policy; value: PolicyValue }) {
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-3">
-        <label htmlFor={policy.id} className="text-[13px] font-medium text-[var(--color-fg)]">
+        <label htmlFor={policy.id} className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
           {policy.label}
         </label>
       </div>
@@ -118,7 +118,7 @@ function TunableRow({ policy, value }: { policy: Policy; value: PolicyValue }) {
             className={`${inputClass} max-w-[120px]`}
           />
           {policy.unit && (
-            <span className="text-[12px] text-[var(--color-fg-muted)]">{policy.unit}</span>
+            <span className="text-theme-xs text-gray-400 dark:text-gray-500">{policy.unit}</span>
           )}
         </div>
       )}
@@ -142,7 +142,7 @@ function TunableRow({ policy, value }: { policy: Policy; value: PolicyValue }) {
           className={inputClass}
         />
       )}
-      <span className="mt-1 block text-[11px] text-[var(--color-fg-muted)]">
+      <span className="mt-1 block text-theme-xs text-gray-400 dark:text-gray-500">
         {policy.description}
       </span>
     </div>
@@ -160,8 +160,8 @@ function Group({
 }) {
   return (
     <fieldset>
-      <legend className="text-[13px] font-semibold text-[var(--color-fg)]">{title}</legend>
-      <p className="mt-0.5 mb-3 text-[12px] text-[var(--color-fg-muted)]">{hint}</p>
+      <legend className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">{title}</legend>
+      <p className="mt-0.5 mb-3 text-theme-xs text-gray-400 dark:text-gray-500">{hint}</p>
       {children}
     </fieldset>
   );
@@ -170,14 +170,14 @@ function Group({
 function Status({ state }: { state: ActionResult }) {
   if (state.error) {
     return (
-      <div className="rounded-md border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 px-3 py-2 text-[12px] text-[var(--color-error)]">
+      <div className="rounded-md border border-error-500/30 bg-error-500/10 px-3 py-2 text-theme-xs text-error-500">
         {state.error}
       </div>
     );
   }
   if (state.info) {
     return (
-      <div className="rounded-md border border-[var(--color-success)]/30 bg-[var(--color-success-light)] px-3 py-2 text-[12px] text-[var(--color-success)]">
+      <div className="rounded-md border border-success-500/30 bg-success-50 dark:bg-success-500/15 px-3 py-2 text-theme-xs text-success-500">
         {state.info}
       </div>
     );
@@ -186,7 +186,7 @@ function Status({ state }: { state: ActionResult }) {
 }
 
 const inputClass =
-  "h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]";
+  "h-10 w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-sm text-gray-800 dark:text-white/90 outline-none focus:border-brand-500 dark:focus:border-brand-400";
 
 const submitClass =
-  "inline-flex h-10 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-4 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-60";
+  "h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-60";

@@ -67,7 +67,7 @@ export function DocForm({ mode, initial, saveAction, deleteAction }: Props) {
             onChange={(e) => setPath(e.target.value)}
             required
             placeholder="folder/slug.md"
-            className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 py-2 font-mono text-[13px] text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+            className="w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 font-mono text-theme-sm text-gray-800 dark:text-white/90 outline-none focus:border-brand-500 dark:focus:border-brand-400"
           />
         </Field>
         <Field
@@ -79,24 +79,24 @@ export function DocForm({ mode, initial, saveAction, deleteAction }: Props) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Display title"
-            className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+            className="w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-800 dark:text-white/90 outline-none focus:border-brand-500 dark:focus:border-brand-400"
           />
         </Field>
       </div>
 
-      <label className="flex items-start gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-3">
+      <label className="flex items-start gap-3 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-3">
         <input
           type="checkbox"
           name="is_core"
           checked={isCore}
           onChange={(e) => setIsCore(e.target.checked)}
-          className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+          className="mt-0.5 h-4 w-4 accent-brand-500"
         />
         <div className="text-sm">
-          <div className="font-medium text-[var(--color-fg)]">
+          <div className="font-medium text-gray-800 dark:text-white/90">
             Pin to the core playbook
           </div>
-          <div className="text-[12px] text-[var(--color-fg-secondary)]">
+          <div className="text-theme-xs text-gray-500 dark:text-gray-400">
             Marks the doc as <strong>core</strong>. Every chat session starts with a
             manifest of all knowledge docs; core docs are pinned to the top as
             &ldquo;read these first&rdquo;. George still fetches the full content on
@@ -122,25 +122,25 @@ export function DocForm({ mode, initial, saveAction, deleteAction }: Props) {
           required
           rows={24}
           spellCheck={false}
-          className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 py-2 font-mono text-[13px] leading-relaxed text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+          className="w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 font-mono text-theme-sm leading-relaxed text-gray-800 dark:text-white/90 outline-none focus:border-brand-500 dark:focus:border-brand-400"
           placeholder={"# My doc\n\nGeorge will read this when…"}
         />
       </Field>
 
       {error && (
-        <div className="rounded-md border border-[var(--color-error)] bg-[var(--color-error)]/10 px-3 py-2 text-[13px] text-[var(--color-error)]">
+        <div className="rounded-md border border-error-500 bg-error-500/10 px-3 py-2 text-theme-sm text-error-500">
           {error}
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3 border-t border-[var(--color-border-subtle)] pt-4">
+      <div className="flex items-center justify-between gap-3 border-t border-gray-200 dark:border-gray-800 pt-4">
         <div>
           {mode === "edit" && deleteAction && (
             <button
               type="button"
               onClick={onDelete}
               disabled={deleting || saving}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-error)] hover:bg-[var(--color-surface-2)] disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-sm font-medium text-error-500 hover:bg-gray-50 dark:hover:bg-white/[0.03] disabled:opacity-50"
             >
               {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
               Delete doc
@@ -150,14 +150,14 @@ export function DocForm({ mode, initial, saveAction, deleteAction }: Props) {
         <div className="flex items-center gap-2">
           <Link
             href="/settings/knowledge"
-            className="inline-flex h-9 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+            className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90"
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={saving || deleting}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+            className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-50"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {mode === "create" ? "Create doc" : "Save changes"}
@@ -179,11 +179,11 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-[12px] font-medium uppercase tracking-wide text-[var(--color-fg-muted)]">
+      <label className="block text-theme-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
         {label}
       </label>
       {children}
-      {hint && <p className="text-[12px] text-[var(--color-fg-muted)]">{hint}</p>}
+      {hint && <p className="text-theme-xs text-gray-400 dark:text-gray-500">{hint}</p>}
     </div>
   );
 }

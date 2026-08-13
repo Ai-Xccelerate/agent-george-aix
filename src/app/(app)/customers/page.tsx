@@ -111,8 +111,8 @@ export default async function CustomersPage() {
     <div className="w-full space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Customers</h1>
-          <p className="text-sm text-[var(--color-fg-secondary)]">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Customers</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             The customers George is onboarding, by stage. Drop a signed contract in chat
             and he creates the record, contacts, and plan.
           </p>
@@ -127,12 +127,12 @@ export default async function CustomersPage() {
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] py-16 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
         <Users size={20} />
       </div>
-      <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">No customers yet</h2>
-      <p className="max-w-[360px] text-sm text-[var(--color-fg-secondary)]">
+      <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">No customers yet</h2>
+      <p className="max-w-[360px] text-sm text-gray-500 dark:text-gray-400">
         Drop a signed contract into the George chat and he&apos;ll create the
         record, contacts, and onboarding plan.
       </p>

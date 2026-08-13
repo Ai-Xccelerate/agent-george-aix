@@ -4,12 +4,19 @@ import { redirect } from "next/navigation";
 import { BookOpen, FileText, Plus, Sparkles, Upload } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import ParchmentPanel from "./_parchment-panel";
 
 /** Keeps the page's layout stable while the live Parchment check resolves. */
 function ParchmentPanelSkeleton() {
   return (
-    <div className="h-[132px] animate-pulse rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-subtle)]" />
+    <div className="h-[132px] animate-pulse rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.03]" />
   );
 }
 
@@ -57,8 +64,8 @@ export default async function KnowledgePage() {
     <div className="space-y-6">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Knowledge base</h1>
-          <p className="mt-1 max-w-[640px] text-sm text-[var(--color-fg-secondary)]">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Knowledge base</h1>
+          <p className="mt-1 max-w-[640px] text-sm text-gray-500 dark:text-gray-400">
             Docs George reads when answering for {user.orgName}. Every chat starts with
             a manifest of all docs (path + title only); George fetches the full content
             on demand via <code>read_knowledge_doc</code> or searches across all docs
@@ -69,14 +76,14 @@ export default async function KnowledgePage() {
         <div className="flex shrink-0 items-center gap-2">
           <Link
             href="/settings/knowledge/upload"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+            className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90"
           >
             <Upload size={14} />
             Upload .md
           </Link>
           <Link
             href="/settings/knowledge/new"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
+            className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900"
           >
             <Plus size={14} />
             New doc
@@ -99,14 +106,14 @@ export default async function KnowledgePage() {
           <Section
             title="Core playbook"
             subtitle="Pinned to the top of the manifest as 'read these first'. Reserve for foundational role / process / lifecycle docs."
-            icon={<Sparkles size={14} className="text-[var(--color-accent)]" />}
+            icon={<Sparkles size={14} className="text-brand-500 dark:text-brand-400" />}
             docs={core}
             chunkCounts={chunkCounts}
           />
           <Section
             title="Supplemental"
             subtitle="Listed in the manifest below core; otherwise treated the same. Add long-form references, playbooks, FAQs here."
-            icon={<FileText size={14} className="text-[var(--color-fg-muted)]" />}
+            icon={<FileText size={14} className="text-gray-400 dark:text-gray-500" />}
             docs={supplemental}
             chunkCounts={chunkCounts}
           />
@@ -133,59 +140,59 @@ function Section({
     <section className="space-y-2">
       <div className="flex items-center gap-2 px-1">
         {icon}
-        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[var(--color-fg)]">
+        <h2 className="text-theme-sm font-semibold uppercase tracking-wide text-gray-800 dark:text-white/90">
           {title}
         </h2>
-        <span className="text-[12px] text-[var(--color-fg-muted)]">({docs.length})</span>
+        <span className="text-theme-xs text-gray-400 dark:text-gray-500">({docs.length})</span>
       </div>
-      <p className="px-1 text-[12px] text-[var(--color-fg-muted)]">{subtitle}</p>
+      <p className="px-1 text-theme-xs text-gray-400 dark:text-gray-500">{subtitle}</p>
 
       {docs.length === 0 ? (
-        <div className="rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-4 py-6 text-center text-[13px] text-[var(--color-fg-muted)]">
+        <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-4 py-6 text-center text-theme-sm text-gray-400 dark:text-gray-500">
           No {title.toLowerCase()} docs yet.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-3)] text-[12px] uppercase tracking-wide text-[var(--color-fg-secondary)]">
-              <tr>
+        <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
+          <Table className="w-full text-left text-sm">
+            <TableHeader className="border-b border-gray-200 bg-gray-50 text-theme-xs uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
+              <TableRow>
                 <Th>Title</Th>
                 <Th>Path</Th>
                 <Th>Source</Th>
                 <Th className="text-right">Chunks</Th>
                 <Th className="text-right">Updated</Th>
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
               {docs.map((d) => (
-                <tr
+                <TableRow
                   key={d.id}
-                  className="border-t border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-3)]"
+                  className="transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03]"
                 >
                   <Td>
                     <Link
                       href={`/settings/knowledge/${d.id}`}
-                      className="font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
+                      className="font-medium text-gray-800 dark:text-white/90 hover:text-brand-500 dark:hover:text-brand-400"
                     >
                       {d.title ?? d.path}
                     </Link>
                   </Td>
-                  <Td className="text-[var(--color-fg-secondary)]">
-                    <code className="rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[12px]">
+                  <Td className="text-gray-500 dark:text-gray-400">
+                    <code className="rounded bg-gray-50 dark:bg-white/[0.03] px-1.5 py-0.5 text-theme-xs">
                       {d.path}
                     </code>
                   </Td>
-                  <Td className="text-[var(--color-fg-muted)]">{sourceLabel(d.source)}</Td>
-                  <Td className="text-right text-[var(--color-fg-secondary)]">
+                  <Td className="text-gray-400 dark:text-gray-500">{sourceLabel(d.source)}</Td>
+                  <Td className="text-right text-gray-500 dark:text-gray-400">
                     {chunkCounts.get(d.id) ?? 0}
                   </Td>
-                  <Td className="text-right text-[var(--color-fg-muted)]">
+                  <Td className="text-right text-gray-400 dark:text-gray-500">
                     {formatDate(d.updated_at)}
                   </Td>
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </section>
@@ -199,7 +206,11 @@ function Th({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <th className={`px-4 py-2.5 font-medium ${className ?? ""}`}>{children}</th>;
+  return (
+    <TableCell isHeader className={`px-4 py-2.5 font-medium ${className ?? ""}`}>
+      {children}
+    </TableCell>
+  );
 }
 function Td({
   children,
@@ -208,7 +219,11 @@ function Td({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <td className={`px-4 py-3 align-middle ${className ?? ""}`}>{children}</td>;
+  return (
+    <TableCell className={`px-4 py-3 align-middle ${className ?? ""}`}>
+      {children}
+    </TableCell>
+  );
 }
 
 function sourceLabel(source: string) {
@@ -233,12 +248,12 @@ function formatDate(iso: string) {
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] py-16 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
         <BookOpen size={20} />
       </div>
-      <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">No knowledge yet</h2>
-      <p className="max-w-[420px] text-sm text-[var(--color-fg-secondary)]">
+      <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">No knowledge yet</h2>
+      <p className="max-w-[420px] text-sm text-gray-500 dark:text-gray-400">
         Add the playbooks, policies, and reference material George should know. Every
         chat starts with a manifest of these docs; George reads them in full on demand.
         Mark a doc as <em>core</em> to pin it to the top of the manifest.
@@ -246,14 +261,14 @@ function EmptyState() {
       <div className="mt-2 flex items-center gap-2">
         <Link
           href="/settings/knowledge/upload"
-          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 py-2 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+          className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 text-sm font-medium text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
         >
           <Upload size={14} />
           Upload .md files
         </Link>
         <Link
           href="/settings/knowledge/new"
-          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 py-2 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
+          className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900"
         >
           <Plus size={14} />
           Create the first doc

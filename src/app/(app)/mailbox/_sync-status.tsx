@@ -39,7 +39,7 @@ export function SyncStatus({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--color-fg-muted)]">
+    <div className="flex flex-wrap items-center gap-2 text-theme-xs text-gray-400 dark:text-gray-500">
       <span>
         {lastMs === null
           ? "Never synced"
@@ -59,7 +59,7 @@ export function SyncStatus({
         type="button"
         onClick={handleSyncNow}
         disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)] disabled:opacity-60"
+        className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-2.5 py-1 text-theme-xs font-medium text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03] disabled:opacity-60"
       >
         <RefreshCw size={12} className={pending ? "animate-spin" : ""} />
         {pending ? "Syncing…" : "Sync now"}
@@ -68,8 +68,8 @@ export function SyncStatus({
         <span
           className={
             message.tone === "error"
-              ? "text-[var(--color-error)]"
-              : "text-[var(--color-success)]"
+              ? "text-error-500"
+              : "text-success-500"
           }
         >
           {message.text}

@@ -474,16 +474,16 @@ export function ChatClient({
         </div>
       </div>
 
-      <div className="border-t border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-6 py-4">
+      <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-6 py-4">
         <div className="mx-auto max-w-[760px]">
           {uploadError && (
-            <div className="mb-2 flex items-start justify-between gap-3 rounded-md border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-3 py-2 text-[12px] text-[var(--color-error)]">
+            <div className="mb-2 flex items-start justify-between gap-3 rounded-md border border-error-500/40 bg-error-500/10 px-3 py-2 text-theme-xs text-error-500">
               <span>{uploadError}</span>
               <button
                 type="button"
                 onClick={() => setUploadError(null)}
                 aria-label="Dismiss"
-                className="text-[var(--color-error)] hover:opacity-80"
+                className="text-error-500 hover:opacity-80"
               >
                 <X size={12} />
               </button>
@@ -494,20 +494,20 @@ export function ChatClient({
               {stagedFiles.map((f, i) => (
                 <div
                   key={`${f.name}:${f.size}:${i}`}
-                  className="inline-flex max-w-[280px] items-center gap-2 rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-1 pl-2 pr-1 text-[12px]"
+                  className="inline-flex max-w-[280px] items-center gap-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] py-1 pl-2 pr-1 text-theme-xs"
                 >
-                  <FileText size={12} className="shrink-0 text-[var(--color-fg-muted)]" />
-                  <span className="truncate text-[var(--color-fg)]" title={f.name}>
+                  <FileText size={12} className="shrink-0 text-gray-400 dark:text-gray-500" />
+                  <span className="truncate text-gray-800 dark:text-white/90" title={f.name}>
                     {f.name}
                   </span>
-                  <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">
+                  <span className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500">
                     {prettyBytesClient(f.size)}
                   </span>
                   <button
                     type="button"
                     onClick={() => removeStagedFile(i)}
                     aria-label={`Remove ${f.name}`}
-                    className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
+                    className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.03] hover:text-gray-800 dark:hover:text-white/90"
                   >
                     <X size={11} />
                   </button>
@@ -523,14 +523,14 @@ export function ChatClient({
                   type="button"
                   disabled={streaming}
                   onClick={() => void send(`Please go ahead: ${a.label}`)}
-                  className="w-full rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent-light)] px-3 py-2 text-left text-[12px] font-medium leading-snug text-[var(--color-accent)] hover:brightness-95 disabled:opacity-50"
+                  className="w-full rounded-lg border border-brand-500 dark:border-brand-400/30 bg-brand-50 dark:bg-brand-500/15 px-3 py-2 text-left text-theme-xs font-medium leading-snug text-brand-500 dark:text-brand-400 hover:brightness-95 disabled:opacity-50"
                 >
                   {a.label}
                 </button>
               ))}
             </div>
           )}
-          <div className="flex items-center gap-2 rounded-[12px] border border-[var(--color-border)] bg-[var(--color-surface-card)] p-2 pl-3 shadow-sm focus-within:border-[var(--color-accent)]">
+          <div className="flex items-center gap-2 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-2 pl-3 shadow-sm focus-within:border-brand-500 dark:focus-within:border-brand-400">
             <input
               ref={fileInputRef}
               type="file"
@@ -544,7 +544,7 @@ export function ChatClient({
               onClick={onAttachClick}
               disabled={uploading || streaming}
               className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] disabled:opacity-50",
+                "flex h-8 w-8 items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.03] disabled:opacity-50",
               )}
               aria-label="Attach file"
               title="Attach file"
@@ -614,12 +614,12 @@ export function ChatClient({
                 }}
                 rows={1}
                 placeholder="Type / for commands, @ for a customer, or just start chatting with George…"
-                className="block max-h-[180px] w-full resize-none overflow-y-auto bg-transparent py-2 text-sm leading-6 text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] outline-none"
+                className="block max-h-[180px] w-full resize-none overflow-y-auto bg-transparent py-2 text-sm leading-6 text-gray-800 dark:text-white/90 placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none"
               />
             </div>
             <button
               type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)]"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
               aria-label="Voice"
             >
               <Mic size={16} />
@@ -627,7 +627,7 @@ export function ChatClient({
             {streaming ? (
               <button
                 onClick={stop}
-                className="flex h-9 w-9 items-center justify-center rounded-md bg-[var(--color-fg)] text-[var(--color-fg-inverse)] hover:bg-black"
+                className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-800 dark:bg-white/90 text-white hover:bg-black"
                 aria-label="Stop"
               >
                 <Square size={14} />
@@ -639,10 +639,10 @@ export function ChatClient({
                   uploading || (!input.trim() && stagedFiles.length === 0)
                 }
                 className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] transition",
+                  "flex h-9 w-9 items-center justify-center rounded-md text-white shadow-[var(--shadow-cta)] transition",
                   input.trim() || stagedFiles.length > 0
-                    ? "bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]"
-                    : "bg-[var(--color-fg-muted)] opacity-60",
+                    ? "bg-brand-500 hover:bg-brand-600"
+                    : "bg-gray-400 dark:bg-gray-500 opacity-60",
                 )}
                 aria-label="Send"
               >
@@ -654,7 +654,7 @@ export function ChatClient({
               </button>
             )}
           </div>
-          <p className="mt-2 text-center text-[11px] text-[var(--color-fg-muted)]">
+          <p className="mt-2 text-center text-theme-xs text-gray-400 dark:text-gray-500">
             George can act on customers, draft emails, and schedule meetings. He’ll
             confirm before anything externally visible.
           </p>
@@ -700,7 +700,7 @@ function Bubble({
   return (
     <div className={cn("flex gap-3", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-fg-inverse)] text-xs font-bold">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white text-xs font-bold">
           G
         </div>
       )}
@@ -723,10 +723,10 @@ function Bubble({
         {showText && (
           <div
             className={cn(
-              "rounded-[12px] px-4 py-3 text-sm leading-[1.6]",
+              "rounded-2xl px-4 py-3 text-sm leading-[1.6]",
               isUser
-                ? "whitespace-pre-wrap bg-[var(--color-accent)] text-[var(--color-fg-inverse)]"
-                : "bg-[var(--color-surface-card)] text-[var(--color-fg)] border border-[var(--color-border-subtle)]",
+                ? "whitespace-pre-wrap bg-brand-500 text-white"
+                : "bg-white dark:bg-white/[0.03] text-gray-800 dark:text-white/90 border border-gray-200 dark:border-gray-800",
             )}
           >
             {isUser ? (
@@ -734,7 +734,7 @@ function Bubble({
             ) : hasContent ? (
               <MessageMarkdown content={content} />
             ) : (
-              <span className="text-[var(--color-fg-muted)]">…</span>
+              <span className="text-gray-400 dark:text-gray-500">…</span>
             )}
           </div>
         )}
@@ -748,8 +748,8 @@ function ThinkingPill({ toolName }: { toolName?: string | null }) {
     ? `Running ${toolName.replace(/^mcp__george__/, "").replace(/_/g, " ")}…`
     : "George is working…";
   return (
-    <div className="inline-flex items-center gap-2 self-start rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-3 py-1.5 text-[12px] text-[var(--color-fg-secondary)]">
-      <Sparkles size={12} className="animate-pulse text-[var(--color-accent)]" />
+    <div className="inline-flex items-center gap-2 self-start rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+      <Sparkles size={12} className="animate-pulse text-brand-500 dark:text-brand-400" />
       <span>{label}</span>
       <span className="flex items-center gap-0.5">
         <Dot delay="0ms" />
@@ -763,7 +763,7 @@ function ThinkingPill({ toolName }: { toolName?: string | null }) {
 function Dot({ delay }: { delay: string }) {
   return (
     <span
-      className="inline-block h-1 w-1 animate-pulse rounded-full bg-[var(--color-fg-muted)]"
+      className="inline-block h-1 w-1 animate-pulse rounded-full bg-gray-400 dark:bg-gray-500"
       style={{ animationDelay: delay }}
     />
   );
@@ -792,20 +792,20 @@ function AttachmentChip({ attachment }: { attachment: AttachmentMeta }) {
     <button
       type="button"
       onClick={open}
-      className="inline-flex max-w-[420px] items-center gap-2.5 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-3 py-2 text-left text-[13px] text-[var(--color-fg)] hover:border-[var(--color-accent)] hover:bg-[var(--color-surface-2)]"
+      className="inline-flex max-w-[420px] items-center gap-2.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 text-left text-theme-sm text-gray-800 dark:text-white/90 hover:border-brand-500 dark:hover:border-brand-400 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
         <Icon size={15} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-[var(--color-fg)]">
+        <span className="block truncate font-medium text-gray-800 dark:text-white/90">
           {attachment.original_name}
         </span>
-        <span className="block text-[11px] text-[var(--color-fg-muted)]">
+        <span className="block text-theme-xs text-gray-400 dark:text-gray-500">
           {prettyBytes(attachment.file_size)} · {attachment.mime_type}
         </span>
       </span>
-      <span className="shrink-0 text-[var(--color-fg-muted)]">
+      <span className="shrink-0 text-gray-400 dark:text-gray-500">
         {opening ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
       </span>
     </button>
@@ -818,22 +818,22 @@ function ToolRow({ tool }: { tool: ToolEvent }) {
     tool.status === "ok" ? Check : tool.status === "error" ? X : Wrench;
   const toneClass =
     tool.status === "ok"
-      ? "text-[var(--color-success)]"
+      ? "text-success-500"
       : tool.status === "error"
-        ? "text-[var(--color-error)]"
-        : "text-[var(--color-fg-muted)]";
+        ? "text-error-500"
+        : "text-gray-400 dark:text-gray-500";
   return (
-    <details className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-3 py-2 text-[12px]">
+    <details className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 text-theme-xs">
       <summary className="flex cursor-pointer list-none items-center gap-2">
-        <span className={cn("flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-surface-2)]", toneClass)}>
+        <span className={cn("flex h-5 w-5 items-center justify-center rounded-full bg-gray-50 dark:bg-white/[0.03]", toneClass)}>
           <Icon size={12} className={tool.status === "running" ? "animate-pulse" : undefined} />
         </span>
-        <span className="font-medium text-[var(--color-fg)]">{label}</span>
-        <span className="text-[var(--color-fg-muted)]">
+        <span className="font-medium text-gray-800 dark:text-white/90">{label}</span>
+        <span className="text-gray-400 dark:text-gray-500">
           {tool.status === "running" ? "running…" : tool.status === "ok" ? "done" : "failed"}
         </span>
       </summary>
-      <pre className="mt-2 max-h-40 overflow-auto rounded bg-[var(--color-surface-2)] p-2 text-[11px] text-[var(--color-fg-secondary)]">
+      <pre className="mt-2 max-h-40 overflow-auto rounded bg-gray-50 dark:bg-white/[0.03] p-2 text-theme-xs text-gray-500 dark:text-gray-400">
         {JSON.stringify(tool.input ?? {}, null, 2)}
       </pre>
     </details>
@@ -869,16 +869,16 @@ function EmptyChat({
       </div>
       <h1
         className={cn(
-          "font-bold text-[var(--color-fg)]",
-          embedded ? "text-[15px]" : "text-[22px]",
+          "font-bold text-gray-800 dark:text-white/90",
+          embedded ? "text-base" : "text-2xl",
         )}
       >
         How can I help, today?
       </h1>
       <p
         className={cn(
-          "mt-1 max-w-[480px] text-[var(--color-fg-secondary)]",
-          embedded ? "text-[12px]" : "text-sm",
+          "mt-1 max-w-[480px] text-gray-500 dark:text-gray-400",
+          embedded ? "text-theme-xs" : "text-sm",
         )}
       >
         {embedded
@@ -898,8 +898,8 @@ function EmptyChat({
             key={p}
             onClick={() => onPick(p)}
             className={cn(
-              "rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] text-left text-[var(--color-fg)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-light)]",
-              embedded ? "px-3 py-2 text-[12px]" : "px-4 py-3 text-[13px]",
+              "rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] text-left text-gray-800 dark:text-white/90 hover:border-brand-500 dark:hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/15",
+              embedded ? "px-3 py-2 text-theme-xs" : "px-4 py-3 text-theme-sm",
             )}
           >
             {p}

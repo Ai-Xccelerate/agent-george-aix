@@ -25,8 +25,8 @@ export default async function OperatingModelPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Operating model</h1>
-        <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Operating model</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           The directives that govern how George works. Guardrails and principles
           are always on; behaviors, limits, and house rules are yours to tune.
           Everything here flows into George&apos;s system prompt automatically.
@@ -34,15 +34,15 @@ export default async function OperatingModelPage() {
       </header>
 
       {/* Tier 1 — locked guardrails */}
-      <section className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
+      <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
         <div className="flex items-center gap-2">
-          <Lock size={15} className="text-[var(--color-fg-muted)]" />
-          <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">Guardrails</h2>
-          <span className="ml-1 rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--color-fg-muted)]">
+          <Lock size={15} className="text-gray-400 dark:text-gray-500" />
+          <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">Guardrails</h2>
+          <span className="ml-1 rounded-full bg-gray-50 dark:bg-white/[0.03] px-2 py-0.5 text-theme-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
             Always on
           </span>
         </div>
-        <p className="mt-1 mb-4 text-[12px] text-[var(--color-fg-muted)]">
+        <p className="mt-1 mb-4 text-theme-xs text-gray-400 dark:text-gray-500">
           Safety rules built into George. They can&apos;t be switched off — every
           behavior and house rule below layers on top of these.
         </p>
@@ -54,11 +54,11 @@ export default async function OperatingModelPage() {
       </section>
 
       {/* Tier 1 — operating principles (do's / don'ts) */}
-      <section className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-        <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">
+      <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
           Operating principles
         </h2>
-        <p className="mt-1 mb-4 text-[12px] text-[var(--color-fg-muted)]">
+        <p className="mt-1 mb-4 text-theme-xs text-gray-400 dark:text-gray-500">
           The do&apos;s and don&apos;ts of how George communicates and decides.
           Always applied.
         </p>
@@ -70,11 +70,11 @@ export default async function OperatingModelPage() {
       </section>
 
       {/* Tier 2 + 3 — controllable */}
-      <section className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-        <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">
+      <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
           Behaviors, limits & house rules
         </h2>
-        <p className="mt-1 mb-4 text-[12px] text-[var(--color-fg-muted)]">
+        <p className="mt-1 mb-4 text-theme-xs text-gray-400 dark:text-gray-500">
           What the AIX team controls. Changes take effect on George&apos;s next
           action.
         </p>
@@ -87,10 +87,10 @@ export default async function OperatingModelPage() {
 function DirectiveItem({ title, detail }: { title: string; detail: string }) {
   return (
     <li className="flex items-start gap-2.5">
-      <ShieldCheck size={15} className="mt-0.5 shrink-0 text-[var(--color-accent)]" />
+      <ShieldCheck size={15} className="mt-0.5 shrink-0 text-brand-500 dark:text-brand-400" />
       <div>
-        <div className="text-[13px] font-medium text-[var(--color-fg)]">{title}</div>
-        <div className="text-[12px] text-[var(--color-fg-muted)]">{detail}</div>
+        <div className="text-theme-sm font-medium text-gray-800 dark:text-white/90">{title}</div>
+        <div className="text-theme-xs text-gray-400 dark:text-gray-500">{detail}</div>
       </div>
     </li>
   );

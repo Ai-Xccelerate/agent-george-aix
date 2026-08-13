@@ -15,7 +15,7 @@ export function Greeting({ firstName }: { firstName: string | null }) {
 
   const lead = part ?? "Welcome back";
   return (
-    <h1 className="text-[24px] font-bold leading-tight text-[var(--color-fg)]">
+    <h1 className="font-display text-2xl font-semibold tracking-tight leading-tight text-gray-800 dark:text-white/90">
       {lead}{firstName ? `, ${firstName}` : ""}
     </h1>
   );

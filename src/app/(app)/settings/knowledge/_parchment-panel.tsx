@@ -28,8 +28,8 @@ import { ParchmentConnectForm, ParchmentManageButtons } from "./_parchment-conne
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-1.5">
-      <span className="text-xs text-[var(--color-fg-secondary)]">{label}</span>
-      <span className="text-right text-xs font-medium text-[var(--color-fg)]">{value}</span>
+      <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
+      <span className="text-right text-xs font-medium text-gray-800 dark:text-white/90">{value}</span>
     </div>
   );
 }
@@ -40,9 +40,9 @@ function Badge({ tone, children }: { tone: "ok" | "warn" | "idle"; children: Rea
       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
       : tone === "warn"
         ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-        : "border border-[var(--color-border)] text-[var(--color-fg-secondary)]";
+        : "border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400";
   return (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${cls}`}>
+    <span className={`rounded px-1.5 py-0.5 text-theme-xs font-medium uppercase tracking-wide ${cls}`}>
       {children}
     </span>
   );
@@ -56,10 +56,10 @@ function Shell({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-4">
+    <section className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.03] p-4">
       <div className="flex items-center gap-2">
-        <Database className="size-4 text-[var(--color-fg-secondary)]" />
-        <h2 className="text-sm font-semibold text-[var(--color-fg)]">
+        <Database className="size-4 text-gray-500 dark:text-gray-400" />
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">
           Parchment knowledge hub
         </h2>
         {badge}
@@ -81,14 +81,14 @@ export default async function ParchmentPanel() {
   if (conn.source === "none") {
     return (
       <Shell badge={<Badge tone="idle">Not connected</Badge>}>
-        <p className="mt-2 max-w-[640px] text-xs text-[var(--color-fg-secondary)]">
+        <p className="mt-2 max-w-[640px] text-xs text-gray-500 dark:text-gray-400">
           George is answering from the core playbooks below and its own supplemental
           docs. Connect your Parchment hub and it will search your organisation&rsquo;s
           knowledge instead — whole sections with their hierarchy, rather than
           fragments.
         </p>
         {!isAdmin ? (
-          <p className="mt-2 text-xs text-[var(--color-fg-muted)]">
+          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
             An owner or admin can connect it.
           </p>
         ) : !canStoreSecrets() ? (
@@ -108,18 +108,18 @@ export default async function ParchmentPanel() {
   if (conn.source === "environment") {
     return (
       <Shell badge={<Badge tone="ok">Connected</Badge>}>
-        <p className="mt-2 max-w-[640px] text-xs text-[var(--color-fg-secondary)]">
+        <p className="mt-2 max-w-[640px] text-xs text-gray-500 dark:text-gray-400">
           Using a hub configured for the whole deployment, not one connected here. It
           applies to every organisation on this instance.
         </p>
-        <div className="mt-3 divide-y divide-[var(--color-border)] border-t border-[var(--color-border)]">
-          <Row label="Endpoint" value={<code className="text-[11px]">{conn.baseUrl}</code>} />
-          <Row label="Key" value={<code className="text-[11px]">{conn.keyFingerprint}</code>} />
+        <div className="mt-3 divide-y divide-gray-100 dark:divide-gray-800 border-t border-gray-200 dark:border-gray-800">
+          <Row label="Endpoint" value={<code className="text-theme-xs">{conn.baseUrl}</code>} />
+          <Row label="Key" value={<code className="text-theme-xs">{conn.keyFingerprint}</code>} />
           <Row label="Source" value="Environment variables" />
         </div>
         {isAdmin && canStoreSecrets() ? (
           <>
-            <p className="mt-3 text-xs text-[var(--color-fg-secondary)]">
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
               Connect a hub for {user.orgName} specifically to override it:
             </p>
             <ParchmentConnectForm defaultBaseUrl={conn.baseUrl} />
@@ -142,7 +142,7 @@ export default async function ParchmentPanel() {
         reachable ? <Badge tone="ok">Connected</Badge> : <Badge tone="warn">Unreachable</Badge>
       }
     >
-      <p className="mt-2 max-w-[640px] text-xs text-[var(--color-fg-secondary)]">
+      <p className="mt-2 max-w-[640px] text-xs text-gray-500 dark:text-gray-400">
         {reachable ? (
           <>
             <code>search_knowledge</code> queries your hub and gets back whole sections
@@ -159,9 +159,9 @@ export default async function ParchmentPanel() {
         )}
       </p>
 
-      <div className="mt-3 divide-y divide-[var(--color-border)] border-t border-[var(--color-border)]">
-        <Row label="Endpoint" value={<code className="text-[11px]">{conn.baseUrl}</code>} />
-        <Row label="Key" value={<code className="text-[11px]">{conn.keyFingerprint ?? "—"}</code>} />
+      <div className="mt-3 divide-y divide-gray-100 dark:divide-gray-800 border-t border-gray-200 dark:border-gray-800">
+        <Row label="Endpoint" value={<code className="text-theme-xs">{conn.baseUrl}</code>} />
+        <Row label="Key" value={<code className="text-theme-xs">{conn.keyFingerprint ?? "—"}</code>} />
         <Row label="Documents" value={docCount ?? "—"} />
         {conn.connectedBy ? <Row label="Connected by" value={conn.connectedBy} /> : null}
         {conn.lastCheckedAt ? (
@@ -179,7 +179,7 @@ export default async function ParchmentPanel() {
       </div>
 
       {reachable && docCount === 0 ? (
-        <p className="mt-3 text-xs text-[var(--color-fg-secondary)]">
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
           The hub is reachable but empty, so searches will return nothing. Ingest
           documents in Parchment first.
         </p>
@@ -190,7 +190,7 @@ export default async function ParchmentPanel() {
           href={conn.baseUrl}
           target="_blank"
           rel="noreferrer"
-          className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-accent)] hover:underline"
+          className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-brand-500 dark:text-brand-400 hover:underline"
         >
           Open Parchment
           <ExternalLink className="size-3" />

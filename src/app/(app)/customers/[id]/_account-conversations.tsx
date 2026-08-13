@@ -38,9 +38,9 @@ export function AccountConversations({
   }
 
   return (
-    <section className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-      <h2 className="mb-3 flex items-center gap-2 text-[14px] font-semibold text-[var(--color-fg)]">
-        <MessageSquare size={14} className="text-[var(--color-accent)]" />
+    <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
+      <h2 className="mb-3 flex items-center gap-2 text-theme-sm font-semibold text-gray-800 dark:text-white/90">
+        <MessageSquare size={14} className="text-brand-500 dark:text-brand-400" />
         Conversations
       </h2>
 
@@ -48,14 +48,14 @@ export function AccountConversations({
         type="button"
         onClick={ask}
         disabled={starting}
-        className="flex w-full items-center justify-center gap-2 rounded-md brand-gradient px-3 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:opacity-95 disabled:opacity-70"
+        className="flex w-full items-center justify-center gap-2 rounded-md brand-gradient px-3 py-2.5 text-theme-sm font-semibold text-white shadow-sm hover:opacity-95 disabled:opacity-70"
       >
         {starting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
         Ask George about {customerName}
       </button>
 
       {sessions.length === 0 ? (
-        <p className="mt-3 text-[12px] text-[var(--color-fg-muted)]">
+        <p className="mt-3 text-theme-xs text-gray-400 dark:text-gray-500">
           No conversations yet. Emails George exchanges and chats you start about
           this account collect here.
         </p>
@@ -65,14 +65,14 @@ export function AccountConversations({
             <li key={s.id}>
               <Link
                 href={`/chat/${s.id}`}
-                className="flex items-center gap-2.5 rounded-md px-2 py-2 hover:bg-[var(--color-surface-2)]"
+                className="flex items-center gap-2.5 rounded-md px-2 py-2 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
               >
                 <ChannelIcon channel={s.channel} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] text-[var(--color-fg)]">
+                  <div className="truncate text-theme-sm text-gray-800 dark:text-white/90">
                     {s.title ?? "Untitled conversation"}
                   </div>
-                  <div className="text-[11px] text-[var(--color-fg-muted)]">
+                  <div className="text-theme-xs text-gray-400 dark:text-gray-500">
                     {channelLabel(s.channel)} · {timeAgo(s.updated_at)}
                   </div>
                 </div>
@@ -86,7 +86,7 @@ export function AccountConversations({
 }
 
 function ChannelIcon({ channel }: { channel: string | null }) {
-  const cls = "shrink-0 text-[var(--color-fg-muted)]";
+  const cls = "shrink-0 text-gray-400 dark:text-gray-500";
   if (channel === "email") return <Mail size={14} className={cls} />;
   if (channel === "cron") return <Clock size={14} className={cls} />;
   return <MessageSquare size={14} className={cls} />;

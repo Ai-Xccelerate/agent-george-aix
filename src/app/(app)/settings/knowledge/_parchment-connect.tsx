@@ -20,7 +20,7 @@ import {
 } from "./parchment-actions";
 
 const inputClass =
-  "h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] focus:border-[var(--color-accent)] focus:outline-none";
+  "h-9 w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-sm text-gray-800 dark:text-white/90 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-brand-500 dark:focus:border-brand-400 focus:outline-none";
 
 export function ParchmentConnectForm({ defaultBaseUrl }: { defaultBaseUrl?: string | null }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(
@@ -32,7 +32,7 @@ export function ParchmentConnectForm({ defaultBaseUrl }: { defaultBaseUrl?: stri
     <form action={action} className="mt-3 space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-[var(--color-fg-secondary)]">
+          <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
             Parchment API URL
           </span>
           <input
@@ -45,7 +45,7 @@ export function ParchmentConnectForm({ defaultBaseUrl }: { defaultBaseUrl?: stri
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-[var(--color-fg-secondary)]">
+          <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
             Agent API key
           </span>
           <input
@@ -59,7 +59,7 @@ export function ParchmentConnectForm({ defaultBaseUrl }: { defaultBaseUrl?: stri
         </label>
       </div>
 
-      <p className="text-xs text-[var(--color-fg-secondary)]">
+      <p className="text-xs text-gray-500 dark:text-gray-400">
         Create the key in your Parchment console under <strong>Connect</strong> (or{" "}
         <strong>Keys</strong>) with the <strong>agent</strong> role — that is enough for
         George to read. Choose <strong>editor</strong> instead if you also want approved
@@ -81,12 +81,12 @@ export function ParchmentConnectForm({ defaultBaseUrl }: { defaultBaseUrl?: stri
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-60"
+        className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-60"
       >
         {pending ? <Loader2 size={14} className="animate-spin" /> : <Plug size={14} />}
         {pending ? "Testing connection…" : "Connect"}
       </button>
-      <span className="ml-2 text-xs text-[var(--color-fg-muted)]">
+      <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
         The credentials are tested before they are saved.
       </span>
     </form>
@@ -105,7 +105,7 @@ export function ParchmentManageButtons() {
           type="button"
           disabled={pending}
           onClick={() => start(async () => setResult(await recheckParchmentAction()))}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2.5 text-xs font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)] disabled:opacity-60"
+          className="h-9 px-3 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90 disabled:opacity-60"
         >
           {pending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
           Test again
@@ -113,7 +113,7 @@ export function ParchmentManageButtons() {
 
         {confirming ? (
           <>
-            <span className="text-xs text-[var(--color-fg-secondary)]">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               Disconnect and delete the stored key?
             </span>
             <button
@@ -133,7 +133,7 @@ export function ParchmentManageButtons() {
             <button
               type="button"
               onClick={() => setConfirming(false)}
-              className="text-xs text-[var(--color-fg-secondary)] underline"
+              className="text-xs text-gray-500 dark:text-gray-400 underline"
             >
               Cancel
             </button>
@@ -142,7 +142,7 @@ export function ParchmentManageButtons() {
           <button
             type="button"
             onClick={() => setConfirming(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--color-border)] px-2.5 text-xs font-medium text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-2)]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 px-2.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
           >
             <Unplug size={12} />
             Disconnect

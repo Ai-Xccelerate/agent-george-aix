@@ -63,7 +63,7 @@ export function ResizableChat({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{ ["--chat-w" as string]: `${width}px` }}
-      className="relative flex h-[560px] min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] xl:sticky xl:top-5 xl:h-[calc(100vh-200px)] xl:w-[var(--chat-w)]"
+      className="relative flex h-[560px] min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] xl:sticky xl:top-5 xl:h-[calc(100vh-200px)] xl:w-[var(--chat-w)]"
     >
       {/* Drag handle — desktop only */}
       <div
@@ -73,7 +73,7 @@ export function ResizableChat({ children }: { children: React.ReactNode }) {
         title="Drag to resize"
         className="group absolute left-0 top-0 z-20 hidden h-full w-2 cursor-col-resize xl:block"
       >
-        <div className="mx-auto h-full w-px bg-transparent transition-colors group-hover:bg-[var(--color-accent)]" />
+        <div className="mx-auto h-full w-px bg-transparent transition-colors group-hover:bg-brand-500" />
       </div>
       {children}
     </div>

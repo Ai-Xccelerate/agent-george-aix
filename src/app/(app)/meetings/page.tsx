@@ -58,8 +58,8 @@ export default async function MeetingsPage() {
   return (
     <div className="w-full space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <header>
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Meetings</h1>
-        <p className="text-sm text-[var(--color-fg-secondary)]">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Meetings</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Kickoffs and check-ins across your partners, from each account&apos;s cadence.
           George&apos;s note-taker (Scribe) joins and records — transcripts and the
           success-plan follow-ups land on each partner&apos;s account.
@@ -71,7 +71,7 @@ export default async function MeetingsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <Section title="This week" icon={<CalendarClock size={14} className="text-[var(--color-accent)]" />} count={thisWeek.length}>
+            <Section title="This week" icon={<CalendarClock size={14} className="text-brand-500 dark:text-brand-400" />} count={thisWeek.length}>
               {thisWeek.length === 0 ? (
                 <Empty text="Nothing scheduled in the next 7 days." />
               ) : (
@@ -80,14 +80,14 @@ export default async function MeetingsPage() {
             </Section>
 
             {later.length > 0 && (
-              <Section title="Later" icon={<CalendarDays size={14} className="text-[var(--color-accent)]" />} count={later.length}>
+              <Section title="Later" icon={<CalendarDays size={14} className="text-brand-500 dark:text-brand-400" />} count={later.length}>
                 <ul className="space-y-2">{later.map((c) => <MeetingRow key={c.id} c={c} kind="upcoming" />)}</ul>
               </Section>
             )}
           </div>
 
           <div>
-            <Section title="Recently met" icon={<Repeat size={14} className="text-[var(--color-accent)]" />} count={recent.length}>
+            <Section title="Recently met" icon={<Repeat size={14} className="text-brand-500 dark:text-brand-400" />} count={recent.length}>
               {recent.length === 0 ? (
                 <Empty text="No past meetings logged yet." />
               ) : (
@@ -108,29 +108,29 @@ function MeetingRow({ c, kind }: { c: CadenceRow; kind: "upcoming" | "recent" })
     <li>
       <Link
         href={`/customers/${c.customer_id}`}
-        className="flex items-center gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3 hover:bg-[var(--color-surface-2)]"
+        className="flex items-center gap-3 rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
       >
-        <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-md bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+        <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-md bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
           {when ? (
             <>
-              <span className="text-[10px] uppercase leading-none">{fmtMonth(when)}</span>
-              <span className="text-[15px] font-bold leading-tight">{fmtDay(when)}</span>
+              <span className="text-theme-xs uppercase leading-none">{fmtMonth(when)}</span>
+              <span className="text-base font-bold leading-tight">{fmtDay(when)}</span>
             </>
           ) : (
             <Video size={16} />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[14px] font-medium text-[var(--color-fg)]">{name}</div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-[var(--color-fg-muted)]">
+          <div className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">{name}</div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-theme-xs text-gray-400 dark:text-gray-500">
             <span className="capitalize">{c.frequency.replace("_", " ")}</span>
             <span>· {channelLabel(c.channel)}</span>
             {c.duration_min ? <span>· {c.duration_min} min</span> : null}
           </div>
         </div>
-        <div className="shrink-0 text-right text-[12px] text-[var(--color-fg-secondary)]">
+        <div className="shrink-0 text-right text-theme-xs text-gray-500 dark:text-gray-400">
           {when ? fmtTime(when) : "—"}
-          <div className="text-[11px] text-[var(--color-fg-muted)]">{when ? relative(when) : ""}</div>
+          <div className="text-theme-xs text-gray-400 dark:text-gray-500">{when ? relative(when) : ""}</div>
         </div>
       </Link>
     </li>
@@ -149,13 +149,13 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
+    <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-[14px] font-semibold text-[var(--color-fg)]">
+        <h2 className="flex items-center gap-2 text-theme-sm font-semibold text-gray-800 dark:text-white/90">
           {icon}
           {title}
         </h2>
-        <span className="text-[12px] text-[var(--color-fg-muted)]">{count}</span>
+        <span className="text-theme-xs text-gray-400 dark:text-gray-500">{count}</span>
       </div>
       {children}
     </section>
@@ -164,7 +164,7 @@ function Section({
 
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-md border border-dashed border-[var(--color-border-subtle)] px-4 py-8 text-center text-[13px] text-[var(--color-fg-muted)]">
+    <div className="rounded-md border border-dashed border-gray-200 dark:border-gray-800 px-4 py-8 text-center text-theme-sm text-gray-400 dark:text-gray-500">
       {text}
     </div>
   );
@@ -172,18 +172,18 @@ function Empty({ text }: { text: string }) {
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] py-16 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
         <CalendarDays size={20} />
       </div>
-      <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">No meetings scheduled</h2>
-      <p className="max-w-[420px] text-sm text-[var(--color-fg-secondary)]">
+      <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">No meetings scheduled</h2>
+      <p className="max-w-[420px] text-sm text-gray-500 dark:text-gray-400">
         Set a cadence on a partner (in their account, or ask George) and upcoming
         check-ins show here. Scribe records each one and George drafts the recap.
       </p>
       <Link
         href="/customers"
-        className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 py-2 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+        className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 text-sm font-medium text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
       >
         Go to partners
       </Link>

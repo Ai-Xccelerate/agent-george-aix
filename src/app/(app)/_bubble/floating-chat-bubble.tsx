@@ -224,7 +224,7 @@ export function FloatingChatBubble() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open AIX George"
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg shadow-orange-500/25 ring-2 ring-[var(--color-accent)]/20 transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:ring-offset-2 focus:ring-offset-[var(--color-surface)]"
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg shadow-orange-500/25 ring-2 ring-brand-500/20 transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:ring-offset-gray-900"
       >
         <GeorgeAvatar size={52} />
       </button>
@@ -236,7 +236,7 @@ export function FloatingChatBubble() {
       role="dialog"
       aria-label="AIX George"
       className={cn(
-        "fixed z-40 flex flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl shadow-black/40",
+        "fixed z-40 flex flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 shadow-2xl shadow-black/40",
         maximised
           ? "inset-x-[5vw] inset-y-[6vh]"
           : "bottom-6 right-6 resize",
@@ -254,10 +254,10 @@ export function FloatingChatBubble() {
             }
       }
     >
-      <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2">
+      <header className="flex items-center justify-between gap-2 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.03] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <GeorgeAvatar size={28} />
-          <span className="truncate text-[13px] font-medium text-[var(--color-fg)]">
+          <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
             AIX George
           </span>
         </div>
@@ -267,7 +267,7 @@ export function FloatingChatBubble() {
             onClick={startNewConversation}
             aria-label="Start new conversation"
             title="Start new conversation"
-            className="rounded-md p-1.5 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-fg)]"
+            className="rounded-md p-1.5 text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-white/90"
           >
             <PenSquare size={14} />
           </button>
@@ -276,7 +276,7 @@ export function FloatingChatBubble() {
             onClick={() => setMaximised((m) => !m)}
             aria-label={maximised ? "Restore" : "Maximise"}
             title={maximised ? "Restore" : "Maximise"}
-            className="rounded-md p-1.5 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-fg)]"
+            className="rounded-md p-1.5 text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-white/90"
           >
             {maximised ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
@@ -285,7 +285,7 @@ export function FloatingChatBubble() {
             onClick={endConversation}
             aria-label="End conversation"
             title="End conversation"
-            className="rounded-md p-1.5 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-fg)]"
+            className="rounded-md p-1.5 text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-white/90"
           >
             <X size={14} />
           </button>
@@ -293,10 +293,10 @@ export function FloatingChatBubble() {
       </header>
 
       {showContextChip && context && (
-        <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-accent-light)]/30 px-3 py-2 text-[12px]">
-          <span className="min-w-0 truncate text-[var(--color-fg-secondary)]">
+        <div className="flex items-center justify-between gap-2 border-b border-gray-200 dark:border-gray-800 bg-brand-50 dark:bg-brand-500/15/30 px-3 py-2 text-theme-xs">
+          <span className="min-w-0 truncate text-gray-500 dark:text-gray-400">
             Viewing{" "}
-            <span className="font-medium text-[var(--color-fg)]">
+            <span className="font-medium text-gray-800 dark:text-white/90">
               {context.name}
             </span>
             {context.customerKind === "partner" ? " (partner)" : " (end customer)"}
@@ -305,7 +305,7 @@ export function FloatingChatBubble() {
             <button
               type="button"
               onClick={insertMention}
-              className="inline-flex items-center gap-1 rounded-md bg-[var(--color-accent)] px-2 py-1 text-[11px] font-medium text-white hover:bg-[var(--color-accent-hover)]"
+              className="inline-flex items-center gap-1 rounded-md bg-brand-500 px-2 py-1 text-theme-xs font-medium text-white hover:bg-brand-600"
             >
               <AtSign size={10} />
               Include @{context.name.split(/\s+/)[0]}
@@ -314,7 +314,7 @@ export function FloatingChatBubble() {
               type="button"
               onClick={() => setContextDismissed(context.id)}
               aria-label="Dismiss context"
-              className="rounded p-1 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-fg)]"
+              className="rounded p-1 text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-white/90"
             >
               <X size={11} />
             </button>
@@ -331,7 +331,7 @@ export function FloatingChatBubble() {
             embedded
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--color-fg-muted)]">
+          <div className="flex h-full w-full items-center justify-center text-theme-xs text-gray-400 dark:text-gray-500">
             Starting conversation…
           </div>
         )}

@@ -97,8 +97,8 @@ export default async function MailboxPage({
     <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Mailbox</h1>
-          <p className="text-sm text-[var(--color-fg-secondary)]">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Mailbox</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             George&apos;s Microsoft 365 mailbox (agent.george@getonyx.ai), mirrored locally.
           </p>
         </div>
@@ -108,7 +108,7 @@ export default async function MailboxPage({
       <div className="flex flex-col gap-5 md:flex-row">
         {/* Folder rail */}
         <nav className="md:w-56 md:shrink-0">
-          <ul className="flex gap-1 overflow-x-auto rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-1 md:flex-col md:gap-0.5">
+          <ul className="flex gap-1 overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-1 md:flex-col md:gap-0.5">
             {folders.map((f) => {
               const active = f.external_id === selected.external_id;
               return (
@@ -117,13 +117,13 @@ export default async function MailboxPage({
                     href={`/mailbox?folder=${encodeURIComponent(f.external_id)}`}
                     className={
                       active
-                        ? "flex items-center justify-between gap-2 rounded-md bg-[var(--color-accent-light)] px-3 py-2 text-[13px] font-semibold text-[var(--color-accent)]"
-                        : "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-[13px] text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-fg)]"
+                        ? "flex items-center justify-between gap-2 rounded-md bg-brand-50 dark:bg-brand-500/15 px-3 py-2 text-theme-sm font-semibold text-brand-500 dark:text-brand-400"
+                        : "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-theme-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-white/90"
                     }
                   >
                     <span className="truncate">{f.display_name}</span>
                     {f.unread_item_count ? (
-                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-accent)] px-1.5 text-[11px] font-medium text-[var(--color-fg-inverse)]">
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-theme-xs font-medium text-white">
                         {f.unread_item_count}
                       </span>
                     ) : null}
@@ -139,18 +139,18 @@ export default async function MailboxPage({
           {/* Search within the current folder (server-side, no JS needed) */}
           <form method="GET" action="/mailbox" className="mb-3">
             <input type="hidden" name="folder" value={selected.external_id} />
-            <div className="flex h-9 items-center gap-2 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-3">
-              <Search size={15} className="shrink-0 text-[var(--color-fg-muted)]" />
+            <div className="flex h-9 items-center gap-2 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3">
+              <Search size={15} className="shrink-0 text-gray-400 dark:text-gray-500" />
               <input
                 name="q"
                 defaultValue={q}
                 placeholder={`Search ${selected.display_name}…`}
-                className="w-full min-w-0 bg-transparent text-[13px] text-[var(--color-fg)] placeholder:text-[var(--color-fg-muted)] outline-none"
+                className="w-full min-w-0 bg-transparent text-theme-sm text-gray-800 dark:text-white/90 placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none"
               />
               {q ? (
                 <Link
                   href={`/mailbox?folder=${encodeURIComponent(selected.external_id)}`}
-                  className="shrink-0 text-[12px] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                  className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500 hover:text-gray-800 dark:hover:text-white/90"
                 >
                   Clear
                 </Link>
@@ -159,11 +159,11 @@ export default async function MailboxPage({
           </form>
 
           {messages.length === 0 ? (
-            <div className="rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-16 text-center text-[13px] text-[var(--color-fg-muted)]">
+            <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] py-16 text-center text-theme-sm text-gray-400 dark:text-gray-500">
               {q ? `No matches for “${q}” in ${selected.display_name}.` : `Nothing in ${selected.display_name}.`}
             </div>
           ) : (
-            <ul className="divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+            <ul className="divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
               {messages.map((m) => (
                 <MessageRow key={m.external_id} m={m} outbound={isOutbound} />
               ))}
@@ -185,8 +185,8 @@ function MessageRow({ m, outbound }: { m: Message; outbound: boolean }) {
 
   return (
     <li
-      className={`group flex items-center gap-2 px-2.5 py-1.5 hover:bg-[var(--color-surface-3)] ${
-        m.flagged ? "bg-[var(--color-accent-light)]/40" : ""
+      className={`group flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 ${
+        m.flagged ? "bg-brand-50 dark:bg-brand-500/15/40" : ""
       }`}
     >
       {/* Flag toggle */}
@@ -199,8 +199,8 @@ function MessageRow({ m, outbound }: { m: Message; outbound: boolean }) {
           title={m.flagged ? "Flagged — click to clear" : "Flag as a signal for George"}
           className={`flex h-6 w-6 items-center justify-center rounded ${
             m.flagged
-              ? "text-[var(--color-accent)]"
-              : "text-[var(--color-fg-muted)] opacity-0 hover:bg-[var(--color-surface-2)] group-hover:opacity-100"
+              ? "text-brand-500 dark:text-brand-400"
+              : "text-gray-400 dark:text-gray-500 opacity-0 hover:bg-gray-50 dark:hover:bg-white/[0.03] group-hover:opacity-100"
           }`}
         >
           <Flag size={13} fill={m.flagged ? "currentColor" : "none"} />
@@ -209,42 +209,42 @@ function MessageRow({ m, outbound }: { m: Message; outbound: boolean }) {
 
       {/* Unread dot */}
       <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${unread ? "bg-[var(--color-accent)]" : "bg-transparent"}`}
+        className={`h-1.5 w-1.5 shrink-0 rounded-full ${unread ? "bg-brand-500" : "bg-transparent"}`}
         aria-hidden
       />
 
       {/* Content (single compact line) */}
-      <Link href={href} className="flex min-w-0 flex-1 items-center gap-2 text-[13px]">
+      <Link href={href} className="flex min-w-0 flex-1 items-center gap-2 text-theme-sm">
         <span
           className={`w-44 shrink-0 truncate ${
-            unread ? "font-semibold text-[var(--color-fg)]" : "text-[var(--color-fg-secondary)]"
+            unread ? "font-semibold text-gray-800 dark:text-white/90" : "text-gray-500 dark:text-gray-400"
           }`}
         >
           {who}
         </span>
         <span className="min-w-0 flex-1 truncate">
-          <span className={unread ? "font-semibold text-[var(--color-fg)]" : "text-[var(--color-fg)]"}>
+          <span className={unread ? "font-semibold text-gray-800 dark:text-white/90" : "text-gray-800 dark:text-white/90"}>
             {m.subject || "(no subject)"}
           </span>
           {m.body_preview && (
-            <span className="text-[var(--color-fg-muted)]"> — {m.body_preview}</span>
+            <span className="text-gray-400 dark:text-gray-500"> — {m.body_preview}</span>
           )}
         </span>
       </Link>
 
       {/* Badges */}
-      {m.has_attachments && <Paperclip size={12} className="shrink-0 text-[var(--color-fg-muted)]" />}
+      {m.has_attachments && <Paperclip size={12} className="shrink-0 text-gray-400 dark:text-gray-500" />}
       {m.processed_at && (
         <Link
           href={m.processed_session_id ? `/chat/${m.processed_session_id}` : "#"}
           title={`George reviewed ${relative(m.processed_at)} ago`}
-          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-success-light)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-success)]"
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success-50 dark:bg-success-500/15 px-1.5 py-0.5 text-theme-xs font-medium text-success-500"
         >
           <CheckCheck size={11} /> George
         </Link>
       )}
 
-      <span className="w-12 shrink-0 text-right text-[11px] text-[var(--color-fg-muted)]">
+      <span className="w-12 shrink-0 text-right text-theme-xs text-gray-400 dark:text-gray-500">
         {when ? relative(when) : ""}
       </span>
 
@@ -255,7 +255,7 @@ function MessageRow({ m, outbound }: { m: Message; outbound: boolean }) {
           type="submit"
           aria-label="Delete"
           title="Move to Deleted Items"
-          className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-fg-muted)] opacity-0 hover:bg-[var(--color-surface-2)] hover:text-[var(--color-error)] group-hover:opacity-100"
+          className="flex h-6 w-6 items-center justify-center rounded text-gray-400 dark:text-gray-500 opacity-0 hover:bg-gray-50 dark:hover:bg-white/[0.03] hover:text-error-500 group-hover:opacity-100"
         >
           <Trash2 size={13} />
         </button>
@@ -276,16 +276,16 @@ function EmptyMailbox() {
   return (
     <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7">
       <header className="mb-5">
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Mailbox</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Mailbox</h1>
       </header>
-      <div className="flex flex-col items-center justify-center gap-3 rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-16 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] py-16 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
           <Mail size={20} />
         </div>
-        <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">Mailbox not synced yet</h2>
-        <p className="max-w-[440px] text-sm text-[var(--color-fg-secondary)]">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">Mailbox not synced yet</h2>
+        <p className="max-w-[440px] text-sm text-gray-500 dark:text-gray-400">
           Once the mailbox mirror runs (it syncs on a schedule, or run{" "}
-          <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5 text-[12px]">pnpm sync:mailbox</code>), George&apos;s
+          <code className="rounded bg-gray-50 dark:bg-white/[0.03] px-1 py-0.5 text-theme-xs">pnpm sync:mailbox</code>), George&apos;s
           folders and messages appear here.
         </p>
       </div>

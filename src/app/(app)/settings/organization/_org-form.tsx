@@ -78,7 +78,7 @@ export function OrgForm({ action, defaults }: Props) {
           placeholder="AI-native partner support for Microsoft MSPs."
           className={inputClass}
         />
-        <span className="mt-1 block text-[11px] text-[var(--color-fg-muted)]">
+        <span className="mt-1 block text-theme-xs text-gray-400 dark:text-gray-500">
           Used by George when introducing the company in outbound copy.
         </span>
       </Field>
@@ -90,9 +90,9 @@ export function OrgForm({ action, defaults }: Props) {
               type="color"
               name="brand_color"
               defaultValue={defaults.brand_color || "#6D45F5"}
-              className="h-10 w-12 cursor-pointer rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)]"
+              className="h-10 w-12 cursor-pointer rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]"
             />
-            <span className="text-[12px] text-[var(--color-fg-muted)]">
+            <span className="text-theme-xs text-gray-400 dark:text-gray-500">
               Hex (defaults to accent)
             </span>
           </div>
@@ -107,22 +107,22 @@ export function OrgForm({ action, defaults }: Props) {
         </Field>
       </div>
 
-      <fieldset className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3">
-        <legend className="px-1 text-[12px] font-medium text-[var(--color-fg-secondary)]">
+      <fieldset className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
+        <legend className="px-1 text-theme-xs font-medium text-gray-500 dark:text-gray-400">
           Business hours
         </legend>
         <div className="mb-3 flex flex-wrap gap-2">
           {DAYS.map((d) => (
             <label
               key={d.value}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2.5 py-1 text-[12px] text-[var(--color-fg)]"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-2.5 py-1 text-theme-xs text-gray-800 dark:text-white/90"
             >
               <input
                 type="checkbox"
                 name="bh_days"
                 value={d.value}
                 defaultChecked={selected.has(d.value)}
-                className="accent-[var(--color-accent)]"
+                className="accent-brand-500"
               />
               {d.label}
             </label>
@@ -173,7 +173,7 @@ export function LogoUploadForm({ action, variant, currentUrl }: LogoFormProps) {
 
       <div className="flex items-center gap-4">
         <div
-          className={`flex items-center justify-center rounded-md border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] ${
+          className={`flex items-center justify-center rounded-md border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 ${
             variant === "square" ? "h-16 w-16" : "h-16 w-40"
           }`}
         >
@@ -185,7 +185,7 @@ export function LogoUploadForm({ action, variant, currentUrl }: LogoFormProps) {
               className="max-h-full max-w-full object-contain"
             />
           ) : (
-            <span className="text-[11px] text-[var(--color-fg-muted)]">No {label.toLowerCase()}</span>
+            <span className="text-theme-xs text-gray-400 dark:text-gray-500">No {label.toLowerCase()}</span>
           )}
         </div>
 
@@ -196,9 +196,9 @@ export function LogoUploadForm({ action, variant, currentUrl }: LogoFormProps) {
               name="file"
               accept="image/png,image/svg+xml,image/jpeg,image/webp"
               required
-              className="block w-full text-[12px] text-[var(--color-fg)] file:mr-3 file:rounded-md file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-[var(--color-fg-inverse)] hover:file:bg-[var(--color-accent-hover)]"
+              className="block w-full text-theme-xs text-gray-800 dark:text-white/90 file:mr-3 file:rounded-md file:border-0 file:bg-brand-500 file:px-3 file:py-1.5 file:text-theme-xs file:font-medium file:text-white hover:file:bg-brand-600"
             />
-            <span className="mt-1 block text-[11px] text-[var(--color-fg-muted)]">
+            <span className="mt-1 block text-theme-xs text-gray-400 dark:text-gray-500">
               PNG, SVG, JPEG, or WebP. Max 1 MB.
             </span>
           </Field>
@@ -217,14 +217,14 @@ export function LogoUploadForm({ action, variant, currentUrl }: LogoFormProps) {
 function Status({ state }: { state: ActionResult }) {
   if (state.error) {
     return (
-      <div className="rounded-md border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 px-3 py-2 text-[12px] text-[var(--color-error)]">
+      <div className="rounded-md border border-error-500/30 bg-error-500/10 px-3 py-2 text-theme-xs text-error-500">
         {state.error}
       </div>
     );
   }
   if (state.info) {
     return (
-      <div className="rounded-md border border-[var(--color-success)]/30 bg-[var(--color-success-light)] px-3 py-2 text-[12px] text-[var(--color-success)]">
+      <div className="rounded-md border border-success-500/30 bg-success-50 dark:bg-success-500/15 px-3 py-2 text-theme-xs text-success-500">
         {state.info}
       </div>
     );
@@ -235,7 +235,7 @@ function Status({ state }: { state: ActionResult }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[12px] font-medium text-[var(--color-fg-secondary)]">
+      <span className="mb-1.5 block text-theme-xs font-medium text-gray-500 dark:text-gray-400">
         {label}
       </span>
       {children}
@@ -244,7 +244,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const inputClass =
-  "h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]";
+  "h-10 w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-sm text-gray-800 dark:text-white/90 outline-none focus:border-brand-500 dark:focus:border-brand-400";
 
 const submitClass =
-  "inline-flex h-10 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-4 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-60";
+  "h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-60";

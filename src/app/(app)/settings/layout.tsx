@@ -13,7 +13,7 @@ export default async function SettingsLayout({
   return (
     <div className="flex max-w-[1400px] flex-col gap-6 px-4 py-5 sm:px-6 md:flex-row md:gap-8 md:px-8 md:py-7">
       <aside className="md:w-56 md:shrink-0">
-        <h2 className="mb-3 px-3 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
+        <h2 className="mb-3 px-3 text-theme-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
           Settings
         </h2>
         <SettingsNav isAdmin={isAdmin} isApprover={isApprover} />

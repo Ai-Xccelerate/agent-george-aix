@@ -1,100 +1,1295 @@
-@import "tailwindcss";
-@import "../../vendor/aix-tokens/styles.css";
-@import "../../vendor/aix-tokens/base.css";
+@import 'tailwindcss';
 
-/* Class-based dark mode: align Tailwind's `dark:` variant with the
-   `.dark` class we set on <html> from the server-side theme cookie. */
+/* George sets `.dark` on <html> from the server-side theme cookie, so the
+   variant must match the flagged element itself as well as its descendants.
+   The template's narrower `&:is(.dark *)` matches descendants only, which
+   silently drops every `dark:` utility applied to <html> or <body>. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* =========================================================================
+   Self-hosted type — Inter (UI/body), Geist (display), JetBrains Mono (code).
+   From the AIX design system (@ai-xccelerate/tokens). Variable axes where
+   available; no CDN, no layout shift. See public/fonts/.
+   ========================================================================= */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-variable.woff2') format('woff2');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Site-wide density (header dropdown, persisted in localStorage).
+   Every Tailwind spacing utility (p-*, gap-*, h-*, size-*, space-*) derives
+   from --spacing, so scaling this one token scales the whole UI's density.
+   default = 1x, comfortable = 0.875x, compact = 0.75x. */
+html[data-density='comfortable'] {
+  --spacing: 0.21875rem;
+}
+html[data-density='compact'] {
+  --spacing: 0.1875rem;
+}
+
 @theme {
-  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-*: initial;
+  /* UI + body: Inter (kept under the historical `outfit` token name so every
+     existing `font-outfit` utility and the body default switch in one place). */
+  --font-outfit: "Inter", "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Display: Geist — reserved for large headings / hero numerals via font-display. */
+  --font-display: "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Mono: JetBrains Mono — code, keycaps, reference IDs via font-mono. */
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* AIX Core accent (warm orange — Jules / workforce palette) */
-  --color-accent: var(--aix-accent);
-  --color-accent-hover: var(--aix-accent-hover);
-  --color-accent-secondary: var(--aix-accent-secondary);
-  --color-accent-magenta: var(--aix-accent-magenta);
-  --color-accent-deep: var(--aix-accent-deep);
-  --color-accent-light: var(--aix-accent-light);
+  --breakpoint-*: initial;
+  --breakpoint-2xsm: 375px;
+  --breakpoint-xsm: 425px;
+  --breakpoint-3xl: 2000px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
 
-  --color-fg: var(--aix-fg);
-  --color-fg-secondary: var(--aix-fg-secondary);
-  --color-fg-muted: var(--aix-fg-muted);
-  --color-fg-inverse: var(--aix-fg-inverse);
-  --color-fg-inverse-secondary: #9ca3af;
+  --text-title-2xl: 72px;
+  --text-title-2xl--line-height: 90px;
+  --text-title-xl: 60px;
+  --text-title-xl--line-height: 72px;
+  --text-title-lg: 48px;
+  --text-title-lg--line-height: 60px;
+  --text-title-md: 36px;
+  --text-title-md--line-height: 44px;
+  --text-title-sm: 30px;
+  --text-title-sm--line-height: 38px;
+  --text-theme-xl: 20px;
+  --text-theme-xl--line-height: 30px;
+  --text-theme-sm: 14px;
+  --text-theme-sm--line-height: 20px;
+  --text-theme-xs: 12px;
+  --text-theme-xs--line-height: 18px;
 
-  --color-surface: var(--aix-canvas);
-  --color-surface-2: var(--aix-surface-1);
-  --color-surface-3: var(--aix-surface-2);
-  --color-surface-card: var(--aix-surface-card);
-  --color-surface-card-dark: #1e1e1c;
-  --color-surface-inverse: #1a1628;
-  --color-surface-elevated: var(--aix-surface-2);
+  /* Corner radii — AIX runs tight. The whole Tailwind radius scale is retuned
+     one notch crisper than stock so nothing reads soft/bubbly:
+       controls (buttons, inputs, chips, menu items) = rounded-lg = 6px
+       cards                                          = rounded-2xl = 12px
+       avatars / dots / pills                         = rounded-full
+     Adjust these tokens to move the whole system; never hardcode radii. */
+  --radius-sm: 0.1875rem;  /* 3px  */
+  --radius-md: 0.25rem;    /* 4px  */
+  --radius-lg: 0.3125rem;  /* 5px  — controls (buttons/inputs/chips/menu items) */
+  --radius-xl: 0.375rem;   /* 6px  */
+  --radius-2xl: 0.5rem;    /* 8px  — cards */
+  --radius-3xl: 0.75rem;   /* 12px */
 
-  --color-border: var(--aix-border);
-  --color-border-subtle: var(--aix-border-subtle);
-  --color-border-dark: #2a2a28;
+  --color-current: currentColor;
+  --color-transparent: transparent;
+  --color-white: #ffffff;
+  --color-black: #101828;
 
-  --color-success: var(--aix-success);
-  --color-success-light: var(--aix-success-light);
-  --color-error: var(--aix-error);
-  --color-warning: var(--aix-warning);
-  --color-info: var(--aix-info);
+  --color-brand-25: #fff8f2;
+  --color-brand-50: #fef3e8;
+  --color-brand-100: #fde6cf;
+  --color-brand-200: #fbcfa0;
+  --color-brand-300: #fab673;
+  --color-brand-400: #f79a47;
+  --color-brand-500: #f47920;
+  --color-brand-600: #e06b15;
+  --color-brand-700: #bc580f;
+  --color-brand-800: #954510;
+  --color-brand-900: #78380f;
+  --color-brand-950: #411c06;
 
-  --color-badge-active-bg: #dcfce7;
-  --color-badge-active-fg: #16a34a;
-  --color-badge-training-bg: #fef3c7;
-  --color-badge-training-fg: #d97706;
+  --color-blue-light-25: #f5fbff;
+  --color-blue-light-50: #f0f9ff;
+  --color-blue-light-100: #e0f2fe;
+  --color-blue-light-200: #b9e6fe;
+  --color-blue-light-300: #7cd4fd;
+  --color-blue-light-400: #36bffa;
+  --color-blue-light-500: #0ba5ec;
+  --color-blue-light-600: #0086c9;
+  --color-blue-light-700: #026aa2;
+  --color-blue-light-800: #065986;
+  --color-blue-light-900: #0b4a6f;
+  --color-blue-light-950: #062c41;
 
-  /* Agent avatars (AIX workforce palette) */
-  --color-agent-george: #f97316;
+  --color-gray-25: #fcfcfd;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f2f4f7;
+  --color-gray-200: #e4e7ec;
+  --color-gray-300: #d0d5dd;
+  --color-gray-400: #98a2b3;
+  --color-gray-500: #667085;
+  --color-gray-600: #475467;
+  --color-gray-700: #344054;
+  --color-gray-800: #1d2939;
+  --color-gray-900: #101828;
+  --color-gray-950: #0c111d;
+  --color-gray-dark: #1a2231;
+
+  --color-orange-25: #fffaf5;
+  --color-orange-50: #fff6ed;
+  --color-orange-100: #ffead5;
+  --color-orange-200: #fddcab;
+  --color-orange-300: #feb273;
+  --color-orange-400: #fd853a;
+  --color-orange-500: #fb6514;
+  --color-orange-600: #ec4a0a;
+  --color-orange-700: #c4320a;
+  --color-orange-800: #9c2a10;
+  --color-orange-900: #7e2410;
+  --color-orange-950: #511c10;
+
+  --color-success-25: #f6fef9;
+  --color-success-50: #ecfdf3;
+  --color-success-100: #d1fadf;
+  --color-success-200: #a6f4c5;
+  --color-success-300: #6ce9a6;
+  --color-success-400: #32d583;
+  --color-success-500: #12b76a;
+  --color-success-600: #039855;
+  --color-success-700: #027a48;
+  --color-success-800: #05603a;
+  --color-success-900: #054f31;
+  --color-success-950: #053321;
+
+  --color-error-25: #fffbfa;
+  --color-error-50: #fef3f2;
+  --color-error-100: #fee4e2;
+  --color-error-200: #fecdca;
+  --color-error-300: #fda29b;
+  --color-error-400: #f97066;
+  --color-error-500: #f04438;
+  --color-error-600: #d92d20;
+  --color-error-700: #b42318;
+  --color-error-800: #912018;
+  --color-error-900: #7a271a;
+  --color-error-950: #55160c;
+
+  --color-warning-25: #fffcf5;
+  --color-warning-50: #fffaeb;
+  --color-warning-100: #fef0c7;
+  --color-warning-200: #fedf89;
+  --color-warning-300: #fec84b;
+  --color-warning-400: #fdb022;
+  --color-warning-500: #f79009;
+  --color-warning-600: #dc6803;
+  --color-warning-700: #b54708;
+  --color-warning-800: #93370d;
+  --color-warning-900: #7a2e0e;
+  --color-warning-950: #4e1d09;
+
+  --color-theme-pink-500: #ee46bc;
+
+  --color-theme-purple-500: #7a5af8;
+
+  /* Agent identity colors — canonical, from the AIX Core Design System.
+     Usage: bg-agent-nick, text-agent-jules, etc. */
+  --color-agent-nick: #f47920;
+  --color-agent-jules: #3b82f6;
+  --color-agent-pepper: #10b981;
+  --color-agent-tony: #7a5af8;
+  --color-agent-joy: #f79009;
+  --color-agent-george: #344054;
+  --color-agent-sam: #0ea5e9;
+
+  --shadow-theme-md:
+    0px 4px 8px -2px rgba(16, 24, 40, 0.1),
+    0px 2px 4px -2px rgba(16, 24, 40, 0.06);
+  --shadow-theme-lg:
+    0px 12px 16px -4px rgba(16, 24, 40, 0.08),
+    0px 4px 6px -2px rgba(16, 24, 40, 0.03);
+  --shadow-theme-sm:
+    0px 1px 3px 0px rgba(16, 24, 40, 0.1),
+    0px 1px 2px 0px rgba(16, 24, 40, 0.06);
+  --shadow-theme-xs: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+  --shadow-theme-xl:
+    0px 20px 24px -4px rgba(16, 24, 40, 0.08),
+    0px 8px 8px -4px rgba(16, 24, 40, 0.03);
+  --shadow-datepicker: -5px 0 0 #262d3c, 5px 0 0 #262d3c;
+  --shadow-focus-ring: 0px 0px 0px 4px rgba(244, 121, 32, 0.12);
+  --shadow-slider-navigation:
+    0px 1px 2px 0px rgba(16, 24, 40, 0.1), 0px 1px 3px 0px rgba(16, 24, 40, 0.1);
+  --shadow-tooltip:
+    0px 4px 6px -2px rgba(16, 24, 40, 0.05),
+    -8px 0px 20px 8px rgba(16, 24, 40, 0.05);
+
+  --drop-shadow-4xl:
+    0 35px 35px rgba(0, 0, 0, 0.25), 0 45px 65px rgba(0, 0, 0, 0.15);
+
+  --z-index-1: 1;
+  --z-index-9: 9;
+  --z-index-99: 99;
+  --z-index-999: 999;
+  --z-index-9999: 9999;
+  --z-index-99999: 99999;
+  --z-index-999999: 999999;
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    /* Canvas under the fixed LiquidBackdrop — matches the backdrop base so
+       there is no white flash before the blob layer paints. */
+    background-color: var(--backdrop-base);
+  }
+  body {
+    /* Transparent so the ambient gradient backdrop (mounted first in <body>)
+       reads through the gaps between glass chrome and content cards. */
+    @apply relative font-normal font-outfit z-1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Inter stylistic set + tabular numerals for tables/KPIs. */
+    font-feature-settings: 'cv11', 'ss01', 'tnum';
+  }
+  /* Display type — Geist with Apple-style tighter tracking. */
+  .font-display {
+    letter-spacing: -0.022em;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.021em;
+  }
+  h4, h5 {
+    letter-spacing: -0.014em;
+  }
+  ::selection {
+    @apply bg-brand-100 text-gray-900;
+  }
+  .dark ::selection {
+    @apply bg-brand-500/30 text-white;
+  }
+}
+
+/* =========================================================================
+   AIX reference overlay — toggled by adding .aix-ref-mode to <html>.
+   Shows every data-aix-id as an orange badge + dashed outline so pages,
+   blocks, and frame regions can be referenced precisely (see AIX-REFERENCE.md).
+   ========================================================================= */
+.aix-ref-mode [data-aix-id] {
+  outline: 1px dashed rgba(244, 121, 32, 0.5);
+  outline-offset: -1px;
+}
+/* Positioning context for the badge — but never override elements that are
+   already positioned (the fixed sidebar, sticky header, absolute overlays),
+   or forcing `relative` would knock them out of place. */
+.aix-ref-mode [data-aix-id]:not(.fixed):not(.sticky):not(.absolute) {
+  position: relative;
+}
+.aix-ref-mode [data-aix-id]::before {
+  content: attr(data-aix-id);
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 99999;
+  padding: 1px 6px;
+  background: #f47920;
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  border-radius: 0 0 4px 0;
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+/* =========================================================================
+   AIX Design System vocabulary bridge
+   The canonical token names from the AIX Core Design System
+   (agent-sam/brand-assets/aix-design-system) mapped to this theme's values,
+   so DS-vocabulary code and Tailwind-utility code stay one system.
+   See AIX-DESIGN-SYSTEM.md for the full mapping.
+   ========================================================================= */
+:root {
+  /* Accent (brand) */
+  --accent-primary: #f47920;
+  --accent-primary-hover: #e06b15;
+  --accent-secondary: #ff9f4a;
+  --accent-light: #fef3e8;
+
+  /* Foreground */
+  --foreground-primary: #101828;
+  --foreground-secondary: #475467;
+  --foreground-muted: #98a2b3;
+  --foreground-inverse: #ffffff;
+
+  /* Surface */
+  --surface-primary: #ffffff;
+  --surface-secondary: #f9fafb;
+  --surface-card: #ffffff;
+
+  /* Border */
+  --border-default: #d0d5dd;
+  --border-subtle: #e4e7ec;
+
+  /* Semantic */
+  --ds-success: #12b76a;
+  --ds-error: #f04438;
+  --ds-warning: #f79009;
+  --ds-info: #0ba5ec;
+
+  /* Shadows (CTA-only per DS rules) */
+  --shadow-cta: 0 4px 12px rgba(244, 121, 32, 0.2);
+  --shadow-cta-strong: 0 4px 12px rgba(244, 121, 32, 0.27);
+
+  /* Gradients (max one per page, hero bands only) */
+  --gradient-brand-panel: linear-gradient(180deg, #f47920 0%, #e0580b 100%);
+  --gradient-welcome: linear-gradient(90deg, #f47920 0%, #ff9f4a 100%);
+
+  /* Ambient backdrop — the fixed gradient canvas the whole app floats over
+     (rendered by <LiquidBackdrop/>). Three slow-drifting, heavily-blurred
+     blobs: AIX orange + indigo + sky, kept to a whisper so chrome stays calm. */
+  --backdrop-base: #eef1f8;
+  --backdrop-blob-a: rgba(244, 121, 32, 0.12); /* AIX orange */
+  --backdrop-blob-b: rgba(251, 113, 133, 0.07); /* soft rose  */
+  --backdrop-blob-c: rgba(245, 158, 11, 0.08); /* amber gold */
+
+  /* Liquid-glass material — chrome only (sidebar, header, modals, menus,
+     sticky table heads). Never a default on content cards. Alphas are tuned
+     high enough that page content behind the chrome NEVER reads through as
+     legible text — frosted, not see-through. Menus/dropdowns are near-opaque. */
+  --glass-bg: rgba(255, 255, 255, 0.78);        /* standing chrome (sidebar/header) */
+  --glass-bg-thick: rgba(255, 255, 255, 0.92);  /* floating chrome (modals) */
+  --glass-popover-bg: rgba(255, 255, 255, 0.98); /* menus/dropdowns/tooltips — readable over anything */
+  --glass-bg-solid: #ffffff;
+  --glass-blur: 20px;
+  --glass-saturate: 155%;
+  --glass-border: rgba(16, 24, 40, 0.08);
+  --glass-border-strong: rgba(16, 24, 40, 0.12);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.70);
+  --glass-rim-strong: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+
+  /* Elevation — cards sit flat; these are for hover lift and floating chrome. */
+  --shadow-card-hover: 0 8px 24px -10px rgba(16, 24, 40, 0.12), 0 1px 2px 0 rgba(16, 24, 40, 0.05);
+  --shadow-elevated: 0 24px 48px -12px rgba(16, 24, 40, 0.16), 0 0 0 1px rgba(16, 24, 40, 0.04);
+
+  /* Motion — exponential ease-out, never bounce/elastic (impeccable rule). */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-quiet: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark {
+  --accent-light: #2a2114;
+
+  --foreground-primary: #ffffff;
+  --foreground-secondary: #98a2b3;
+  --foreground-inverse: #101828;
+
+  --surface-primary: #101828;
+  --surface-secondary: #1d2939;
+  --surface-card: rgba(255, 255, 255, 0.03);
+
+  --border-default: #344054;
+  --border-subtle: #1d2939;
+
+  /* Ambient backdrop — warm brand aurora over deep slate. */
+  --backdrop-base: #080c17;
+  --backdrop-blob-a: rgba(244, 121, 32, 0.16); /* AIX orange */
+  --backdrop-blob-b: rgba(251, 113, 133, 0.11); /* soft rose  */
+  --backdrop-blob-c: rgba(245, 158, 11, 0.12); /* amber gold */
+
+  /* Liquid-glass material — slate panes, brighter edges to catch backdrop light.
+     Alphas kept high enough that content behind chrome never reads through as
+     legible text; menus/dropdowns are near-opaque. */
+  --glass-bg: rgba(17, 24, 39, 0.74);           /* standing chrome */
+  --glass-bg-thick: rgba(17, 24, 39, 0.92);     /* floating chrome (modals) */
+  --glass-popover-bg: rgba(17, 24, 39, 0.98);   /* menus/dropdowns/tooltips */
+  --glass-bg-solid: #101828;
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.12);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --glass-rim-strong: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+
+  --shadow-card-hover: 0 8px 24px -10px rgba(0, 0, 0, 0.55), 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* =========================================================================
+   Liquid glass + ambient backdrop
+   The whole app floats on a fixed gradient canvas (.liquid-backdrop). Standing
+   and floating chrome use the .glass-* materials to refract it. Content cards
+   deliberately stay opaque — glass is chrome-only, never a decorative default.
+   Selectors are doubled (.glass-surface.glass-surface) so they outrank any
+   single bg-* utility on the same element regardless of source order.
+   ========================================================================= */
+.liquid-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--backdrop-base);
+}
+.liquid-backdrop-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  will-change: transform;
+}
+.liquid-blob-a {
+  width: 55vw;
+  height: 55vw;
+  left: -12vw;
+  top: -18vw;
+  background: radial-gradient(circle at center, var(--backdrop-blob-a) 0%, transparent 65%);
+  animation: liquid-drift-a 90s var(--ease-quiet) infinite alternate;
+}
+.liquid-blob-b {
+  width: 60vw;
+  height: 60vw;
+  right: -18vw;
+  bottom: -22vw;
+  background: radial-gradient(circle at center, var(--backdrop-blob-b) 0%, transparent 65%);
+  animation: liquid-drift-b 110s var(--ease-quiet) infinite alternate;
+}
+.liquid-blob-c {
+  width: 36vw;
+  height: 36vw;
+  right: 8vw;
+  top: -10vw;
+  background: radial-gradient(circle at center, var(--backdrop-blob-c) 0%, transparent 65%);
+  animation: liquid-drift-c 70s var(--ease-quiet) infinite alternate;
+}
+@keyframes liquid-drift-a {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(9vw, 7vh) scale(1.12); }
+}
+@keyframes liquid-drift-b {
+  0% { transform: translate(0, 0) scale(1.08); }
+  100% { transform: translate(-8vw, -6vh) scale(0.96); }
+}
+@keyframes liquid-drift-c {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-6vw, 8vh) scale(1.18); }
+}
+
+.glass-surface.glass-surface {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-rim);
+}
+.glass-float.glass-float {
+  background: var(--glass-bg-thick);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  backdrop-filter: blur(28px) saturate(170%);
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--glass-rim-strong), var(--shadow-elevated);
+}
+.glass-popover.glass-popover {
+  /* Near-opaque so option lists stay fully legible over ANY page content —
+     translucent menus that let the page bleed through are unreadable. */
+  background: var(--glass-popover-bg);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  border-color: var(--glass-border-strong);
+}
+
+/* Capability + accessibility fallbacks. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-surface, .glass-float, .glass-popover { background: var(--glass-bg-solid); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-surface, .glass-float, .glass-popover {
+    background: var(--glass-bg-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .liquid-backdrop { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .liquid-backdrop-blob { animation: none; }
+}
+
+/* Typing indicator — opacity fade, never a bounce (impeccable motion rule). */
+@keyframes aix-typing {
+  0%, 70%, 100% { opacity: 0.28; }
+  35% { opacity: 1; }
+}
+.animate-typing {
+  animation: aix-typing 1.3s var(--ease-quiet) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-typing { animation: none; opacity: 0.6; }
+}
+
+/* Kanban drag feedback — a card "lands" with a brand ring flash + a small pop,
+   so moving a card feels like it committed somewhere. Chrome-free (no drop
+   shadow on the card at rest — that stays flat per the design system). */
+@keyframes kanban-land {
+  0%   { transform: scale(0.94); box-shadow: 0 0 0 0 rgba(244, 121, 32, 0); }
+  40%  { transform: scale(1.03); box-shadow: 0 0 0 4px rgba(244, 121, 32, 0.4); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(244, 121, 32, 0); }
+}
+.animate-kanban-land {
+  animation: kanban-land 0.55s var(--ease-quiet);
+}
+/* Column count badge bumps when it gains/loses a card. */
+@keyframes kanban-badge-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+.animate-badge-pop {
+  animation: kanban-badge-pop 0.4s var(--ease-quiet);
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-kanban-land,
+  .animate-badge-pop { animation: none; }
+}
+
+@utility menu-item {
+  @apply relative flex items-center w-full gap-3 px-3 py-2 font-medium rounded-lg text-theme-sm;
+}
+
+@utility menu-item-active {
+  @apply bg-brand-50 text-brand-700 dark:bg-brand-500/[0.12] dark:text-brand-400;
+}
+
+@utility menu-item-inactive {
+  @apply text-gray-700 hover:bg-gray-100 group-hover:text-gray-700 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-300;
+}
+
+@utility menu-item-icon {
+  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400;
+}
+
+@utility menu-item-icon-active {
+  @apply text-brand-500 dark:text-brand-400;
+}
+
+@utility menu-item-icon-inactive {
+  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300;
+}
+
+@utility menu-item-arrow {
+  @apply relative;
+}
+
+@utility menu-item-arrow-active {
+  @apply rotate-180 text-brand-500 dark:text-brand-400;
+}
+
+@utility menu-item-arrow-inactive {
+  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300;
+}
+
+@utility menu-dropdown-item {
+  @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-theme-sm font-medium;
+}
+
+@utility menu-dropdown-item-active {
+  @apply bg-brand-50 text-brand-700 dark:bg-brand-500/[0.12] dark:text-brand-400;
+}
+
+@utility menu-dropdown-item-inactive {
+  @apply text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5;
+}
+
+@utility menu-dropdown-badge {
+  @apply block rounded-full px-2.5 py-0.5 text-xs font-medium uppercase text-brand-500 dark:text-brand-400;
+}
+
+@utility menu-dropdown-badge-active {
+  @apply bg-brand-100 dark:bg-brand-500/20;
+}
+
+@utility menu-dropdown-badge-inactive {
+  @apply bg-brand-50 group-hover:bg-brand-100 dark:bg-brand-500/15 dark:group-hover:bg-brand-500/20;
+}
+
+@utility no-scrollbar {
+  /* Chrome, Safari and Opera */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+@utility custom-scrollbar {
+  &::-webkit-scrollbar {
+    @apply size-1.5;
+  }
+
+  &::-webkit-scrollbar-track {
+    @apply rounded-full;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    @apply bg-gray-200 rounded-full dark:bg-gray-700;
+  }
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #344054;
+}
+
+
+
+@layer utilities {
+  /* For Remove Date Icon */
+  input[type="date"]::-webkit-inner-spin-button,
+  input[type="time"]::-webkit-inner-spin-button,
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    display: none;
+    -webkit-appearance: none;
+  }
+}
+
+/* third-party libraries CSS */
+.apexcharts-legend-text {
+  @apply !text-gray-700 dark:!text-gray-400;
+}
+
+.apexcharts-text {
+  @apply !fill-gray-700 dark:!fill-gray-400;
+}
+
+.apexcharts-tooltip.apexcharts-theme-light {
+  @apply gap-1 !rounded-lg !border-gray-200 p-3 !shadow-theme-sm dark:!border-gray-800 dark:!bg-gray-900;
+}
+
+.apexcharts-legend-text {
+  @apply pl-5! !text-gray-700 dark:!text-gray-400;
+}
+.apexcharts-tooltip-series-group {
+  @apply !p-0;
+}
+.apexcharts-tooltip-y-group {
+  @apply !p-0;
+}
+.apexcharts-tooltip-title {
+  @apply !mb-0 !border-b-0 !bg-transparent !p-0 !text-[10px] !leading-4 !text-gray-800 dark:!text-white/90;
+}
+.apexcharts-tooltip-text {
+  @apply !text-theme-xs !text-gray-700 dark:!text-white/90;
+}
+.apexcharts-tooltip-text-y-value {
+  @apply !font-medium;
+}
+
+.apexcharts-gridline {
+  @apply !stroke-gray-100 dark:!stroke-gray-800;
+}
+
+.flatpickr-wrapper {
+  @apply w-full;
+}
+.flatpickr-calendar {
+  @apply mt-2 !bg-white !rounded-xl !p-5 !border !border-gray-200 dark:!border-gray-800 !text-gray-500 dark:!bg-gray-dark dark:!text-gray-400 dark:!shadow-theme-xl 2xsm:!w-auto;
+}
+
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+  @apply stroke-brand-500;
+}
+.flatpickr-calendar.arrowTop:before,
+.flatpickr-calendar.arrowTop:after {
+  @apply hidden;
+}
+
+.flatpickr-current-month {
+  @apply !p-0;
+}
+.flatpickr-current-month .cur-month,
+.flatpickr-current-month input.cur-year {
+  @apply !h-auto !pt-0 !text-lg !font-medium !text-gray-800 dark:!text-white/90;
+}
+
+.flatpickr-prev-month,
+.flatpickr-next-month {
+  @apply !p-0;
+}
+
+.flatpickr-weekdays {
+  @apply h-auto mt-6 mb-4 !bg-transparent;
+}
+
+.flatpickr-calendar {
+  @apply mt-2 !bg-white !rounded-xl !p-5 !shadow-none !border !border-gray-200 dark:!border-white/5 !text-gray-500 dark:!bg-gray-dark dark:!text-gray-400 dark:!shadow-theme-xl 2xsm:!w-auto;
+}
+
+@media (max-width: 525px) {
+  .flatpickr-calendar.static {
+    left: auto !important;
+    right: 0 !important;
+    margin-right: -30px;
+  }
+}
+
+.flatpickr-weekday {
+  @apply !text-theme-sm !font-medium !text-gray-500 dark:!text-gray-400 !bg-transparent;
+}
+
+.flatpickr-day {
+  @apply !flex !items-center !text-theme-sm !font-medium !text-gray-800 dark:!text-white/90 dark:hover:!border-gray-300 dark:hover:!bg-gray-900;
+}
+.flatpickr-day.nextMonthDay,
+.flatpickr-day.prevMonthDay {
+  @apply !text-gray-400;
+}
+
+.flatpickr-months > .flatpickr-month {
+  background: none !important;
+}
+.flatpickr-month .flatpickr-current-month .flatpickr-monthDropdown-months {
+  background: none !important;
+  appearance: none;
+  background-image: none !important;
+  font-weight: 500;
+}
+.flatpickr-month
+.flatpickr-current-month
+.flatpickr-monthDropdown-months:focus {
+  outline: none !important;
+  border: 0 !important;
+}
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  @apply !top-7 dark:!fill-white dark:!text-white !bg-transparent;
+}
+.flatpickr-months .flatpickr-prev-month.flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month.flatpickr-prev-month {
+  @apply !left-7;
+}
+.flatpickr-months .flatpickr-prev-month.flatpickr-next-month,
+.flatpickr-months .flatpickr-next-month.flatpickr-next-month {
+  @apply !right-7;
+}
+.flatpickr-days {
+  @apply !border-0;
+}
+span.flatpickr-weekday,
+.flatpickr-months .flatpickr-month {
+  @apply dark:!fill-white dark:!text-white !bg-none;
+}
+.flatpickr-innerContainer {
+  @apply !border-b-0;
+}
+.flatpickr-months .flatpickr-month {
+  @apply !bg-none;
+}
+.flatpickr-day.inRange {
+  box-shadow: -5px 0 0 #f9fafb, 5px 0 0 #f9fafb !important;
+  @apply dark:!shadow-datepicker;
+}
+.flatpickr-day.inRange,
+.flatpickr-day.prevMonthDay.inRange,
+.flatpickr-day.nextMonthDay.inRange,
+.flatpickr-day.today.inRange,
+.flatpickr-day.prevMonthDay.today.inRange,
+.flatpickr-day.nextMonthDay.today.inRange,
+.flatpickr-day:hover,
+.flatpickr-day.prevMonthDay:hover,
+.flatpickr-day.nextMonthDay:hover,
+.flatpickr-day:focus,
+.flatpickr-day.prevMonthDay:focus,
+.flatpickr-day.nextMonthDay:focus {
+  @apply !border-gray-50 !bg-gray-50 dark:!border-0 dark:!border-white/5 dark:!bg-white/5;
+}
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.selected,
+.flatpickr-day.endRange {
+  @apply !text-white dark:!text-white;
+}
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.inRange,
+.flatpickr-day.startRange.inRange,
+.flatpickr-day.endRange.inRange,
+.flatpickr-day.selected:focus,
+.flatpickr-day.startRange:focus,
+.flatpickr-day.endRange:focus,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover,
+.flatpickr-day.selected.prevMonthDay,
+.flatpickr-day.startRange.prevMonthDay,
+.flatpickr-day.endRange.prevMonthDay,
+.flatpickr-day.selected.nextMonthDay,
+.flatpickr-day.startRange.nextMonthDay,
+.flatpickr-day.endRange.nextMonthDay {
+  background: #F47920;
+  @apply !border-brand-500 !bg-brand-500 hover:!border-brand-50 hover:!bg-brand-500;
+}
+.flatpickr-day.selected.startRange + .endRange:not(:nth-child(7n + 1)),
+.flatpickr-day.startRange.startRange + .endRange:not(:nth-child(7n + 1)),
+.flatpickr-day.endRange.startRange + .endRange:not(:nth-child(7n + 1)) {
+  box-shadow: -10px 0 0 #F47920;
+}
+
+.flatpickr-months .flatpickr-prev-month svg,
+.flatpickr-months .flatpickr-next-month svg,
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  @apply hover:!fill-none;
+}
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+  fill: none !important;
+}
+
+.flatpickr-calendar.static {
+  @apply right-0;
+}
+
+/* FullCalendar — AIX Google-style calendar */
+.fc {
+  --fc-border-color: #f2f4f7;
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: transparent;
+  --fc-today-bg-color: #fff8f2;
+  --fc-now-indicator-color: #f04438;
+  --fc-highlight-color: rgba(244, 121, 32, 0.08);
+  --fc-list-event-hover-bg-color: #f9fafb;
+  --fc-small-font-size: 0.75rem;
+}
+.dark .fc {
+  --fc-border-color: #1d2939;
+  --fc-today-bg-color: rgba(244, 121, 32, 0.1);
+  --fc-list-event-hover-bg-color: rgba(255, 255, 255, 0.03);
+}
+.fc .fc-view-harness {
+  @apply max-w-full overflow-x-auto custom-scrollbar;
+}
+.fc .fc-timeGridWeek-view,
+.fc .fc-timeGridDay-view {
+  @apply min-w-[640px];
+}
+.fc-theme-standard .fc-scrollgrid {
+  border: none;
+}
+.fc .fc-scrollgrid-section > * {
+  border-right-width: 0;
+}
+.fc-theme-standard th {
+  @apply border-x-0 border-t-0;
+}
+.fc .fc-col-header-cell-cushion {
+  @apply block px-2 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400 no-underline;
+}
+.fc .fc-daygrid-day-frame {
+  @apply min-h-24;
+}
+.fc .fc-daygrid-day-top {
+  @apply flex-row justify-center pt-1.5;
+}
+.fc .fc-daygrid-day-number {
+  @apply flex size-6 items-center justify-center rounded-full p-0 text-xs font-medium text-gray-700 no-underline dark:text-gray-300;
+}
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  @apply bg-brand-500 font-semibold text-white;
+}
+.fc .fc-day-other .fc-daygrid-day-top {
+  opacity: 1;
+}
+.fc .fc-day-other .fc-daygrid-day-number {
+  @apply text-gray-400 dark:text-gray-600;
+}
+.fc .fc-event {
+  @apply cursor-pointer rounded-[4px] text-xs shadow-none focus:shadow-none;
+}
+.fc .fc-daygrid-event {
+  @apply mx-1 mb-0.5 rounded-[4px] border-0;
+}
+.fc .fc-daygrid-dot-event {
+  @apply p-0 transition-colors duration-150;
+}
+.fc .fc-daygrid-dot-event:hover {
+  @apply bg-gray-100 dark:bg-white/[0.06];
+}
+.fc .fc-daygrid-block-event:hover,
+.fc .fc-timegrid-event:hover {
+  filter: brightness(0.94);
+}
+.fc .fc-daygrid-more-link {
+  @apply mx-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-500 no-underline hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.06];
+}
+.fc .fc-timegrid-event {
+  @apply rounded-[4px] border-0 border-l-[3px] border-solid shadow-none;
+}
+.fc .fc-timegrid-event .fc-event-main {
+  @apply p-0;
+}
+.fc .fc-timegrid-slot {
+  height: 2.5rem;
+}
+.fc .fc-timegrid-slot-label-cushion,
+.fc .fc-timegrid-axis-cushion {
+  @apply px-2 text-[11px] font-medium text-gray-400;
+}
+.fc .fc-timegrid-now-indicator-line {
+  border-width: 1.5px 0 0;
+}
+.fc .fc-popover {
+  @apply z-50 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-theme-lg dark:border-gray-800 dark:bg-gray-900;
+}
+.fc .fc-popover-header {
+  @apply bg-transparent px-3 pb-1 pt-2.5 text-xs font-semibold text-gray-700 dark:text-white/90;
+}
+.fc .fc-popover-body {
+  @apply min-w-[200px] px-2 pb-2;
+}
+.fc .fc-list {
+  border: none;
+}
+.fc .fc-list-day-cushion {
+  @apply bg-gray-50 px-4 py-2.5 dark:bg-white/[0.03];
+}
+.fc .fc-list-day-text,
+.fc .fc-list-day-side-text {
+  @apply text-xs font-semibold uppercase tracking-wide text-gray-500 no-underline dark:text-gray-400;
+}
+.fc .fc-list-event td {
+  @apply border-gray-100 px-4 py-3 text-sm dark:border-gray-800;
+}
+.fc .fc-list-event-time {
+  @apply whitespace-nowrap text-gray-500 dark:text-gray-400;
+}
+.fc .fc-list-empty {
+  @apply bg-transparent py-10 text-sm text-gray-500 dark:text-gray-400;
+}
+
+.input-date-icon::-webkit-inner-spin-button,
+.input-date-icon::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  -webkit-appearance: none;
+}
+
+.stocks-slider-outer .swiper-button-next:after,
+.stocks-slider-outer .swiper-button-prev:after {
+  @apply hidden;
+}
+
+.stocks-slider-outer .swiper-button-next,
+.stocks-slider-outer .swiper-button-prev {
+  @apply !static mt-0 h-8 w-9 rounded-lg border dark:hover:bg-white/[0.05] border-gray-200 !text-gray-700 transition hover:bg-gray-100 dark:border-white/[0.03] dark:bg-gray-800 dark:!text-gray-400  dark:hover:!text-white/90;
+}
+
+.stocks-slider-outer .swiper-button-next.swiper-button-disabled,
+.stocks-slider-outer .swiper-button-prev.swiper-button-disabled {
+  @apply bg-white opacity-50 dark:bg-gray-900;
+}
+
+.stocks-slider-outer .swiper-button-next svg,
+.stocks-slider-outer .swiper-button-prev svg {
+  @apply !h-auto !w-auto;
+}
+
+.swiper-button-prev svg,
+.swiper-button-next svg {
+  @apply !h-auto !w-auto;
+}
+
+.carouselTwo .swiper-button-next:after,
+.carouselTwo .swiper-button-prev:after,
+.carouselFour .swiper-button-next:after,
+.carouselFour .swiper-button-prev:after {
+  @apply hidden;
+}
+.carouselTwo .swiper-button-next.swiper-button-disabled,
+.carouselTwo .swiper-button-prev.swiper-button-disabled,
+.carouselFour .swiper-button-next.swiper-button-disabled,
+.carouselFour .swiper-button-prev.swiper-button-disabled {
+  @apply bg-white/60 !opacity-100;
+}
+.carouselTwo .swiper-button-next,
+.carouselTwo .swiper-button-prev,
+.carouselFour .swiper-button-next,
+.carouselFour .swiper-button-prev {
+  @apply h-10 w-10 rounded-lg border-[0.5px] border-white/10 bg-white/90 !text-gray-700 shadow-slider-navigation backdrop-blur-[10px];
+}
+
+.carouselTwo .swiper-button-prev,
+.carouselFour .swiper-button-prev {
+  @apply !left-3 sm:!left-4;
+}
+
+.carouselTwo .swiper-button-next,
+.carouselFour .swiper-button-next {
+  @apply !right-3 sm:!right-4;
+}
+
+.carouselThree .swiper-pagination,
+.carouselFour .swiper-pagination {
+  @apply !bottom-3 !left-1/2 inline-flex !w-auto -translate-x-1/2 items-center gap-1.5 rounded-[40px] border-[0.5px] border-white/10 bg-white/60 px-2 py-1.5 shadow-slider-navigation backdrop-blur-[10px] sm:!bottom-5;
+}
+
+.carouselThree .swiper-pagination-bullet,
+.carouselFour .swiper-pagination-bullet {
+  @apply !m-0 h-2.5 w-2.5 bg-white opacity-100 shadow-theme-xs duration-200 ease-in-out;
+}
+
+.carouselThree .swiper-pagination-bullet-active,
+.carouselFour .swiper-pagination-bullet-active {
+  @apply w-6.5 rounded-xl;
+}
+
+.jvectormap-container {
+  @apply !bg-gray-50 dark:!bg-gray-900;
+}
+.jvectormap-region.jvectormap-element {
+  @apply !fill-gray-300 hover:!fill-brand-500 dark:!fill-gray-700 dark:hover:!fill-brand-500;
+}
+.jvectormap-marker.jvectormap-element {
+  @apply !stroke-gray-200 dark:!stroke-gray-800;
+}
+.jvectormap-tip {
+  @apply !bg-brand-500 !border-none !px-2 !py-1;
+}
+.jvectormap-zoomin,
+.jvectormap-zoomout {
+  @apply !hidden;
+}
+
+.form-check-input:checked ~ span {
+  @apply border-[6px] border-brand-500 bg-brand-500 dark:border-brand-500;
+}
+
+.taskCheckbox:checked ~ .box span {
+  @apply opacity-100 bg-brand-500;
+}
+.taskCheckbox:checked ~ p {
+  @apply text-gray-400 line-through;
+}
+.taskCheckbox:checked ~ .box {
+  @apply border-brand-500 bg-brand-500 dark:border-brand-500;
+}
+
+.task {
+  transition: all 0.2s ease; /* Smooth transition for visual effects */
+}
+
+.task {
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(16, 24, 40, 0.1),
+    0 1px 2px 0 rgba(16, 24, 40, 0.06);
+  opacity: 0.8;
+  cursor: grabbing; /* Changes the cursor to indicate dragging */
+}
+
+/* =========================================================================
+   GEORGE COMPATIBILITY LAYER
+   -------------------------------------------------------------------------
+   George's existing UI addresses colour exclusively through semantic CSS
+   variables in arbitrary utilities — `bg-[var(--color-surface-card)]`,
+   `text-[var(--color-fg-muted)]` — 912 usages across 30 routes. Previously
+   those resolved through `vendor/aix-tokens/`. Here they are re-pointed at
+   the AIX theme palette above, so every existing page adopts the template's
+   colour without a single page edit.
+
+   These live in `:root` / `.dark` rather than `@theme` on purpose: their
+   values swap per theme, and `@theme` tokens are static. Nothing in George
+   uses the bare utility forms (`bg-accent`, `text-fg`) — verified — so no
+   generated utilities are lost by keeping them out of `@theme`.
+
+   This layer is TRANSITIONAL. As each page is converted to template idiom
+   (`bg-white dark:bg-white/[0.03]`, `text-gray-800 dark:text-white/90`) its
+   var usages disappear. When the count reaches zero, delete this block.
+   ========================================================================= */
+:root {
+  /* Brand — AIX orange #F47920 */
+  --color-accent: var(--color-brand-500);
+  --color-accent-hover: var(--color-brand-600);
+  --color-accent-secondary: var(--color-brand-400);
+  --color-accent-deep: var(--color-brand-700);
+  --color-accent-light: var(--color-brand-50);
+  --color-accent-magenta: var(--color-orange-400);
+
+  /* Foreground */
+  --color-fg: var(--color-gray-800);
+  --color-fg-secondary: var(--color-gray-600);
+  --color-fg-muted: var(--color-gray-400);
+  --color-fg-inverse: #ffffff;
+  --color-fg-inverse-secondary: var(--color-gray-400);
+
+  /* Surfaces — page ground is gray-50, cards are white and flat */
+  --color-surface: var(--color-gray-50);
+  --color-surface-2: #ffffff;
+  --color-surface-3: var(--color-gray-100);
+  --color-surface-card: #ffffff;
+  --color-surface-card-dark: var(--color-gray-dark);
+  --color-surface-inverse: var(--color-gray-900);
+  --color-surface-elevated: #ffffff;
+
+  /* Borders */
+  --color-border: var(--color-gray-200);
+  --color-border-subtle: var(--color-gray-100);
+  --color-border-dark: var(--color-gray-800);
+
+  /* Status */
+  --color-success: var(--color-success-500);
+  --color-success-light: var(--color-success-50);
+  --color-error: var(--color-error-500);
+  --color-warning: var(--color-warning-500);
+  --color-info: var(--color-blue-light-500);
+
+  --color-badge-active-bg: var(--color-success-50);
+  --color-badge-active-fg: var(--color-success-700);
+  --color-badge-training-bg: var(--color-warning-50);
+  --color-badge-training-fg: var(--color-warning-700);
+
+  /* Agent identity — must stay in step with AGENT_META in
+     src/components/aix/AgentAvatar.tsx once that lands. */
+  --color-agent-george: var(--color-brand-500);
   --color-agent-jules: #3b82f6;
   --color-agent-pepper: #10b981;
   --color-agent-sam: #0ea5e9;
 
-  --radius-sm: var(--aix-radius-sm);
-  --radius-md: var(--aix-radius-md);
-  --radius-lg: var(--aix-radius-lg);
-  --radius-xl: var(--aix-radius-xl);
+  /* Body font. The template's `@theme` opens with `--font-*: initial`, which
+     erases `--font-sans` — the token George's base layer and every `font-sans`
+     utility resolve through. Re-point it at the AIX UI face (Inter) so George
+     picks up template typography rather than falling back to the browser. */
+  --font-sans: var(--font-outfit);
 
-  --shadow-cta: var(--aix-shadow-cta);
-  --shadow-cta-strong: var(--aix-shadow-cta-strong);
-  --shadow-brand-glow: var(--aix-shadow-brand-glow);
+  /* Not carried by the template's stylesheet, but George relies on it: it is
+     what makes native scrollbars, form controls, autofill and the caret render
+     dark. Dropping it leaves light-styled system chrome on a dark page. */
+  color-scheme: light;
 }
 
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-accent: var(--color-brand-400);
+  --color-accent-hover: var(--color-brand-300);
+  --color-accent-secondary: var(--color-brand-300);
+  --color-accent-deep: var(--color-brand-600);
+  --color-accent-light: color-mix(in oklab, var(--color-brand-500) 15%, transparent);
+  --color-accent-magenta: var(--color-orange-300);
+
+  --color-fg: rgba(255, 255, 255, 0.9);
+  --color-fg-secondary: var(--color-gray-300);
+  --color-fg-muted: var(--color-gray-400);
+  --color-fg-inverse: var(--color-gray-900);
+  --color-fg-inverse-secondary: var(--color-gray-600);
+
+  --color-surface: var(--color-gray-900);
+  --color-surface-2: var(--color-gray-dark);
+  --color-surface-3: var(--color-gray-800);
+  --color-surface-card: var(--color-gray-dark);
+  --color-surface-card-dark: var(--color-gray-dark);
+  --color-surface-inverse: #ffffff;
+  --color-surface-elevated: var(--color-gray-800);
+
+  --color-border: var(--color-gray-800);
+  --color-border-subtle: var(--color-gray-800);
+  --color-border-dark: var(--color-gray-700);
+
+  --color-success: var(--color-success-400);
+  --color-success-light: color-mix(in oklab, var(--color-success-500) 15%, transparent);
+  --color-error: var(--color-error-400);
+  --color-warning: var(--color-warning-400);
+  --color-info: var(--color-blue-light-400);
+
+  --color-badge-active-bg: color-mix(in oklab, var(--color-success-500) 15%, transparent);
+  --color-badge-active-fg: var(--color-success-400);
+  --color-badge-training-bg: color-mix(in oklab, var(--color-warning-500) 15%, transparent);
+  --color-badge-training-fg: var(--color-warning-400);
+}
+
+/* Base text colour + selection, previously supplied by vendor/aix-tokens/base.css.
+   The template's own base layer sets no `color` on html/body — every one of its
+   components declares `text-gray-800 dark:text-white/90` inline instead. George's
+   pages don't all do that, so without this any element that inherits its colour
+   would render near-black on a dark ground. */
 @layer base {
-  :root {
-    color-scheme: light;
+  html,
+  body {
+    color: var(--color-fg);
   }
-
-  .dark {
-    color-scheme: dark;
-  }
-
-  html, body {
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  ::selection {
+    background: var(--color-brand-500);
+    color: #ffffff;
   }
 }
 
+/* George's brand utilities, re-pointed at the AIX palette. Kept because they
+   are used by the sign-in surface and the brand logo lockup. */
 @layer utilities {
   .brand-gradient-vertical {
-    background-image: linear-gradient(180deg, var(--aix-accent) 0%, var(--aix-accent-deep) 100%);
+    background-image: linear-gradient(
+      180deg,
+      var(--color-brand-500) 0%,
+      var(--color-brand-700) 100%
+    );
   }
   .brand-gradient {
-    background-image: linear-gradient(90deg, var(--aix-accent) 0%, var(--aix-accent-secondary) 100%);
+    background-image: linear-gradient(
+      90deg,
+      var(--color-brand-500) 0%,
+      var(--color-brand-400) 100%
+    );
   }
   .brand-text-gradient {
-    background-image: linear-gradient(90deg, var(--aix-accent-secondary) 0%, var(--aix-accent-magenta) 100%);
+    background-image: linear-gradient(
+      90deg,
+      var(--color-brand-400) 0%,
+      var(--color-orange-400) 100%
+    );
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   .brand-glow {
-    box-shadow: var(--aix-shadow-brand-glow);
-  }
-  .glass {
-    background-color: rgba(255, 255, 255, 0.13);
+    box-shadow: 0 0 80px rgba(244, 121, 32, 0.22);
   }
 }

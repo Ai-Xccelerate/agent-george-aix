@@ -130,9 +130,9 @@ export function CommandPopover({
   emptyLabel: string;
 }) {
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 max-h-[260px] overflow-y-auto rounded-[12px] border border-[var(--color-border)] bg-[var(--color-surface-card)] p-1 shadow-lg">
+    <div className="absolute bottom-full left-0 right-0 mb-2 max-h-[260px] overflow-y-auto rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-1 shadow-lg">
       {items.length === 0 ? (
-        <div className="px-3 py-2.5 text-[13px] text-[var(--color-fg-muted)]">
+        <div className="px-3 py-2.5 text-theme-sm text-gray-400 dark:text-gray-500">
           {emptyLabel}
         </div>
       ) : (
@@ -153,10 +153,10 @@ export function CommandPopover({
                   }}
                   onMouseEnter={() => onHover(i)}
                   className={cn(
-                    "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors",
+                    "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-theme-sm transition-colors",
                     active
-                      ? "bg-[var(--color-accent-light)] text-[var(--color-fg)]"
-                      : "text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]",
+                      ? "bg-brand-50 dark:bg-brand-500/15 text-gray-800 dark:text-white/90"
+                      : "text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03]",
                   )}
                 >
                   {it.kind === "slash" ? (
@@ -182,17 +182,17 @@ function SlashRow({ item, active }: { item: SlashItem; active: boolean }) {
         className={cn(
           "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
           active
-            ? "bg-[var(--color-accent)] text-[var(--color-fg-inverse)]"
-            : "bg-[var(--color-surface-2)] text-[var(--color-fg-secondary)]",
+            ? "bg-brand-500 text-white"
+            : "bg-gray-50 dark:bg-white/[0.03] text-gray-500 dark:text-gray-400",
         )}
       >
         <Icon size={13} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-mono text-[12px] font-semibold text-[var(--color-fg)]">
+        <span className="block font-mono text-theme-xs font-semibold text-gray-800 dark:text-white/90">
           {item.name}
         </span>
-        <span className="block text-[11px] text-[var(--color-fg-muted)]">
+        <span className="block text-theme-xs text-gray-400 dark:text-gray-500">
           {item.description}
         </span>
       </span>
@@ -213,17 +213,17 @@ function MentionRow({
         className={cn(
           "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
           active
-            ? "bg-[var(--color-accent)] text-[var(--color-fg-inverse)]"
-            : "bg-[var(--color-accent-light)] text-[var(--color-accent)]",
+            ? "bg-brand-500 text-white"
+            : "bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400",
         )}
       >
         <Building2 size={13} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-[var(--color-fg)]">
+        <span className="block truncate font-medium text-gray-800 dark:text-white/90">
           {item.name}
         </span>
-        <span className="block text-[11px] text-[var(--color-fg-muted)]">
+        <span className="block text-theme-xs text-gray-400 dark:text-gray-500">
           {item.customerKind === "partner" ? "Channel partner" : "End customer"}
           {item.domain ? ` · ${item.domain}` : ""}
         </span>

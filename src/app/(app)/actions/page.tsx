@@ -148,20 +148,20 @@ export default async function ActionsPage({
   return (
     <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <header className="mb-5">
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">AI actions</h1>
-        <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">AI actions</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           What George needs from you across the book — decisions to make and drafts to
           review. Talk it through with George on the right, then resolve or discard.
         </p>
       </header>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-16 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] py-16 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
             <Inbox size={20} />
           </div>
-          <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">All clear</h2>
-          <p className="max-w-[420px] text-sm text-[var(--color-fg-secondary)]">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">All clear</h2>
+          <p className="max-w-[420px] text-sm text-gray-500 dark:text-gray-400">
             No decisions or drafts waiting. George surfaces them here as they come up.
           </p>
         </div>
@@ -182,14 +182,14 @@ export default async function ActionsPage({
           </div>
 
           {/* Column 2 — detail + actions */}
-          <div className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5 xl:min-w-0 xl:flex-1">
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5 xl:min-w-0 xl:flex-1">
             {selected ? <Detail item={selected} approver={approver} canApprove={canApprove} /> : null}
           </div>
 
           {/* Column 3 — contextual chat with George (drag the left edge to resize) */}
           <ResizableChat>
-            <div className="flex items-center gap-1.5 border-b border-[var(--color-border-subtle)] px-4 py-3 pl-5 text-[13px] font-semibold text-[var(--color-fg)]">
-              <Sparkles size={14} className="text-[var(--color-accent)]" />
+            <div className="flex items-center gap-1.5 border-b border-gray-200 dark:border-gray-800 px-4 py-3 pl-5 text-theme-sm font-semibold text-gray-800 dark:text-white/90">
+              <Sparkles size={14} className="text-brand-500 dark:text-brand-400" />
               Chat with George
             </div>
             <div className="min-h-0 flex-1">
@@ -250,21 +250,21 @@ function Detail({
       <div>
         <div className="flex flex-wrap items-center gap-2">
           {item.kind === "decision" && item.urgency === "high" && (
-            <span className="rounded-full bg-[var(--color-error)]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--color-error)]">
+            <span className="rounded-full bg-error-500/15 px-1.5 py-0.5 text-theme-xs font-medium uppercase tracking-wide text-error-500">
               high
             </span>
           )}
           {item.customerName && (
             <Link
               href={item.customerId ? `/customers/${item.customerId}` : "#"}
-              className="inline-flex items-center gap-1 rounded-full bg-[var(--color-accent-light)] px-2.5 py-0.5 text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
+              className="inline-flex items-center gap-1 rounded-full bg-brand-50 dark:bg-brand-500/15 px-2.5 py-0.5 text-theme-xs font-semibold text-brand-500 dark:text-brand-400 hover:underline"
             >
               {item.customerName}
             </Link>
           )}
         </div>
-        <h2 className="mt-1.5 text-[16px] font-semibold text-[var(--color-fg)]">{item.title}</h2>
-        <p className="mt-0.5 text-[12px] text-[var(--color-fg-muted)]">
+        <h2 className="mt-1.5 text-base font-semibold text-gray-800 dark:text-white/90">{item.title}</h2>
+        <p className="mt-0.5 text-theme-xs text-gray-400 dark:text-gray-500">
           {item.kind === "decision" ? "Decision for you" : "Draft awaiting review"} ·{" "}
           {fmt(item.createdAt)}
         </p>
@@ -274,14 +274,14 @@ function Detail({
         <>
           {item.detail && (
             <Field label="What George needs">
-              <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[var(--color-fg-secondary)]">
+              <p className="whitespace-pre-wrap text-theme-sm leading-relaxed text-gray-500 dark:text-gray-400">
                 {item.detail}
               </p>
             </Field>
           )}
           {item.recommendation && (
             <Field label="George's recommendation">
-              <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[var(--color-fg-secondary)]">
+              <p className="whitespace-pre-wrap text-theme-sm leading-relaxed text-gray-500 dark:text-gray-400">
                 {item.recommendation}
               </p>
             </Field>
@@ -291,14 +291,14 @@ function Detail({
         <>
           {item.to && item.to.length > 0 && (
             <Field label="To">
-              <p className="text-[13px] text-[var(--color-fg-secondary)]">{item.to.join(", ")}</p>
+              <p className="text-theme-sm text-gray-500 dark:text-gray-400">{item.to.join(", ")}</p>
             </Field>
           )}
           {item.bodyHtml && (
             <Field label="Draft">
               <SafeHtml
                 html={item.bodyHtml}
-                className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3 text-[13px] leading-relaxed text-[var(--color-fg-secondary)]"
+                className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3 text-theme-sm leading-relaxed text-gray-500 dark:text-gray-400"
               />
             </Field>
           )}
@@ -306,19 +306,19 @@ function Detail({
       )}
 
       <Field label="Who approves">
-        <p className="text-[13px] text-[var(--color-fg-secondary)]">
+        <p className="text-theme-sm text-gray-500 dark:text-gray-400">
           {approver ?? "No manager set — assign one in Settings → AIX George."}
         </p>
       </Field>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border-subtle)] pt-4">
+      <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 dark:border-gray-800 pt-4">
         {item.kind === "decision" && item.escalationId && canApprove && (
           <>
             <form action={resolveEscalationAction}>
               <input type="hidden" name="id" value={item.escalationId} />
               <button
                 type="submit"
-                className="inline-flex h-9 items-center rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
+                className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900"
               >
                 Mark resolved
               </button>
@@ -327,7 +327,7 @@ function Detail({
               <input type="hidden" name="id" value={item.escalationId} />
               <button
                 type="submit"
-                className="inline-flex h-9 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg-secondary)] hover:border-[var(--color-error)]/40 hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)]"
+                className="inline-flex h-9 items-center rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-sm font-medium text-gray-500 dark:text-gray-400 hover:border-error-500/40 hover:bg-error-500/10 hover:text-error-500"
               >
                 Discard
               </button>
@@ -335,7 +335,7 @@ function Detail({
           </>
         )}
         {item.kind === "decision" && item.escalationId && !canApprove && (
-          <span className="text-[12px] text-[var(--color-fg-muted)]">
+          <span className="text-theme-xs text-gray-400 dark:text-gray-500">
             Resolving or discarding is handled by the assigned CSM or owner
             {approver ? ` (${approver})` : ""}. You can still discuss it with George on the right.
           </span>
@@ -343,7 +343,7 @@ function Detail({
         {item.customerId && (
           <Link
             href={`/customers/${item.customerId}`}
-            className="inline-flex h-9 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+            className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90"
           >
             Open partner
           </Link>
@@ -365,14 +365,14 @@ function ListGroup({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
-      <div className="flex items-center gap-2 border-b border-[var(--color-border-subtle)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
+    <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
+      <div className="flex items-center gap-2 border-b border-gray-200 dark:border-gray-800 px-3 py-2.5 text-theme-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
         {icon}
         {label}
-        <span className="text-[var(--color-fg-muted)]">({count})</span>
+        <span className="text-gray-400 dark:text-gray-500">({count})</span>
       </div>
       {count === 0 ? (
-        <p className="px-3 py-2.5 text-[12px] text-[var(--color-fg-muted)]">None.</p>
+        <p className="px-3 py-2.5 text-theme-xs text-gray-400 dark:text-gray-500">None.</p>
       ) : (
         <ul>{children}</ul>
       )}
@@ -385,28 +385,28 @@ function ListRow({ item, active }: { item: Item; active: boolean }) {
     <li>
       <Link
         href={`/actions?item=${encodeURIComponent(item.key)}`}
-        className={`block border-l-2 border-b border-[var(--color-border-subtle)] px-3 py-2.5 last:border-b-0 ${
+        className={`block border-l-2 border-b border-gray-200 dark:border-gray-800 px-3 py-2.5 last:border-b-0 ${
           active
-            ? "border-l-[var(--color-accent)] bg-[var(--color-surface-2)]"
-            : "border-l-transparent hover:bg-[var(--color-surface-3)]"
+            ? "border-l-brand-500 bg-gray-50 dark:bg-white/[0.03]"
+            : "border-l-transparent hover:bg-gray-100 dark:hover:bg-gray-800"
         }`}
       >
         <div className="flex items-center gap-2">
           {item.kind === "decision" && item.urgency === "high" && (
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-error)]" />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-error-500" />
           )}
-          <span className="truncate text-[13px] font-medium text-[var(--color-fg)]">
+          <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
             {item.title}
           </span>
         </div>
         <div className="mt-1 flex items-center gap-2">
           {item.customerName && (
-            <span className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-[var(--color-accent-light)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-accent)]">
+            <span className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-brand-50 dark:bg-brand-500/15 px-2 py-0.5 text-theme-xs font-medium text-brand-500 dark:text-brand-400">
               {item.customerName}
             </span>
           )}
           {item.sub && (
-            <span className="truncate text-[12px] text-[var(--color-fg-muted)]">{item.sub}</span>
+            <span className="truncate text-theme-xs text-gray-400 dark:text-gray-500">{item.sub}</span>
           )}
         </div>
       </Link>
@@ -417,7 +417,7 @@ function ListRow({ item, active }: { item: Item; active: boolean }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-fg-muted)]">
+      <div className="text-theme-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
         {label}
       </div>
       {children}

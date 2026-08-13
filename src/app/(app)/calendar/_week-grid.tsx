@@ -131,28 +131,28 @@ export function WeekGrid({
   const gridCols: React.CSSProperties = { gridTemplateColumns: `56px repeat(${DAYS}, 1fr)` };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
       {/* One scroll container: sticky header + all-day + timeline. Keeping the
           header inside the same scroller means its columns always match the
           body's width, so nothing drifts when the scrollbar appears. */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-20 bg-[var(--color-surface-card)]">
+        <div className="sticky top-0 z-20 bg-white dark:bg-white/[0.03]">
           {/* Day headers */}
-          <div className="grid border-b border-[var(--color-border)]" style={gridCols}>
-            <div className="border-r border-[var(--color-border-subtle)]" />
+          <div className="grid border-b border-gray-200 dark:border-gray-800" style={gridCols}>
+            <div className="border-r border-gray-200 dark:border-gray-800" />
             {columns.map((c) => {
               const isToday = c.key === todayKey;
               return (
                 <div
                   key={c.key}
-                  className="border-r border-[var(--color-border-subtle)] px-2 py-2 text-center last:border-r-0"
+                  className="border-r border-gray-200 dark:border-gray-800 px-2 py-2 text-center last:border-r-0"
                 >
-                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">
+                  <div className="text-theme-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
                     {c.weekday}
                   </div>
                   <div
-                    className={`text-[13px] font-semibold ${
-                      isToday ? "text-[var(--color-accent)]" : "text-[var(--color-fg)]"
+                    className={`text-theme-sm font-semibold ${
+                      isToday ? "text-brand-500 dark:text-brand-400" : "text-gray-800 dark:text-white/90"
                     }`}
                   >
                     {c.label}
@@ -164,18 +164,18 @@ export function WeekGrid({
 
           {/* All-day band */}
           {hasAllDay && (
-            <div className="grid border-b border-[var(--color-border-subtle)]" style={gridCols}>
-              <div className="border-r border-[var(--color-border-subtle)] px-2 py-1.5 text-right text-[10px] uppercase tracking-wide text-[var(--color-fg-muted)]">
+            <div className="grid border-b border-gray-200 dark:border-gray-800" style={gridCols}>
+              <div className="border-r border-gray-200 dark:border-gray-800 px-2 py-1.5 text-right text-theme-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
                 All day
               </div>
               {columns.map((c, i) => (
-                <div key={c.key} className="space-y-1 border-r border-[var(--color-border-subtle)] p-1 last:border-r-0">
+                <div key={c.key} className="space-y-1 border-r border-gray-200 dark:border-gray-800 p-1 last:border-r-0">
                   {allDayByCol[i].map((e) => (
                     <button
                       key={e.external_id}
                       type="button"
                       onClick={() => setSelected(e)}
-                      className="block w-full truncate rounded bg-[var(--color-accent-light)] px-1.5 py-0.5 text-left text-[11px] text-[var(--color-accent)] hover:brightness-95"
+                      className="block w-full truncate rounded bg-brand-50 dark:bg-brand-500/15 px-1.5 py-0.5 text-left text-theme-xs text-brand-500 dark:text-brand-400 hover:brightness-95"
                       title={e.subject ?? ""}
                     >
                       {e.subject || "(no title)"}
@@ -190,11 +190,11 @@ export function WeekGrid({
         {/* Timeline */}
         <div className="grid" style={gridCols}>
           {/* Hour gutter */}
-          <div className="border-r border-[var(--color-border-subtle)]">
+          <div className="border-r border-gray-200 dark:border-gray-800">
             {hours.map((h) => (
               <div
                 key={h}
-                className="relative pr-2 text-right text-[10px] text-[var(--color-fg-muted)]"
+                className="relative pr-2 text-right text-theme-xs text-gray-400 dark:text-gray-500"
                 style={{ height: PX_PER_HOUR }}
               >
                 <span className="absolute -top-1.5 right-2">{hourLabel(h)}</span>
@@ -208,23 +208,23 @@ export function WeekGrid({
             return (
               <div
                 key={c.key}
-                className="relative border-r border-[var(--color-border-subtle)] last:border-r-0"
+                className="relative border-r border-gray-200 dark:border-gray-800 last:border-r-0"
                 style={{ height: 24 * PX_PER_HOUR }}
               >
                 {hours.map((h) => (
                   <div
                     key={h}
-                    className="border-b border-[var(--color-border-subtle)]"
+                    className="border-b border-gray-200 dark:border-gray-800"
                     style={{ height: PX_PER_HOUR }}
                   />
                 ))}
 
                 {isToday && (
                   <div
-                    className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-[var(--color-error)]"
+                    className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-error-500"
                     style={{ top: (nowMinutes / 60) * PX_PER_HOUR }}
                   >
-                    <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-[var(--color-error)]" />
+                    <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-error-500" />
                   </div>
                 )}
 
@@ -283,19 +283,19 @@ function EventBlock({
         {e.online_meeting_url && <Video size={9} className="shrink-0" />}
         <span className="truncate">{e.subject || "(no title)"}</span>
       </div>
-      <div className="text-[10px] opacity-80">{minutesLabel(start)}</div>
+      <div className="text-theme-xs opacity-80">{minutesLabel(start)}</div>
       {e.location && height > 42 && (
-        <div className="mt-0.5 flex items-center gap-1 text-[10px] opacity-70">
+        <div className="mt-0.5 flex items-center gap-1 text-theme-xs opacity-70">
           <MapPin size={8} className="shrink-0" />
           <span className="truncate">{e.location}</span>
         </div>
       )}
     </>
   );
-  const className = `absolute overflow-hidden rounded-md border px-1.5 py-1 text-[11px] leading-tight ${
+  const className = `absolute overflow-hidden rounded-md border px-1.5 py-1 text-theme-xs leading-tight ${
     e.is_cancelled
-      ? "border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-fg-muted)] line-through"
-      : "border-[var(--color-accent)]/30 bg-[var(--color-accent-light)] text-[var(--color-accent)]"
+      ? "border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-gray-500 line-through"
+      : "border-brand-500 dark:border-brand-400/30 bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400"
   }`;
   const style: React.CSSProperties = {
     top,
@@ -422,11 +422,11 @@ function EventModal({ e, tz, onClose }: { e: CalEvent; tz: string; onClose: () =
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
-      <div className="relative z-10 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface-card)] shadow-xl">
-        <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border-subtle)] px-5 py-4">
+      <div className="relative z-10 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-gray-200 dark:border-gray-800 px-5 py-4">
           <div className="min-w-0">
-            <h2 className="text-[16px] font-semibold text-[var(--color-fg)]">{e.subject || "(no title)"}</h2>
-            <p className="mt-0.5 text-[13px] text-[var(--color-fg-secondary)]">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">{e.subject || "(no title)"}</h2>
+            <p className="mt-0.5 text-theme-sm text-gray-500 dark:text-gray-400">
               {dateLabel}
               {timeLabel ? ` · ${timeLabel}` : ""}
             </p>
@@ -435,15 +435,15 @@ function EventModal({ e, tz, onClose }: { e: CalEvent; tz: string; onClose: () =
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.03] hover:text-gray-800 dark:hover:text-white/90"
           >
             <X size={16} />
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-4 text-[13px]">
+        <div className="space-y-4 px-5 py-4 text-theme-sm">
           {response && (
-            <span className="inline-flex items-center rounded-full bg-[var(--color-accent-light)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-accent)]">
+            <span className="inline-flex items-center rounded-full bg-brand-50 dark:bg-brand-500/15 px-2.5 py-1 text-theme-xs font-medium text-brand-500 dark:text-brand-400">
               {response}
             </span>
           )}
@@ -451,52 +451,52 @@ function EventModal({ e, tz, onClose }: { e: CalEvent; tz: string; onClose: () =
           {/* Meeting link */}
           {joinUrl ? (
             <div className="flex items-center gap-2">
-              <Video size={15} className="shrink-0 text-[var(--color-fg-muted)]" />
+              <Video size={15} className="shrink-0 text-gray-400 dark:text-gray-500" />
               <a
                 href={joinUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-[var(--color-fg-inverse)] hover:brightness-110"
+                className="inline-flex items-center rounded-md bg-brand-500 px-3 py-1.5 text-theme-sm font-medium text-white hover:brightness-110"
               >
                 {isTeams ? "Join Teams meeting" : "Join online meeting"}
               </a>
             </div>
           ) : (
-            <p className="text-[var(--color-fg-muted)]">No online meeting link.</p>
+            <p className="text-gray-400 dark:text-gray-500">No online meeting link.</p>
           )}
 
           {e.location && (
             <div className="flex items-start gap-2">
-              <MapPin size={15} className="mt-0.5 shrink-0 text-[var(--color-fg-muted)]" />
-              <span className="text-[var(--color-fg)]">{e.location}</span>
+              <MapPin size={15} className="mt-0.5 shrink-0 text-gray-400 dark:text-gray-500" />
+              <span className="text-gray-800 dark:text-white/90">{e.location}</span>
             </div>
           )}
 
           {/* Organizer + participants */}
           <div>
-            <div className="mb-1.5 flex items-center gap-2 text-[12px] font-medium text-[var(--color-fg-secondary)]">
+            <div className="mb-1.5 flex items-center gap-2 text-theme-xs font-medium text-gray-500 dark:text-gray-400">
               <Users size={14} className="shrink-0" />
               Participants
             </div>
             <ul className="space-y-1">
               {(e.organizer_name || e.organizer_address) && (
                 <li className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-[var(--color-fg)]">
+                  <span className="min-w-0 truncate text-gray-800 dark:text-white/90">
                     {e.organizer_name || e.organizer_address}
                   </span>
-                  <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">Organizer</span>
+                  <span className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500">Organizer</span>
                 </li>
               )}
               {attendees.map((a) => (
                 <li key={a.address || a.name} className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-[var(--color-fg)]">{a.name}</span>
-                  <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">
+                  <span className="min-w-0 truncate text-gray-800 dark:text-white/90">{a.name}</span>
+                  <span className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500">
                     {responseLabel(a.response ?? null) ?? (a.optional ? "Optional" : "")}
                   </span>
                 </li>
               ))}
               {attendees.length === 0 && !e.organizer_address && (
-                <li className="text-[var(--color-fg-muted)]">No participants listed.</li>
+                <li className="text-gray-400 dark:text-gray-500">No participants listed.</li>
               )}
             </ul>
           </div>
@@ -504,8 +504,8 @@ function EventModal({ e, tz, onClose }: { e: CalEvent; tz: string; onClose: () =
           {/* Agenda */}
           {e.body_preview && (
             <div>
-              <div className="mb-1 text-[12px] font-medium text-[var(--color-fg-secondary)]">Agenda</div>
-              <p className="whitespace-pre-wrap text-[var(--color-fg)]">{e.body_preview}</p>
+              <div className="mb-1 text-theme-xs font-medium text-gray-500 dark:text-gray-400">Agenda</div>
+              <p className="whitespace-pre-wrap text-gray-800 dark:text-white/90">{e.body_preview}</p>
             </div>
           )}
 
@@ -514,7 +514,7 @@ function EventModal({ e, tz, onClose }: { e: CalEvent; tz: string; onClose: () =
               href={webLink}
               target="_blank"
               rel="noreferrer noopener"
-              className="inline-block text-[12px] text-[var(--color-accent)] hover:underline"
+              className="inline-block text-theme-xs text-brand-500 dark:text-brand-400 hover:underline"
             >
               Open in Outlook
             </a>

@@ -14,22 +14,22 @@ export function CoreAccessDenied({
   const unavailable = outcome.kind === "unavailable";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface)] px-6">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 px-6">
       <div className="w-full max-w-md space-y-5 text-center">
-        <h1 className="text-2xl font-bold text-[var(--color-fg)]">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
           {unavailable ? "George is unavailable" : "You don't have access to George"}
         </h1>
-        <p className="text-sm text-[var(--color-fg-secondary)]">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           {unavailable
             ? "We couldn't confirm your access with AIX Core right now. Please try again in a moment."
             : "Ask your org admin to grant you access to George from the AIX Core dashboard."}
         </p>
         {outcome.reason && (
-          <p className="text-[12px] text-[var(--color-fg-muted)]">reason: {outcome.reason}</p>
+          <p className="text-theme-xs text-gray-400 dark:text-gray-500">reason: {outcome.reason}</p>
         )}
         <a
           href={coreUrl}
-          className="inline-flex h-11 items-center justify-center rounded-md bg-[var(--color-accent)] px-6 text-sm font-medium text-white hover:bg-[var(--color-accent-hover)]"
+          className="h-11 px-6 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900"
         >
           Open AIX Core
         </a>
