@@ -9,6 +9,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createParchmentClient,
   isParchmentEnabled,
   parchment,
   parchmentConfig,
@@ -77,16 +78,51 @@ describe("configuration", () => {
     expect(parchmentConfig()?.base).toBe("https://parchment.example.test");
   });
 
-  it("returns a clear error instead of calling out when unconfigured", async () => {
+  it("returns a clear error instead of calling out when nothing is connected", async () => {
     delete process.env.PARCHMENT_API_KEY;
     const spy = mockFetch({ json: {} });
 
     const res = await parchment.query({ query: "refund policy" });
 
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.error).toMatch(/not configured/i);
+    // The message has to tell a person what to do about it, not just report a
+    // missing variable — most readers of this error are admins in the UI, not
+    // engineers reading a deploy log.
+    if (!res.ok) expect(res.error).toMatch(/Settings → Knowledge/);
     // The important half: no request was attempted.
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("per-org clients", () => {
+  it("uses the passed credentials, not the environment's", async () => {
+    // The multi-tenant requirement: two orgs on one deployment must be able to
+    // reach two different workspaces.
+    const spy = mockFetch({ json: { query: "x", count: 0, results: [] } });
+    const client = createParchmentClient({
+      base: "https://org-b.parchment.test",
+      apiKey: "pcm_org_b",
+    });
+
+    await client.query({ query: "a" });
+
+    const [url, init] = spy.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toBe("https://org-b.parchment.test/query");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer pcm_org_b");
+  });
+
+  it("works even when the environment has no configuration at all", async () => {
+    delete process.env.PARCHMENT_API_BASE;
+    delete process.env.PARCHMENT_API_KEY;
+    const spy = mockFetch({ json: { status: "ok" } });
+
+    const res = await createParchmentClient({
+      base: "https://org-c.parchment.test",
+      apiKey: "pcm_org_c",
+    }).health();
+
+    expect(res.ok).toBe(true);
+    expect(spy).toHaveBeenCalledOnce();
   });
 });
 

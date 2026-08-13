@@ -117,13 +117,20 @@ type RequestOpts = {
   params?: Record<string, string | number | boolean | null | undefined>;
 };
 
-async function request<T>(path: string, opts: RequestOpts = {}): Promise<ParchmentResult<T>> {
-  const cfg = parchmentConfig();
+async function request<T>(
+  path: string,
+  opts: RequestOpts = {},
+  explicit?: ParchmentConfig,
+): Promise<ParchmentResult<T>> {
+  // An explicit config is the normal case: it comes from the org's own saved
+  // connection. Falling back to env keeps scripts and a deployment-wide default
+  // working, and is how verify-parchment.ts runs.
+  const cfg = explicit ?? parchmentConfig();
   if (!cfg) {
     return {
       ok: false,
       error:
-        "Parchment is not configured — set PARCHMENT_API_BASE and PARCHMENT_API_KEY to connect an organisational knowledge base.",
+        "No Parchment knowledge hub is connected. Connect one in Settings → Knowledge, or set PARCHMENT_API_BASE and PARCHMENT_API_KEY for a deployment-wide default.",
     };
   }
 
@@ -186,10 +193,22 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<Parchme
   }
 }
 
-export const parchment = {
+/**
+ * Build a client bound to one workspace's credentials.
+ *
+ * Each org connects its own hub, so config is a parameter rather than ambient
+ * state. `parchment` below is the same surface bound to the environment default,
+ * kept for scripts and single-tenant deployments.
+ */
+export function createParchmentClient(cfg: ParchmentConfig) {
+  return makeApi(cfg);
+}
+
+function makeApi(cfg?: ParchmentConfig) {
+  return {
   /** Liveness — used by the Settings panel to show connection state. */
   health(): Promise<ParchmentResult<{ status: string; database?: string }>> {
-    return request("/health", { timeoutMs: 6_000 });
+    return request("/health", { timeoutMs: 6_000 }, cfg);
   },
 
   /**
@@ -213,38 +232,38 @@ export const parchment = {
         business_objective: args.business_objective ?? null,
         iterative: args.iterative ?? false,
       },
-    });
+    }, cfg);
   },
 
   /** One section plus its ancestors — the follow-up to a search hit. */
   section(sectionId: string): Promise<ParchmentResult<ParchmentSection>> {
-    return request(`/sections/${encodeURIComponent(sectionId)}`);
+    return request(`/sections/${encodeURIComponent(sectionId)}`, {}, cfg);
   },
 
   sections(args: { business_function?: string; limit?: number } = {}): Promise<
     ParchmentResult<ParchmentSection[]>
   > {
-    return request("/sections", { params: { ...args } });
+    return request("/sections", { params: { ...args } }, cfg);
   },
 
   documents(): Promise<ParchmentResult<ParchmentDocument[]>> {
-    return request("/documents");
+    return request("/documents", {}, cfg);
   },
 
   documentStructure(sourceFile: string): Promise<ParchmentResult<unknown>> {
-    return request("/documents/structure", { params: { source_file: sourceFile } });
+    return request("/documents/structure", { params: { source_file: sourceFile } }, cfg);
   },
 
   taxonomy(): Promise<ParchmentResult<unknown>> {
-    return request("/taxonomy");
+    return request("/taxonomy", {}, cfg);
   },
 
   objectives(): Promise<ParchmentResult<unknown>> {
-    return request("/objectives");
+    return request("/objectives", {}, cfg);
   },
 
   overview(): Promise<ParchmentResult<unknown>> {
-    return request("/knowledge/overview");
+    return request("/knowledge/overview", {}, cfg);
   },
 
   /**
@@ -253,7 +272,7 @@ export const parchment = {
    * key; an agent key gets 403.
    */
   ingest(args: { source_file: string; content: string }): Promise<ParchmentResult<ParchmentJob>> {
-    return request("/ingest", { method: "POST", body: args, timeoutMs: WRITE_TIMEOUT_MS });
+    return request("/ingest", { method: "POST", body: args, timeoutMs: WRITE_TIMEOUT_MS }, cfg);
   },
 
   /** Upload a PDF/docx/xlsx/pptx/txt. Same async job flow as ingest(). */
@@ -264,19 +283,30 @@ export const parchment = {
       method: "POST",
       formData: fd,
       timeoutMs: WRITE_TIMEOUT_MS,
-    });
+    }, cfg);
   },
 
   /** Poll an ingestion job until status is done or failed. */
   status(jobId: string): Promise<ParchmentResult<ParchmentJob>> {
-    return request(`/status/${encodeURIComponent(jobId)}`);
+    return request(`/status/${encodeURIComponent(jobId)}`, {}, cfg);
   },
 
   /** Endpoint + current tool list, per Parchment's discovery endpoint. */
   mcpInfo(): Promise<ParchmentResult<unknown>> {
-    return request("/mcp-info");
+    return request("/mcp-info", {}, cfg);
   },
-};
+  };
+}
+
+/**
+ * Environment-default client. Used by scripts and as a deployment-wide fallback
+ * when an org has not connected its own hub. Resolves env at call time, so
+ * setting the variables does not require a restart of anything holding this
+ * reference.
+ */
+export const parchment = makeApi();
+
+export type ParchmentClient = ReturnType<typeof createParchmentClient>;
 
 /**
  * Flatten a query result into the shape George's `search_knowledge` tool already

@@ -18,11 +18,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildComposioTools } from "./composio-tools";
 import { embedText, hasEmbeddingProvider } from "@/lib/knowledge/embeddings";
-import {
-  isParchmentEnabled,
-  parchment,
-  toKnowledgeHits,
-} from "@/lib/parchment/client";
+import { toKnowledgeHits } from "@/lib/parchment/client";
+import { parchmentForOrg } from "@/lib/parchment/connection";
 import Anthropic from "@anthropic-ai/sdk";
 
 export type GeorgeToolCtx = {
@@ -650,13 +647,18 @@ export function buildGeorgeMcpServer(
     async ({ query, limit }) => {
       const k = limit ?? 5;
 
-      // Preferred path when an org knowledge base is connected: Parchment
-      // returns whole sections with their ancestor trail, not 800-char chunks,
-      // so a hit carries the provenance needed to cite where an answer came
-      // from. Supplemental-only policy is unchanged — core playbooks live in
+      // Preferred path when this ORG has connected a knowledge hub. Resolved per
+      // org, never from ambient config: two orgs on one deployment point at two
+      // different workspaces, so reading a process-wide default here could serve
+      // one tenant another tenant's knowledge.
+      //
+      // Parchment returns whole sections with their ancestor trail, not 800-char
+      // chunks, so a hit carries the provenance needed to cite where an answer
+      // came from. Supplemental-only policy is unchanged — core playbooks live in
       // the repo and are fetched with read_knowledge_doc, never searched here.
-      if (isParchmentEnabled()) {
-        const res = await parchment.query({ query, limit: k });
+      const hub = await parchmentForOrg(db, orgId);
+      if (hub) {
+        const res = await hub.query({ query, limit: k });
         if (res.ok) {
           const hits = toKnowledgeHits(res.data);
           return ok({
@@ -669,11 +671,15 @@ export function buildGeorgeMcpServer(
           });
         }
         // Fail open, exactly as the vector path falls through to ilike: a
-        // knowledge base being unreachable should degrade the answer, never
-        // break the turn. Logged so an operator can see it happened at all,
-        // because a silent downgrade to weaker local search is the kind of
-        // thing that goes unnoticed for weeks.
-        console.warn("[search_knowledge] Parchment unavailable, falling back to local:", res.error);
+        // knowledge hub being unreachable should degrade the answer, never break
+        // the turn. Logged so an operator can see it happened at all, because a
+        // silent downgrade to weaker local search is the kind of thing that goes
+        // unnoticed for weeks. The Settings panel surfaces the same failure to
+        // the admin who can fix it.
+        console.warn(
+          `[search_knowledge] Parchment unavailable for org ${orgId}, falling back to local:`,
+          res.error,
+        );
       }
 
       // Preferred path: pgvector cosine similarity via the

@@ -13,7 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CHUNK_OVERLAP, CHUNK_TARGET, chunkMarkdown } from "./chunk";
 import { embedBatch, hasEmbeddingProvider } from "./embeddings";
 import { serializeFrontmatter } from "./frontmatter";
-import { isParchmentEnabled, parchment } from "@/lib/parchment/client";
+import { parchmentForOrg } from "@/lib/parchment/connection";
 
 function toVectorLiteral(v: number[]): string {
   return `[${v.join(",")}]`;
@@ -50,13 +50,16 @@ export type ParchmentMirror =
  * replayed rather than silently lost.
  */
 async function mirrorToParchment(
+  admin: SupabaseClient,
+  orgId: string,
   path: string,
   content: string,
 ): Promise<ParchmentMirror> {
-  if (!isParchmentEnabled()) {
-    return { mirrored: false, reason: "Parchment not configured" };
-  }
-  const res = await parchment.ingest({ source_file: path, content });
+  // Resolved per org: an approved concept must go to the hub THIS org connected,
+  // never to a deployment default belonging to someone else.
+  const hub = await parchmentForOrg(admin, orgId);
+  if (!hub) return { mirrored: false, reason: "No Parchment hub connected" };
+  const res = await hub.ingest({ source_file: path, content });
   if (!res.ok) return { mirrored: false, reason: res.error };
   return { mirrored: true, jobId: res.data.job_id };
 }
@@ -163,8 +166,8 @@ export async function publishProposal(
   // Hand the approved concept to Parchment, if connected. Deliberately after the
   // local publish succeeded: George's own knowledge base is the thing that must
   // be correct, and the mirror is additive.
-  const mirror = await mirrorToParchment(prop.path, fullDoc);
-  if (!mirror.mirrored && isParchmentEnabled()) {
+  const mirror = await mirrorToParchment(admin, prop.org_id, prop.path, fullDoc);
+  if (!mirror.mirrored && mirror.reason !== "No Parchment hub connected") {
     console.warn(`[knowledge] Parchment mirror failed for ${prop.path}: ${mirror.reason}`);
   }
 
