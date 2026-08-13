@@ -1,8 +1,17 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BookOpen, FileText, Plus, Sparkles, Upload } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import ParchmentPanel from "./_parchment-panel";
+
+/** Keeps the page's layout stable while the live Parchment check resolves. */
+function ParchmentPanelSkeleton() {
+  return (
+    <div className="h-[132px] animate-pulse rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-subtle)]" />
+  );
+}
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +83,14 @@ export default async function KnowledgePage() {
           </Link>
         </div>
       </header>
+
+      {/* Where organisational knowledge actually lives. Rendered above the doc
+          lists because "which knowledge base is George searching?" is the first
+          thing an admin needs to know before reading the lists below. Suspended
+          so a slow Parchment never delays the rest of the page. */}
+      <Suspense fallback={<ParchmentPanelSkeleton />}>
+        <ParchmentPanel />
+      </Suspense>
 
       {rows.length === 0 ? (
         <EmptyState />
