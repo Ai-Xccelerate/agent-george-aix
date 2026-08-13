@@ -381,7 +381,7 @@ export default async function CustomerPage(
     <div className="w-full space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <Link
         href="/customers"
-        className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"
+        className="inline-flex items-center gap-1.5 text-theme-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white/90"
       >
         <ArrowLeft size={14} />
         Partners
@@ -406,9 +406,9 @@ export default async function CustomerPage(
           {openDecisions.length > 0 && (
             <Section
               title="Needs you"
-              icon={<Bell size={14} className="text-[var(--color-accent)]" />}
+              icon={<Bell size={14} className="text-brand-500 dark:text-brand-400" />}
               right={
-                <span className="text-[12px] text-[var(--color-fg-muted)]">
+                <span className="text-theme-xs text-gray-400 dark:text-gray-500">
                   {openDecisions.length}
                 </span>
               }
@@ -417,7 +417,7 @@ export default async function CustomerPage(
                 {openDecisions.map((d) => (
                   <li
                     key={d.id}
-                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-[var(--color-surface-2)]"
+                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
                   >
                     <Link
                       href={d.session_id ? `/chat/${d.session_id}` : "/actions"}
@@ -425,11 +425,11 @@ export default async function CustomerPage(
                     >
                       <div className="flex items-center gap-2">
                         {d.urgency === "high" && (
-                          <span className="shrink-0 rounded-full bg-[var(--color-error)]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--color-error)]">
+                          <span className="shrink-0 rounded-full bg-error-500/15 px-1.5 py-0.5 text-theme-xs font-medium uppercase tracking-wide text-error-500">
                             high
                           </span>
                         )}
-                        <span className="truncate text-[13px] font-medium text-[var(--color-fg)]">
+                        <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
                           {d.title}
                         </span>
                       </div>
@@ -438,7 +438,7 @@ export default async function CustomerPage(
                       <input type="hidden" name="id" value={d.id} />
                       <button
                         type="submit"
-                        className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2 py-1 text-[12px] font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+                        className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-2 py-1 text-theme-xs font-medium text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
                       >
                         Resolve
                       </button>
@@ -452,10 +452,10 @@ export default async function CustomerPage(
 
           <Section
             title="Onboarding plan"
-            icon={<ListChecks size={14} className="text-[var(--color-accent)]" />}
+            icon={<ListChecks size={14} className="text-brand-500 dark:text-brand-400" />}
             right={
               plan ? (
-                <span className="text-[12px] text-[var(--color-fg-muted)]">
+                <span className="text-theme-xs text-gray-400 dark:text-gray-500">
                   {progress}% · {steps.length} step{steps.length === 1 ? "" : "s"}
                 </span>
               ) : null
@@ -473,7 +473,7 @@ export default async function CustomerPage(
 
           <Section
             title="Meetings & cadence"
-            icon={<Repeat size={14} className="text-[var(--color-accent)]" />}
+            icon={<Repeat size={14} className="text-brand-500 dark:text-brand-400" />}
           >
             {cadence ? (
               <CadenceBlock cadence={cadence} />
@@ -489,7 +489,7 @@ export default async function CustomerPage(
 
           <Section
             title={`Contacts (${contacts.length})`}
-            icon={<Users size={14} className="text-[var(--color-accent)]" />}
+            icon={<Users size={14} className="text-brand-500 dark:text-brand-400" />}
             right={
               <AddContactButton
                 customerId={customer.id}
@@ -516,7 +516,7 @@ export default async function CustomerPage(
 
           {customer.notes && (
             <Section title="Notes">
-              <p className="whitespace-pre-wrap text-sm text-[var(--color-fg-secondary)]">
+              <p className="whitespace-pre-wrap text-sm text-gray-500 dark:text-gray-400">
                 {customer.notes}
               </p>
             </Section>
@@ -532,7 +532,7 @@ export default async function CustomerPage(
           />
           <ActivitySection activity={activity} />
           {openObjectives.length === 0 && objectives.length === 0 && (
-            <p className="px-1 text-[12px] leading-relaxed text-[var(--color-fg-muted)]">
+            <p className="px-1 text-theme-xs leading-relaxed text-gray-400 dark:text-gray-500">
               George works this account on his own — drafting outreach, chasing
               what onboarding needs, and reporting to {owner?.full_name ?? "the owner"}.
               You step in to review and decide.
@@ -565,27 +565,27 @@ function StatStripHeader({
   progress: number | null;
 }) {
   return (
-    <div className="rounded-[16px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+    <div className="rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
       <div className="flex flex-wrap items-start justify-between gap-4 p-6 pb-5">
         <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
             <Building2 size={22} />
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h1 className="text-[24px] font-bold leading-tight text-[var(--color-fg)]">
+              <h1 className="font-display text-2xl font-semibold tracking-tight leading-tight text-gray-800 dark:text-white/90">
                 {customer.name}
               </h1>
               <KindBadge kind={customer.customer_kind} />
               <LifecycleBadge value={customer.lifecycle} />
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-[var(--color-fg-secondary)]">
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-theme-sm text-gray-500 dark:text-gray-400">
               {customer.domain && (
                 <a
                   href={`https://${customer.domain}`}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1 hover:text-[var(--color-accent)]"
+                  className="inline-flex items-center gap-1 hover:text-brand-500 dark:hover:text-brand-400"
                 >
                   {customer.domain}
                   <ExternalLink size={11} />
@@ -612,7 +612,7 @@ function StatStripHeader({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-b-[16px] border-t border-[var(--color-border-subtle)] bg-[var(--color-border-subtle)] sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-b-[16px] border-t border-gray-200 dark:border-gray-800 bg-gray-200 dark:bg-gray-800 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Contract">
           {activeContract?.arr_cents != null
             ? formatMoney(activeContract.arr_cents, activeContract.currency ?? "USD")
@@ -626,7 +626,7 @@ function StatStripHeader({
             <span className="inline-flex items-center gap-1.5">
               <HealthBadge band={latestHealth.band} />
               {latestHealth.score != null && (
-                <span className="text-[13px] font-semibold">{latestHealth.score}</span>
+                <span className="text-theme-sm font-semibold">{latestHealth.score}</span>
               )}
             </span>
           ) : (
@@ -653,11 +653,11 @@ function StatStripHeader({
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[var(--color-surface-card)] px-4 py-3">
-      <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">
+    <div className="bg-white dark:bg-white/[0.03] px-4 py-3">
+      <div className="text-theme-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
         {label}
       </div>
-      <div className="mt-1 truncate text-[14px] font-medium text-[var(--color-fg)]">
+      <div className="mt-1 truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
         {children}
       </div>
     </div>
@@ -677,10 +677,10 @@ function ObjectivesSection({
   return (
     <Section
       title="Objectives"
-      icon={<Target size={14} className="text-[var(--color-accent)]" />}
+      icon={<Target size={14} className="text-brand-500 dark:text-brand-400" />}
       right={
         objectives.length > 0 ? (
-          <span className="text-[12px] text-[var(--color-fg-muted)]">
+          <span className="text-theme-xs text-gray-400 dark:text-gray-500">
             {done.length}/{objectives.length} done
           </span>
         ) : null
@@ -706,24 +706,24 @@ function ObjectiveRow({ objective: o }: { objective: Objective }) {
   const achieved = o.status === "achieved";
   const blocked = o.status === "blocked";
   return (
-    <li className="flex items-start gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3">
+    <li className="flex items-start gap-3 rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
       {achieved ? (
-        <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[var(--color-success)]" />
+        <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success-500" />
       ) : blocked ? (
-        <Flag size={16} className="mt-0.5 shrink-0 text-[var(--color-warning)]" />
+        <Flag size={16} className="mt-0.5 shrink-0 text-warning-500" />
       ) : (
-        <Circle size={16} className="mt-0.5 shrink-0 text-[var(--color-fg-muted)]" />
+        <Circle size={16} className="mt-0.5 shrink-0 text-gray-400 dark:text-gray-500" />
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span
-            className={`text-[13px] font-medium ${achieved ? "text-[var(--color-fg-muted)] line-through" : "text-[var(--color-fg)]"}`}
+            className={`text-theme-sm font-medium ${achieved ? "text-gray-400 dark:text-gray-500 line-through" : "text-gray-800 dark:text-white/90"}`}
           >
             {o.title}
           </span>
           <ObjectiveStatusBadge status={o.status} />
         </div>
-        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--color-fg-muted)]">
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-theme-xs text-gray-400 dark:text-gray-500">
           <span>{o.responsible_side === "onyx" ? "Onyx owes" : "Customer owes"}</span>
           {!achieved && o.followup_count > 0 && (
             <span>follow-up {o.followup_count}/{o.max_followups}</span>
@@ -744,15 +744,15 @@ function ObjectiveRow({ objective: o }: { objective: Objective }) {
 
 function ObjectiveStatusBadge({ status }: { status: Objective["status"] }) {
   const map: Record<Objective["status"], { label: string; cls: string }> = {
-    pending: { label: "Pending", cls: "bg-[var(--color-surface-3)] text-[var(--color-fg-secondary)]" },
-    awaiting: { label: "Awaiting", cls: "bg-[var(--color-accent-light)] text-[var(--color-accent)]" },
-    achieved: { label: "Done", cls: "bg-[var(--color-surface-3)] text-[var(--color-success)]" },
-    blocked: { label: "Escalated", cls: "bg-[var(--color-surface-3)] text-[var(--color-warning)]" },
-    cancelled: { label: "Cancelled", cls: "bg-[var(--color-surface-3)] text-[var(--color-fg-muted)]" },
+    pending: { label: "Pending", cls: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400" },
+    awaiting: { label: "Awaiting", cls: "bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400" },
+    achieved: { label: "Done", cls: "bg-gray-100 dark:bg-gray-800 text-success-500" },
+    blocked: { label: "Escalated", cls: "bg-gray-100 dark:bg-gray-800 text-warning-500" },
+    cancelled: { label: "Cancelled", cls: "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500" },
   };
   const s = map[status];
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-[2px] text-[10px] font-medium ${s.cls}`}>
+    <span className={`inline-flex items-center rounded-full px-2 py-[2px] text-theme-xs font-medium ${s.cls}`}>
       {s.label}
     </span>
   );
@@ -764,15 +764,15 @@ function ActivitySection({ activity }: { activity: Activity[] }) {
   return (
     <Section
       title="What George did"
-      icon={<Sparkles size={14} className="text-[var(--color-accent)]" />}
+      icon={<Sparkles size={14} className="text-brand-500 dark:text-brand-400" />}
     >
       <ul className="space-y-2.5">
         {activity.map((a) => (
-          <li key={a.id} className="flex items-start gap-2.5 text-[12px]">
-            <Circle size={6} className="mt-1.5 shrink-0 fill-[var(--color-accent)] text-[var(--color-accent)]" />
+          <li key={a.id} className="flex items-start gap-2.5 text-theme-xs">
+            <Circle size={6} className="mt-1.5 shrink-0 fill-brand-500 text-brand-500 dark:text-brand-400" />
             <div className="min-w-0 flex-1">
-              <span className="text-[var(--color-fg-secondary)]">{actionLabel(a.action)}</span>
-              <span className="ml-1.5 text-[var(--color-fg-muted)]">· {timeAgo(a.created_at)}</span>
+              <span className="text-gray-500 dark:text-gray-400">{actionLabel(a.action)}</span>
+              <span className="ml-1.5 text-gray-400 dark:text-gray-500">· {timeAgo(a.created_at)}</span>
             </div>
           </li>
         ))}
@@ -806,28 +806,28 @@ function HierarchySection({
     return (
       <Section
         title="Partner"
-        icon={<Network size={14} className="text-[var(--color-accent)]" />}
+        icon={<Network size={14} className="text-brand-500 dark:text-brand-400" />}
       >
         {parent ? (
           <Link
             href={`/customers/${parent.id}`}
-            className="flex items-center gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3 hover:bg-[var(--color-surface-2)]"
+            className="flex items-center gap-3 rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
               <Building2 size={16} />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-[14px] font-medium text-[var(--color-fg)]">
+                <span className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
                   {parent.name}
                 </span>
                 <KindBadge kind="partner" />
               </div>
               {parent.domain && (
-                <div className="text-[12px] text-[var(--color-fg-muted)]">{parent.domain}</div>
+                <div className="text-theme-xs text-gray-400 dark:text-gray-500">{parent.domain}</div>
               )}
             </div>
-            <ArrowLeft size={14} className="rotate-180 text-[var(--color-fg-muted)]" />
+            <ArrowLeft size={14} className="rotate-180 text-gray-400 dark:text-gray-500" />
           </Link>
         ) : (
           <EmptyRow text="No parent partner linked." />
@@ -839,7 +839,7 @@ function HierarchySection({
   return (
     <Section
       title={`End customers (${endCustomers.length})`}
-      icon={<Network size={14} className="text-[var(--color-accent)]" />}
+      icon={<Network size={14} className="text-brand-500 dark:text-brand-400" />}
       right={<AddEndCustomerButton parentId={customer.id} parentName={customer.name} />}
     >
       {endCustomers.length === 0 ? (
@@ -850,16 +850,16 @@ function HierarchySection({
             <li key={ec.id}>
               <Link
                 href={`/customers/${ec.id}`}
-                className="flex items-center gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3 hover:bg-[var(--color-surface-2)]"
+                className="flex items-center gap-3 rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
                   <Building2 size={14} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-medium text-[var(--color-fg)]">
+                  <div className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
                     {ec.name}
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-[var(--color-fg-muted)]">
+                  <div className="flex items-center gap-2 text-theme-xs text-gray-400 dark:text-gray-500">
                     {ec.lifecycle && <LifecycleBadge value={ec.lifecycle} />}
                     {ec.domain && <span className="truncate">{ec.domain}</span>}
                   </div>
@@ -884,7 +884,7 @@ function DocumentsPanel({
   return (
     <Section
       title={`Documents (${docs.length})`}
-      icon={<FileText size={14} className="text-[var(--color-accent)]" />}
+      icon={<FileText size={14} className="text-brand-500 dark:text-brand-400" />}
       right={<UploadDocumentButton customerId={customerId} />}
     >
       {docs.length === 0 ? (
@@ -912,10 +912,10 @@ function Section({
 }) {
   return (
     <section
-      className={`rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5 ${className ?? ""}`}
+      className={`rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5 ${className ?? ""}`}
     >
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-[14px] font-semibold text-[var(--color-fg)]">
+        <h2 className="flex items-center gap-2 text-theme-sm font-semibold text-gray-800 dark:text-white/90">
           {icon}
           {title}
         </h2>
@@ -962,16 +962,16 @@ function CadenceBlock({ cadence }: { cadence: Cadence }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-accent-light)] px-2.5 py-[3px] text-[12px] font-medium text-[var(--color-accent)]">
+        <div className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 dark:bg-brand-500/15 px-2.5 py-[3px] text-theme-xs font-medium text-brand-500 dark:text-brand-400">
           <Repeat size={11} /> {cadenceLabel[cadence.frequency]}
         </div>
-        <span className="text-[13px] text-[var(--color-fg-secondary)]">{slotLine}</span>
-        <span className="text-[12px] text-[var(--color-fg-muted)]">
+        <span className="text-theme-sm text-gray-500 dark:text-gray-400">{slotLine}</span>
+        <span className="text-theme-xs text-gray-400 dark:text-gray-500">
           · {channelLabelMap[cadence.channel]}
           {cadence.duration_min ? ` · ${cadence.duration_min} min` : ""}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-4 text-[13px]">
+      <div className="grid grid-cols-2 gap-4 text-theme-sm">
         <KV
           label="Next meeting"
           value={cadence.next_meeting_at ? fmt(cadence.next_meeting_at) : "—"}
@@ -982,7 +982,7 @@ function CadenceBlock({ cadence }: { cadence: Cadence }) {
         />
       </div>
       {cadence.notes && (
-        <p className="whitespace-pre-wrap rounded-md bg-[var(--color-surface-2)] p-3 text-[12px] text-[var(--color-fg-secondary)]">
+        <p className="whitespace-pre-wrap rounded-md bg-gray-50 dark:bg-white/[0.03] p-3 text-theme-xs text-gray-500 dark:text-gray-400">
           {cadence.notes}
         </p>
       )}
@@ -993,25 +993,25 @@ function CadenceBlock({ cadence }: { cadence: Cadence }) {
 function PlanBlock({ plan, steps, progress }: { plan: Plan; steps: Step[]; progress: number }) {
   return (
     <div className="space-y-4">
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-2)]">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-50 dark:bg-white/[0.03]">
         <div className="h-full brand-gradient transition-all" style={{ width: `${progress}%` }} />
       </div>
       <ol className="space-y-1.5">
         {steps.map((s) => (
           <li
             key={s.id}
-            className="flex items-start gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3"
+            className="flex items-start gap-3 rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3"
           >
             <StepIcon status={s.status} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[14px] font-medium text-[var(--color-fg)]">{s.title}</span>
+                <span className="text-theme-sm font-medium text-gray-800 dark:text-white/90">{s.title}</span>
                 <StepStatusBadge value={s.status} />
               </div>
               {s.description && (
-                <p className="mt-1 text-[12px] text-[var(--color-fg-secondary)]">{s.description}</p>
+                <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">{s.description}</p>
               )}
-              <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-[var(--color-fg-muted)]">
+              <div className="mt-1 flex flex-wrap gap-3 text-theme-xs text-gray-400 dark:text-gray-500">
                 {s.due_date && (
                   <span className="inline-flex items-center gap-1">
                     <CalendarClock size={10} /> due {fmt(s.due_date)}
@@ -1019,7 +1019,7 @@ function PlanBlock({ plan, steps, progress }: { plan: Plan; steps: Step[]; progr
                 )}
                 {s.owner && <span>· {s.owner}</span>}
                 {s.completed_at && (
-                  <span className="inline-flex items-center gap-1 text-[var(--color-success)]">
+                  <span className="inline-flex items-center gap-1 text-success-500">
                     <CheckCircle2 size={10} /> done {timeAgo(s.completed_at)}
                   </span>
                 )}
@@ -1034,17 +1034,17 @@ function PlanBlock({ plan, steps, progress }: { plan: Plan; steps: Step[]; progr
 
 function StepIcon({ status }: { status: string }) {
   if (status === "completed")
-    return <CheckCircle2 size={18} className="mt-0.5 text-[var(--color-success)]" />;
+    return <CheckCircle2 size={18} className="mt-0.5 text-success-500" />;
   if (status === "in_progress")
-    return <Clock size={18} className="mt-0.5 animate-pulse text-[var(--color-accent)]" />;
+    return <Clock size={18} className="mt-0.5 animate-pulse text-brand-500 dark:text-brand-400" />;
   if (status === "blocked")
-    return <Clock size={18} className="mt-0.5 text-[var(--color-warning)]" />;
-  return <Circle size={18} className="mt-0.5 text-[var(--color-fg-muted)]" />;
+    return <Clock size={18} className="mt-0.5 text-warning-500" />;
+  return <Circle size={18} className="mt-0.5 text-gray-400 dark:text-gray-500" />;
 }
 
 function ContactCard({ contact }: { contact: Contact }) {
   return (
-    <div className="group relative rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3">
+    <div className="group relative rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
       <div className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100">
         <EditContactButton
           contact={{
@@ -1059,24 +1059,24 @@ function ContactCard({ contact }: { contact: Contact }) {
         />
       </div>
       <div className="flex items-start gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent)] text-[12px] font-semibold text-[var(--color-fg-inverse)]">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-theme-xs font-semibold text-white">
           {initials(contact.full_name)}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="truncate text-[13px] font-medium text-[var(--color-fg)]">
+            <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
               {contact.full_name}
             </span>
             {contact.is_primary && (
-              <Star size={11} className="text-[var(--color-accent)]" aria-label="primary" />
+              <Star size={11} className="text-brand-500 dark:text-brand-400" aria-label="primary" />
             )}
           </div>
-          <div className="text-[11px] text-[var(--color-fg-muted)]">{contact.title ?? "—"}</div>
-          <div className="mt-1 space-y-0.5 text-[11px] text-[var(--color-fg-secondary)]">
+          <div className="text-theme-xs text-gray-400 dark:text-gray-500">{contact.title ?? "—"}</div>
+          <div className="mt-1 space-y-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
             {contact.email && (
               <a
                 href={`mailto:${contact.email}`}
-                className="inline-flex items-center gap-1 truncate hover:text-[var(--color-accent)]"
+                className="inline-flex items-center gap-1 truncate hover:text-brand-500 dark:hover:text-brand-400"
               >
                 <Mail size={10} />
                 {contact.email}
@@ -1098,8 +1098,8 @@ function ContactCard({ contact }: { contact: Contact }) {
 function KV({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-wide text-[var(--color-fg-muted)]">{label}</div>
-      <div className="mt-0.5 text-[14px] font-medium text-[var(--color-fg)]">{value}</div>
+      <div className="text-theme-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">{label}</div>
+      <div className="mt-0.5 text-theme-sm font-medium text-gray-800 dark:text-white/90">{value}</div>
     </div>
   );
 }
@@ -1112,10 +1112,10 @@ function EmptyRow({
   cta?: { label: string; href: string };
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-4 py-5 text-[13px] text-[var(--color-fg-muted)]">
+    <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-4 py-5 text-theme-sm text-gray-400 dark:text-gray-500">
       <span>{text}</span>
       {cta && (
-        <Link href={cta.href} className="shrink-0 text-[var(--color-accent)] hover:underline">
+        <Link href={cta.href} className="shrink-0 text-brand-500 dark:text-brand-400 hover:underline">
           {cta.label} →
         </Link>
       )}

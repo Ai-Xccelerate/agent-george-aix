@@ -75,7 +75,7 @@ export function SettingsNav({
         if (visible.length === 0) return null;
         return (
           <div key={section.title} className="space-y-0.5">
-            <h3 className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
+            <h3 className="mb-1.5 px-3 text-theme-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
               {section.title}
             </h3>
             {visible.map(({ href, label, icon: Icon, adminOnly, approverOnly }) => {
@@ -87,21 +87,21 @@ export function SettingsNav({
                   className={cn(
                     "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
                     active
-                      ? "bg-[var(--color-accent-light)] text-[var(--color-accent)] font-semibold"
-                      : "text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-2)]",
+                      ? "bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400 font-semibold"
+                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/[0.03]",
                   )}
                 >
                   <Icon
                     size={16}
                     className={cn(
-                      active ? "text-[var(--color-accent)]" : "text-[var(--color-fg-muted)]",
+                      active ? "text-brand-500 dark:text-brand-400" : "text-gray-400 dark:text-gray-500",
                     )}
                   />
                   <span className="flex-1">{label}</span>
                   {(adminOnly || approverOnly) && (
                     <ShieldCheck
                       size={11}
-                      className="text-[var(--color-fg-muted)]"
+                      className="text-gray-400 dark:text-gray-500"
                       aria-label={adminOnly ? "admin only" : "owner, admin, or CSM"}
                     />
                   )}

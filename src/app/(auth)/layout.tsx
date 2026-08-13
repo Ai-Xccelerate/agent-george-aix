@@ -3,7 +3,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   // widget on a plain page (matches the AIXDraw/Jules pattern; George does not
   // present its own sign-in UI).
   return (
-    <div className="flex min-h-screen w-screen items-center justify-center bg-[var(--color-surface)] px-6">
+    <div className="flex min-h-screen w-screen items-center justify-center bg-gray-50 dark:bg-gray-900 px-6">
       {children}
     </div>
   );

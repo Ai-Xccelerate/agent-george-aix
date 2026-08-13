@@ -5,6 +5,7 @@ import { ArrowLeft, Paperclip, Send } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
+import { Badge } from "@/components/ui/badge";
 import { sendMailboxDraftAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -92,14 +93,14 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
     <div className="w-full space-y-4 px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
       <Link
         href="/mailbox"
-        className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"
+        className="inline-flex items-center gap-1.5 text-theme-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white/90"
       >
         <ArrowLeft size={14} /> Mailbox
       </Link>
 
       <div>
-        <h1 className="text-[20px] font-bold text-[var(--color-fg)]">{subject}</h1>
-        <p className="text-[12px] text-[var(--color-fg-muted)]">
+        <h1 className="text-theme-xl font-bold text-gray-800 dark:text-white/90">{subject}</h1>
+        <p className="text-theme-xs text-gray-400 dark:text-gray-500">
           {messages.length} message{messages.length === 1 ? "" : "s"} in this thread
         </p>
       </div>
@@ -122,43 +123,39 @@ function MessageCard({ m, isDraft }: { m: Message; isDraft: boolean }) {
   const sender = m.from_name ?? m.from_address ?? "(unknown)";
   const html = m.body_html;
   return (
-    <div className="overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
-      <header className="flex items-start justify-between gap-3 border-b border-[var(--color-border-subtle)] px-5 py-3">
+    <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
+      <header className="flex items-start justify-between gap-3 border-b border-gray-200 dark:border-gray-800 px-5 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[13px] font-semibold text-[var(--color-fg)]">{sender}</span>
-            <span
-              className="inline-flex items-center rounded-full px-2 py-[1px] text-[10px] font-medium"
-              style={
-                isDraft
-                  ? { background: "var(--color-warning-light, #fef3c7)", color: "var(--color-warning, #92600a)" }
-                  : m.direction === "outbound"
-                  ? { background: "var(--color-success-light)", color: "var(--color-success)" }
-                  : { background: "var(--color-accent-light)", color: "var(--color-accent)" }
+            <span className="truncate text-theme-sm font-semibold text-gray-800 dark:text-white/90">{sender}</span>
+            <Badge
+              withDot={false}
+              tone={
+                isDraft ? "warning" : m.direction === "outbound" ? "success" : "accent"
               }
             >
               {isDraft ? "Draft — not sent" : m.direction === "outbound" ? "Sent" : "Received"}
-            </span>
-            {m.has_attachments && <Paperclip size={12} className="text-[var(--color-fg-muted)]" />}
+            </Badge>
+            {m.has_attachments && <Paperclip size={12} className="text-gray-400 dark:text-gray-500" />}
           </div>
-          <div className="mt-0.5 truncate text-[11px] text-[var(--color-fg-muted)]">
+          <div className="mt-0.5 truncate text-theme-xs text-gray-400 dark:text-gray-500">
             to {recipients(m.to_recipients)}
           </div>
         </div>
-        <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">
+        <span className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500">
           {when ? new Date(when).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : ""}
         </span>
       </header>
       {isDraft && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-5 py-2.5">
-          <p className="text-[12px] text-[var(--color-fg-secondary)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.03] px-5 py-2.5">
+          <p className="text-theme-xs text-gray-500 dark:text-gray-400">
             George prepared this draft. Review the recipients and body, then send when ready.
           </p>
           <form action={sendMailboxDraftAction}>
             <input type="hidden" name="external_id" value={m.external_id} />
             <button
               type="submit"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-[12px] font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
+              className="h-9 px-3 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900"
             >
               <Send size={13} /> Send now
             </button>
@@ -173,10 +170,10 @@ function MessageCard({ m, isDraft }: { m: Message; isDraft: boolean }) {
             title="Email body"
             sandbox=""
             srcDoc={wrapHtmlForViewer(html)}
-            className="h-[480px] w-full rounded-md border border-[var(--color-border-subtle)] bg-white"
+            className="h-[480px] w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white"
           />
         ) : (
-          <p className="px-4 py-4 text-[13px] text-[var(--color-fg-muted)]">{m.body_preview ?? "(no body)"}</p>
+          <p className="px-4 py-4 text-theme-sm text-gray-400 dark:text-gray-500">{m.body_preview ?? "(no body)"}</p>
         )}
       </div>
     </div>

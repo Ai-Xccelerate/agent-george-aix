@@ -34,11 +34,11 @@ export function BrandLogo({
       {withSubtext && (
         <div className="min-w-0 leading-tight">
           <div className="flex items-center gap-1.5">
-            <span className="text-[15px] font-bold tracking-tight text-[var(--color-fg)]">
+            <span className="text-[15px] font-bold tracking-tight text-gray-800 dark:text-white/90">
               George
             </span>
           </div>
-          <span className="text-[11px] text-[var(--color-fg-muted)]">AI Xccelerate</span>
+          <span className="text-[11px] text-gray-400 dark:text-gray-500">AI Xccelerate</span>
         </div>
       )}
     </div>

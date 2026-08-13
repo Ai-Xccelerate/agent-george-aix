@@ -4,6 +4,8 @@ import { FileText, Mic, Users } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getScribeConnection } from "@/lib/agent/scribe";
+import { Badge } from "@/components/ui/badge";
+import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { SyncButton } from "./_sync-button";
 
 export const dynamic = "force-dynamic";
@@ -37,17 +39,15 @@ export default async function TranscriptsPage() {
   const rows = (data ?? []) as unknown as Row[];
 
   return (
-    <div className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12">
-      <header className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Transcripts</h1>
-          <p className="mt-1 max-w-[560px] text-sm text-[var(--color-fg-secondary)]">
-            Meeting transcripts from George&apos;s note-taker (Scribe). They sync
-            automatically after each meeting and become a source George reads from.
-          </p>
-        </div>
-        {scribe.connected && <SyncButton />}
-      </header>
+    <div
+      data-aix-id="AIX-110"
+      className="w-full px-4 py-5 sm:px-6 md:px-8 md:py-7 2xl:px-12"
+    >
+      <PageBreadcrumb
+        pageTitle="Transcripts"
+        description="Meeting transcripts from George's note-taker (Scribe). They sync automatically after each meeting and become a source George reads from."
+        actions={scribe.connected ? <SyncButton /> : undefined}
+      />
 
       {!scribe.connected ? (
         <Empty
@@ -60,33 +60,36 @@ export default async function TranscriptsPage() {
           text="Once Scribe records a meeting George was invited to, the transcript and insights land here within a few minutes."
         />
       ) : (
-        <ul className="divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+        <ul
+          data-aix-id="AIX-110.2"
+          className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-white/[0.03]"
+        >
           {rows.map((r) => (
             <li key={r.id}>
               <Link
                 href={`/transcripts/${r.id}`}
-                className="flex items-start gap-4 px-4 py-3.5 hover:bg-[var(--color-surface-3)]"
+                className="flex items-start gap-4 px-4 py-3.5 transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03]"
               >
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
                   <Mic size={15} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-[14px] font-medium text-[var(--color-fg)]">
+                    <span className="truncate text-sm font-medium text-gray-800 dark:text-white/90">
                       {r.title || "Untitled meeting"}
                     </span>
                     {r.status && r.status !== "completed" && (
-                      <span className="shrink-0 rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-fg-muted)]">
+                      <Badge tone="neutral" withDot={false}>
                         {r.status}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   {r.summary && (
-                    <p className="mt-0.5 line-clamp-2 text-[12px] text-[var(--color-fg-secondary)]">
+                    <p className="mt-0.5 line-clamp-2 text-theme-xs text-gray-500 dark:text-gray-400">
                       {plainText(r.summary)}
                     </p>
                   )}
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-[var(--color-fg-muted)]">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-theme-xs text-gray-400 dark:text-gray-500">
                     <span>{formatWhen(r.ended_at)}</span>
                     {r.duration_min != null && <span>{r.duration_min} min</span>}
                     {attendeeCount(r.attendees) > 0 && (
@@ -95,7 +98,7 @@ export default async function TranscriptsPage() {
                       </span>
                     )}
                     {r.customers?.name && (
-                      <span className="text-[var(--color-accent)]">{r.customers.name}</span>
+                      <span className="font-medium text-brand-500">{r.customers.name}</span>
                     )}
                   </div>
                 </div>
@@ -139,12 +142,12 @@ function formatWhen(iso: string | null): string {
 
 function Empty({ title, text }: { title: string; text: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-[12px] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-300 bg-white py-16 text-center dark:border-gray-700 dark:bg-white/[0.03]">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
         <FileText size={20} />
       </div>
-      <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">{title}</h2>
-      <p className="max-w-[440px] text-sm text-[var(--color-fg-secondary)]">{text}</p>
+      <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">{title}</h2>
+      <p className="max-w-[440px] text-sm text-gray-500 dark:text-gray-400">{text}</p>
     </div>
   );
 }

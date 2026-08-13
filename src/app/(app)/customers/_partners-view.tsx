@@ -4,6 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { LayoutGrid, List as ListIcon, Target } from "lucide-react";
 import { HealthBadge, LifecycleBadge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export type PartnerRow = {
   id: string;
@@ -56,7 +63,7 @@ export function PartnersView({ rows }: { rows: PartnerRow[] }) {
         </div>
 
         {/* List / Board toggle */}
-        <div className="inline-flex rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] p-0.5">
+        <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-0.5">
           <ToggleBtn active={view === "list"} onClick={() => setView("list")} icon={<ListIcon size={14} />} label="List" />
           <ToggleBtn active={view === "board"} onClick={() => setView("board")} icon={<LayoutGrid size={14} />} label="Board" />
         </div>
@@ -70,47 +77,49 @@ export function PartnersView({ rows }: { rows: PartnerRow[] }) {
 function ListView({ rows }: { rows: PartnerRow[] }) {
   if (rows.length === 0) return <Empty />;
   return (
-    <div className="overflow-x-auto rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
-      <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-3)] text-[12px] uppercase tracking-wide text-[var(--color-fg-secondary)]">
-          <tr>
-            <th className="px-4 py-2.5 font-medium">Customer</th>
-            <th className="px-4 py-2.5 font-medium">Stage</th>
-            <th className="px-4 py-2.5 font-medium">Health</th>
-            <th className="px-4 py-2.5 font-medium">Next step</th>
-            <th className="px-4 py-2.5 text-right font-medium">Open</th>
-            <th className="px-4 py-2.5 font-medium">Updated</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
+      <Table className="min-w-[760px] text-left text-sm">
+        <TableHeader className="border-b border-gray-200 bg-gray-50 text-theme-xs uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
+          <TableRow>
+            <TableCell isHeader className="px-4 py-2.5 font-medium">Customer</TableCell>
+            <TableCell isHeader className="px-4 py-2.5 font-medium">Stage</TableCell>
+            <TableCell isHeader className="px-4 py-2.5 font-medium">Health</TableCell>
+            <TableCell isHeader className="px-4 py-2.5 font-medium">Next step</TableCell>
+            <TableCell isHeader className="px-4 py-2.5 text-right font-medium">Open</TableCell>
+            <TableCell isHeader className="px-4 py-2.5 font-medium">Updated</TableCell>
+          </TableRow>
+        </TableHeader>
+        <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
           {rows.map((c) => (
-            <tr
+            <TableRow
               key={c.id}
-              className="border-t border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-3)]"
+              className="transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03]"
             >
-              <td className="px-4 py-3">
+              <TableCell className="px-4 py-3">
                 <Link href={`/customers/${c.id}`} className="block">
-                  <span className="font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]">
+                  <span className="font-medium text-gray-800 hover:text-brand-500 dark:text-white/90 dark:hover:text-brand-400">
                     {c.name}
                   </span>
-                  <span className="mt-0.5 flex items-center gap-2 text-[11px] text-[var(--color-fg-muted)]">
+                  <span className="mt-0.5 flex items-center gap-2 text-theme-xs text-gray-400 dark:text-gray-500">
                     {c.parentName ? `under ${c.parentName}` : c.domain ?? ""}
                   </span>
                 </Link>
-              </td>
-              <td className="px-4 py-3"><LifecycleBadge value={c.lifecycle} /></td>
-              <td className="px-4 py-3"><HealthCell health={c.health} /></td>
-              <td className="px-4 py-3 text-[var(--color-fg-secondary)]">
+              </TableCell>
+              <TableCell className="px-4 py-3"><LifecycleBadge value={c.lifecycle} /></TableCell>
+              <TableCell className="px-4 py-3"><HealthCell health={c.health} /></TableCell>
+              <TableCell className="px-4 py-3 text-gray-500 dark:text-gray-400">
                 <span className="line-clamp-1">{c.nextStep ?? "—"}</span>
-              </td>
-              <td className="px-4 py-3 text-right tabular-nums text-[var(--color-fg-secondary)]">
+              </TableCell>
+              <TableCell className="px-4 py-3 text-right tabular-nums text-gray-500 dark:text-gray-400">
                 {c.openObjectives || "—"}
-              </td>
-              <td className="px-4 py-3 text-[var(--color-fg-muted)]">{timeAgo(c.updated_at)}</td>
-            </tr>
+              </TableCell>
+              <TableCell className="px-4 py-3 text-gray-400 dark:text-gray-500">
+                {timeAgo(c.updated_at)}
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -124,12 +133,12 @@ function BoardView({ rows, stage }: { rows: PartnerRow[]; stage: string }) {
         return (
           <div key={s.key} className="w-[260px] shrink-0">
             <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-[13px] font-semibold text-[var(--color-fg)]">{s.label}</span>
-              <span className="text-[12px] text-[var(--color-fg-muted)]">{items.length}</span>
+              <span className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">{s.label}</span>
+              <span className="text-theme-xs text-gray-400 dark:text-gray-500">{items.length}</span>
             </div>
             <div className="space-y-2">
               {items.length === 0 ? (
-                <div className="rounded-md border border-dashed border-[var(--color-border-subtle)] px-3 py-6 text-center text-[12px] text-[var(--color-fg-muted)]">
+                <div className="rounded-md border border-dashed border-gray-200 dark:border-gray-800 px-3 py-6 text-center text-theme-xs text-gray-400 dark:text-gray-500">
                   None
                 </div>
               ) : (
@@ -147,20 +156,20 @@ function BoardCard({ row: c }: { row: PartnerRow }) {
   return (
     <Link
       href={`/customers/${c.id}`}
-      className="block rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-3 hover:border-[var(--color-border)] hover:bg-[var(--color-surface-2)]"
+      className="block rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-3 hover:border-gray-200 dark:hover:border-gray-800 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="truncate text-[13px] font-medium text-[var(--color-fg)]">{c.name}</span>
+        <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">{c.name}</span>
         <HealthDot band={c.health?.band ?? null} />
       </div>
-      <div className="mt-0.5 truncate text-[11px] text-[var(--color-fg-muted)]">
+      <div className="mt-0.5 truncate text-theme-xs text-gray-400 dark:text-gray-500">
         {c.parentName ? `under ${c.parentName}` : c.domain ?? "—"}
       </div>
       {c.nextStep && (
-        <div className="mt-2 line-clamp-2 text-[12px] text-[var(--color-fg-secondary)]">{c.nextStep}</div>
+        <div className="mt-2 line-clamp-2 text-theme-xs text-gray-500 dark:text-gray-400">{c.nextStep}</div>
       )}
       {c.openObjectives > 0 && (
-        <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-[var(--color-fg-muted)]">
+        <div className="mt-2 inline-flex items-center gap-1 text-theme-xs text-gray-400 dark:text-gray-500">
           <Target size={11} /> {c.openObjectives} open
         </div>
       )}
@@ -169,30 +178,31 @@ function BoardCard({ row: c }: { row: PartnerRow }) {
 }
 
 function HealthCell({ health }: { health: PartnerRow["health"] }) {
-  if (!health) return <span className="text-[var(--color-fg-muted)]">—</span>;
+  if (!health) return <span className="text-gray-400 dark:text-gray-500">—</span>;
   return (
     <span className="inline-flex items-center gap-1.5">
       <HealthBadge band={health.band} />
       {health.score != null && (
-        <span className="text-[12px] tabular-nums text-[var(--color-fg-secondary)]">{health.score}</span>
+        <span className="text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">{health.score}</span>
       )}
     </span>
   );
 }
 
 function HealthDot({ band }: { band: string | null }) {
+  // "red" previously rendered in the brand orange, which made a failing account
+  // indistinguishable from an accent and identical to "yellow" at a glance.
   const color =
     band === "green"
-      ? "var(--color-success)"
+      ? "bg-success-500"
       : band === "yellow"
-        ? "var(--color-warning)"
+        ? "bg-warning-500"
         : band === "red"
-          ? "var(--color-accent)"
-          : "var(--color-fg-muted)";
+          ? "bg-error-500"
+          : "bg-gray-400 dark:bg-gray-500";
   return (
     <span
-      className="mt-1 h-2 w-2 shrink-0 rounded-full"
-      style={{ backgroundColor: color }}
+      className={`mt-1 h-2 w-2 shrink-0 rounded-full ${color}`}
       aria-hidden
     />
   );
@@ -213,14 +223,14 @@ function StageTab({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] transition-colors ${
+      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-theme-sm transition-colors ${
         active
-          ? "bg-[var(--color-accent-light)] font-semibold text-[var(--color-accent)]"
-          : "text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-fg)]"
+          ? "bg-brand-50 dark:bg-brand-500/15 font-semibold text-brand-500 dark:text-brand-400"
+          : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-white/90"
       }`}
     >
       {label}
-      <span className={active ? "text-[var(--color-accent)]" : "text-[var(--color-fg-muted)]"}>{count}</span>
+      <span className={active ? "text-brand-500 dark:text-brand-400" : "text-gray-400 dark:text-gray-500"}>{count}</span>
     </button>
   );
 }
@@ -240,10 +250,10 @@ function ToggleBtn({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[13px] ${
+      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-theme-sm ${
         active
-          ? "bg-[var(--color-surface-3)] font-medium text-[var(--color-fg)]"
-          : "text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"
+          ? "bg-gray-100 dark:bg-gray-800 font-medium text-gray-800 dark:text-white/90"
+          : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white/90"
       }`}
     >
       {icon}
@@ -254,7 +264,7 @@ function ToggleBtn({
 
 function Empty() {
   return (
-    <div className="rounded-[12px] border border-dashed border-[var(--color-border-subtle)] px-4 py-12 text-center text-[13px] text-[var(--color-fg-muted)]">
+    <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 px-4 py-12 text-center text-theme-sm text-gray-400 dark:text-gray-500">
       No customers in this stage.
     </div>
   );

@@ -72,19 +72,19 @@ export function UploadForm({ uploadAction }: Props) {
           addFiles(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[12px] border-2 border-dashed px-4 py-12 text-center transition-colors ${
+        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-12 text-center transition-colors ${
           dragging
-            ? "border-[var(--color-accent)] bg-[var(--color-accent-light)]"
-            : "border-[var(--color-border)] bg-[var(--color-surface-card)] hover:border-[var(--color-accent)]"
+            ? "border-brand-500 dark:border-brand-400 bg-brand-50 dark:bg-brand-500/15"
+            : "border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] hover:border-brand-500 dark:hover:border-brand-400"
         }`}
       >
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
           <Upload size={18} />
         </div>
-        <div className="text-sm font-medium text-[var(--color-fg)]">
+        <div className="text-sm font-medium text-gray-800 dark:text-white/90">
           Drop .md files here, or click to choose
         </div>
-        <div className="text-[12px] text-[var(--color-fg-muted)]">
+        <div className="text-theme-xs text-gray-400 dark:text-gray-500">
           Multiple files supported · up to 1 MB each · path is derived from the filename
         </div>
         <input
@@ -102,23 +102,23 @@ export function UploadForm({ uploadAction }: Props) {
 
       {files.length > 0 && (
         <div className="space-y-1.5">
-          <div className="px-1 text-[12px] font-medium uppercase tracking-wide text-[var(--color-fg-muted)]">
+          <div className="px-1 text-theme-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
             {files.length} file{files.length === 1 ? "" : "s"} ready
           </div>
-          <ul className="divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+          <ul className="divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
             {files.map((f) => (
               <li key={f.name} className="flex items-center gap-3 px-3 py-2.5">
-                <FileText size={15} className="shrink-0 text-[var(--color-fg-muted)]" />
-                <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-fg)]">
+                <FileText size={15} className="shrink-0 text-gray-400 dark:text-gray-500" />
+                <span className="min-w-0 flex-1 truncate text-theme-sm text-gray-800 dark:text-white/90">
                   {f.name}
                 </span>
-                <span className="shrink-0 text-[12px] text-[var(--color-fg-muted)]">
+                <span className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500">
                   {(f.size / 1024).toFixed(1)} KB
                 </span>
                 <button
                   type="button"
                   onClick={() => removeFile(f.name)}
-                  className="shrink-0 rounded p-1 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-error)]"
+                  className="shrink-0 rounded p-1 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.03] hover:text-error-500"
                   aria-label={`Remove ${f.name}`}
                 >
                   <X size={14} />
@@ -129,18 +129,18 @@ export function UploadForm({ uploadAction }: Props) {
         </div>
       )}
 
-      <label className="flex items-start gap-3 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-3">
+      <label className="flex items-start gap-3 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-3">
         <input
           type="checkbox"
           checked={isCore}
           onChange={(e) => setIsCore(e.target.checked)}
-          className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+          className="mt-0.5 h-4 w-4 accent-brand-500"
         />
         <div className="text-sm">
-          <div className="font-medium text-[var(--color-fg)]">
+          <div className="font-medium text-gray-800 dark:text-white/90">
             Pin all uploaded docs to the core playbook
           </div>
-          <div className="text-[12px] text-[var(--color-fg-secondary)]">
+          <div className="text-theme-xs text-gray-500 dark:text-gray-400">
             Marks every file in this batch as <strong>core</strong> (pinned to the top of
             the manifest). A file&apos;s own <code>is_core: true</code> frontmatter also
             pins it. Leave off for supplemental references.
@@ -149,29 +149,29 @@ export function UploadForm({ uploadAction }: Props) {
       </label>
 
       {error && (
-        <div className="rounded-md border border-[var(--color-error)] bg-[var(--color-error)]/10 px-3 py-2 text-[13px] text-[var(--color-error)]">
+        <div className="rounded-md border border-error-500 bg-error-500/10 px-3 py-2 text-theme-sm text-error-500">
           {error}
         </div>
       )}
 
       {result && (
-        <div className="space-y-2 rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-3 text-[13px]">
+        <div className="space-y-2 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-3 text-theme-sm">
           {result.created.length > 0 && (
-            <div className="flex items-start gap-2 text-[var(--color-success)]">
+            <div className="flex items-start gap-2 text-success-500">
               <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
-              <div className="text-[var(--color-fg)]">
+              <div className="text-gray-800 dark:text-white/90">
                 Imported {result.created.length} doc
                 {result.created.length === 1 ? "" : "s"}:{" "}
-                <span className="text-[var(--color-fg-secondary)]">
+                <span className="text-gray-500 dark:text-gray-400">
                   {result.created.map((d) => d.path).join(", ")}
                 </span>
               </div>
             </div>
           )}
           {result.failed.map((f) => (
-            <div key={f.name} className="flex items-start gap-2 text-[var(--color-error)]">
+            <div key={f.name} className="flex items-start gap-2 text-error-500">
               <XCircle size={15} className="mt-0.5 shrink-0" />
-              <div className="text-[var(--color-fg)]">
+              <div className="text-gray-800 dark:text-white/90">
                 <span className="font-medium">{f.name}</span> — {f.reason}
               </div>
             </div>
@@ -179,10 +179,10 @@ export function UploadForm({ uploadAction }: Props) {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2 border-t border-[var(--color-border-subtle)] pt-4">
+      <div className="flex items-center justify-end gap-2 border-t border-gray-200 dark:border-gray-800 pt-4">
         <Link
           href="/settings/knowledge"
-          className="inline-flex h-9 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+          className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90"
         >
           {result?.created.length ? "Done" : "Cancel"}
         </Link>
@@ -190,7 +190,7 @@ export function UploadForm({ uploadAction }: Props) {
           type="button"
           onClick={onSubmit}
           disabled={pending || files.length === 0}
-          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+          className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-50"
         >
           {pending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
           Upload {files.length > 0 ? `${files.length} file${files.length === 1 ? "" : "s"}` : ""}

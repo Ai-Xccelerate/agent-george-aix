@@ -74,14 +74,14 @@ export function KnowledgeGraph({
     <div className="space-y-3">
       <div className="flex flex-wrap gap-3">
         {types.map((t) => (
-          <span key={t} className="inline-flex items-center gap-1.5 text-[12px] text-[var(--color-fg-secondary)]">
+          <span key={t} className="inline-flex items-center gap-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: colorFor(t) }} />
             {t}
           </span>
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full"
@@ -128,7 +128,7 @@ export function KnowledgeGraph({
                   y={node.isCore ? 26 : 22}
                   textAnchor="middle"
                   fontSize={11}
-                  fill="var(--color-fg-secondary)"
+                  className="fill-gray-500 dark:fill-gray-400"
                   style={{ pointerEvents: "none" }}
                 >
                   {truncate(node.title, 22)}
@@ -138,7 +138,7 @@ export function KnowledgeGraph({
           })}
         </svg>
       </div>
-      <p className="text-[12px] text-[var(--color-fg-muted)]">
+      <p className="text-theme-xs text-gray-400 dark:text-gray-500">
         {nodes.length} concept{nodes.length === 1 ? "" : "s"} · {edges.length} link
         {edges.length === 1 ? "" : "s"}. Hover a concept to highlight its connections.
         Larger dots are core playbooks.

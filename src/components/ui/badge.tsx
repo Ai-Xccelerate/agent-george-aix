@@ -1,44 +1,40 @@
+import AixBadge from "@/components/ui/badge/Badge";
 import { cn } from "@/lib/utils";
 
-type Tone =
-  | "neutral"
-  | "accent"
-  | "success"
-  | "warning"
-  | "error"
-  | "info";
+/**
+ * George's domain badges, rebuilt on the AIX theme's Badge primitive.
+ *
+ * The exported API is unchanged — `Badge` still takes `tone` / `withDot`, and
+ * LifecycleBadge / StepStatusBadge / HealthBadge / KindBadge keep their exact
+ * signatures — so none of the pages importing them need to change. What changes
+ * is the rendering: colours, radius and type now come from the theme's Badge
+ * rather than George's old hand-rolled token classes (which included two
+ * hardcoded hexes, `#FBE5E5` and `#E6F0FA`, that no longer matched anything).
+ */
 
-const toneStyles: Record<Tone, { bg: string; fg: string; dot: string }> = {
-  neutral: {
-    bg: "bg-[var(--color-surface-2)]",
-    fg: "text-[var(--color-fg-secondary)]",
-    dot: "bg-[var(--color-fg-muted)]",
-  },
-  accent: {
-    bg: "bg-[var(--color-accent-light)]",
-    fg: "text-[var(--color-accent)]",
-    dot: "bg-[var(--color-accent)]",
-  },
-  success: {
-    bg: "bg-[var(--color-badge-active-bg)]",
-    fg: "text-[var(--color-badge-active-fg)]",
-    dot: "bg-[var(--color-success)]",
-  },
-  warning: {
-    bg: "bg-[var(--color-badge-training-bg)]",
-    fg: "text-[var(--color-badge-training-fg)]",
-    dot: "bg-[var(--color-warning)]",
-  },
-  error: {
-    bg: "bg-[#FBE5E5]",
-    fg: "text-[var(--color-error)]",
-    dot: "bg-[var(--color-error)]",
-  },
-  info: {
-    bg: "bg-[#E6F0FA]",
-    fg: "text-[var(--color-info)]",
-    dot: "bg-[var(--color-info)]",
-  },
+type Tone = "neutral" | "accent" | "success" | "warning" | "error" | "info";
+
+/** George's semantic tones → the theme Badge's colour names. */
+const toneColor: Record<
+  Tone,
+  "primary" | "success" | "error" | "warning" | "info" | "light"
+> = {
+  neutral: "light",
+  accent: "primary",
+  success: "success",
+  warning: "warning",
+  error: "error",
+  info: "info",
+};
+
+/** Dot colours, kept as explicit classes so the dot reads in both themes. */
+const toneDot: Record<Tone, string> = {
+  neutral: "bg-gray-400 dark:bg-gray-500",
+  accent: "bg-brand-500 dark:bg-brand-400",
+  success: "bg-success-500",
+  warning: "bg-warning-500",
+  error: "bg-error-500",
+  info: "bg-blue-light-500",
 };
 
 export function Badge({
@@ -52,19 +48,23 @@ export function Badge({
   children: React.ReactNode;
   className?: string;
 }) {
-  const s = toneStyles[tone];
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] text-[11px] font-medium",
-        s.bg,
-        s.fg,
-        className,
-      )}
+    <AixBadge
+      variant="light"
+      size="sm"
+      color={toneColor[tone]}
+      className={className}
+      startIcon={
+        withDot ? (
+          <span
+            className={cn("block h-1.5 w-1.5 rounded-full", toneDot[tone])}
+            aria-hidden="true"
+          />
+        ) : undefined
+      }
     >
-      {withDot && <span className={cn("h-1.5 w-1.5 rounded-full", s.dot)} />}
       {children}
-    </span>
+    </AixBadge>
   );
 }
 

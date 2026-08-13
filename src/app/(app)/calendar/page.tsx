@@ -83,36 +83,36 @@ export default async function CalendarPage({
     <div className="flex h-full min-h-0 w-full flex-col px-4 py-5 sm:px-6 md:px-8 md:py-6 2xl:px-12">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Calendar</h1>
-          <p className="mt-0.5 text-sm text-[var(--color-fg-secondary)]">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Calendar</h1>
+          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
             George&apos;s Microsoft 365 calendar — {tzLabel(tz)}. Change it in{" "}
-            <Link href="/settings/agent" className="text-[var(--color-accent)] hover:underline">
+            <Link href="/settings/agent" className="text-brand-500 dark:text-brand-400 hover:underline">
               AIX George → identity
             </Link>
             .
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="mr-1 text-[13px] font-medium text-[var(--color-fg)]">
+          <span className="mr-1 text-theme-sm font-medium text-gray-800 dark:text-white/90">
             {rangeLabel(weekStartStr, weekEndStr, tz)}
           </span>
           <Link
             href={`/calendar?week=${offset - 1}`}
             aria-label="Previous week"
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
           >
             <ChevronLeft size={16} />
           </Link>
           <Link
             href="/calendar"
-            className="inline-flex h-8 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-[13px] font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+            className="h-9 px-3 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90"
           >
             Today
           </Link>
           <Link
             href={`/calendar?week=${offset + 1}`}
             aria-label="Next week"
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
           >
             <ChevronRight size={16} />
           </Link>

@@ -62,18 +62,18 @@ export function Dialog({
         // `m-auto` is required: Tailwind's preflight resets the native
         // <dialog>'s default `margin: auto` which is what centers it on
         // screen. Without this, the dialog opens at the top-left corner.
-        "m-auto max-h-[90vh] w-full max-w-[520px] overflow-hidden rounded-[16px] border border-[var(--color-border)] bg-[var(--color-surface-card)] p-0 text-[var(--color-fg)] shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur-sm",
+        "m-auto max-h-[90vh] w-full max-w-[520px] overflow-hidden rounded-[16px] border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-0 text-gray-800 dark:text-white/90 shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur-sm",
         className,
       )}
     >
       <div className="flex max-h-[90vh] flex-col">
-        <header className="flex items-start justify-between gap-4 border-b border-[var(--color-border-subtle)] px-5 py-4">
+        <header className="flex items-start justify-between gap-4 border-b border-gray-200 dark:border-gray-800 px-5 py-4">
           <div>
-            <h2 className="text-[16px] font-semibold text-[var(--color-fg)]">
+            <h2 className="text-[16px] font-semibold text-gray-800 dark:text-white/90">
               {title}
             </h2>
             {description && (
-              <p className="mt-0.5 text-[12px] text-[var(--color-fg-secondary)]">
+              <p className="mt-0.5 text-[12px] text-gray-500 dark:text-gray-400">
                 {description}
               </p>
             )}
@@ -82,7 +82,7 @@ export function Dialog({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="-m-1 flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
+            className="-m-1 flex h-7 w-7 items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.03] hover:text-gray-800 dark:hover:text-white/90"
           >
             <X size={15} />
           </button>
@@ -93,7 +93,7 @@ export function Dialog({
         </div>
 
         {footer && (
-          <footer className="flex items-center justify-end gap-2 border-t border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-5 py-3">
+          <footer className="flex items-center justify-end gap-2 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.03] px-5 py-3">
             {footer}
           </footer>
         )}
@@ -115,18 +115,18 @@ export function DialogField({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center gap-1 text-[12px] font-medium uppercase tracking-wide text-[var(--color-fg-muted)]">
+      <label className="flex items-center gap-1 text-[12px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
         {label}
-        {required && <span className="text-[var(--color-error)]">*</span>}
+        {required && <span className="text-error-500">*</span>}
       </label>
       {children}
-      {hint && <p className="text-[11px] text-[var(--color-fg-muted)]">{hint}</p>}
+      {hint && <p className="text-[11px] text-gray-400 dark:text-gray-500">{hint}</p>}
     </div>
   );
 }
 
 export const dialogInputClass =
-  "w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]";
+  "w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-800 dark:text-white/90 outline-none focus:border-brand-500 dark:focus:border-brand-400";
 
 export const dialogTextareaClass =
-  "w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 py-2 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]";
+  "w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-800 dark:text-white/90 outline-none focus:border-brand-500 dark:focus:border-brand-400";

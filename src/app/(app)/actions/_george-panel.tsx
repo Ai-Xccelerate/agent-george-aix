@@ -21,7 +21,7 @@ export function GeorgePanel({
 }) {
   if (!sessionId) {
     return (
-      <div className="h-full overflow-y-auto whitespace-pre-wrap px-4 py-4 text-[13px] leading-relaxed text-[var(--color-fg-secondary)]">
+      <div className="h-full overflow-y-auto whitespace-pre-wrap px-4 py-4 text-theme-sm leading-relaxed text-gray-500 dark:text-gray-400">
         {initialMessages[0]?.content}
       </div>
     );

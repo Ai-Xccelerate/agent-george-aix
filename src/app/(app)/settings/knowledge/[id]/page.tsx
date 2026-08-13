@@ -49,7 +49,7 @@ export default async function EditKnowledgeDocPage({
     <div className="space-y-5">
       <Link
         href="/settings/knowledge"
-        className="inline-flex items-center gap-1 text-[13px] text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"
+        className="inline-flex items-center gap-1 text-theme-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white/90"
       >
         <ChevronLeft size={14} />
         All knowledge
@@ -57,21 +57,21 @@ export default async function EditKnowledgeDocPage({
 
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--color-fg)]">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">
             {doc.title ?? doc.path}
           </h1>
-          <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
-            <code className="rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[12px]">
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <code className="rounded bg-gray-50 dark:bg-white/[0.03] px-1.5 py-0.5 text-theme-xs">
               {doc.path}
             </code>
-            <span className="mx-2 text-[var(--color-fg-muted)]">·</span>
+            <span className="mx-2 text-gray-400 dark:text-gray-500">·</span>
             {chunkCount ?? 0} chunk{chunkCount === 1 ? "" : "s"}
-            <span className="mx-2 text-[var(--color-fg-muted)]">·</span>
+            <span className="mx-2 text-gray-400 dark:text-gray-500">·</span>
             updated {new Date(doc.updated_at).toLocaleString()}
           </p>
         </div>
         {doc.is_core && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-accent-light)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-accent)]">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 dark:bg-brand-500/15 px-2.5 py-1 text-theme-xs font-medium text-brand-500 dark:text-brand-400">
             <Sparkles size={12} />
             Core
           </span>

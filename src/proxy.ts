@@ -45,7 +45,11 @@ export const proxy = clerkMiddleware(
 );
 
 export const config = {
+  // Static assets are excluded from the matcher so the middleware never runs
+  // for them. `woff2?` is in the list because the self-hosted AIX faces live
+  // under /fonts — without it every font request reaches auth.protect() and is
+  // refused, and the browser silently falls back to a system face.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
   ],
 };

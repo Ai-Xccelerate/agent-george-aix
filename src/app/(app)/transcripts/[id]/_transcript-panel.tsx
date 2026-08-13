@@ -17,7 +17,7 @@ export function TranscriptPanel({
 
   if (!text) {
     return (
-      <p className="text-[13px] text-[var(--color-fg-muted)]">
+      <p className="text-theme-sm text-gray-400 dark:text-gray-500">
         {status && status !== "completed"
           ? "Scribe is still processing this meeting — the transcript will appear after the next sync."
           : "No transcript text was returned for this meeting."}
@@ -48,15 +48,15 @@ export function TranscriptPanel({
   };
 
   const btn =
-    "inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border-subtle)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-fg-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]";
+    "inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 px-2.5 py-1 text-theme-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/[0.03] hover:text-gray-800 dark:hover:text-white/90";
 
   return (
-    <div className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
       <div className="flex items-center justify-between gap-2 px-4 py-2.5">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--color-fg)]"
+          className="flex items-center gap-1.5 text-theme-sm font-medium text-gray-800 dark:text-white/90"
         >
           {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
           {open ? "Hide full transcript" : "Show full transcript"}
@@ -72,7 +72,7 @@ export function TranscriptPanel({
         </div>
       </div>
       {open && (
-        <pre className="max-h-[560px] overflow-auto whitespace-pre-wrap border-t border-[var(--color-border-subtle)] p-4 font-sans text-[13px] leading-relaxed text-[var(--color-fg-secondary)]">
+        <pre className="max-h-[560px] overflow-auto whitespace-pre-wrap border-t border-gray-200 dark:border-gray-800 p-4 font-sans text-theme-sm leading-relaxed text-gray-500 dark:text-gray-400">
           {text}
         </pre>
       )}

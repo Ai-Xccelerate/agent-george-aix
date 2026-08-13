@@ -22,34 +22,34 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Your profile</h1>
-        <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Your profile</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Update your name, timezone, and locale. Your password and email are
           managed in AIX Core.
         </p>
       </header>
 
-      <section className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
+      <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-accent)] text-[16px] font-semibold text-[var(--color-fg-inverse)]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-500 text-base font-semibold text-white">
             {initials(user.fullName ?? user.email ?? "?")}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[17px] font-semibold text-[var(--color-fg)]">
+              <span className="text-lg font-semibold text-gray-800 dark:text-white/90">
                 {user.fullName ?? "—"}
               </span>
               <Badge tone={user.role === "owner" ? "accent" : "info"}>{user.role}</Badge>
             </div>
-            <div className="text-[13px] text-[var(--color-fg-secondary)]">{user.email}</div>
-            <div className="text-[12px] text-[var(--color-fg-muted)]">{user.orgName}</div>
+            <div className="text-theme-sm text-gray-500 dark:text-gray-400">{user.email}</div>
+            <div className="text-theme-xs text-gray-400 dark:text-gray-500">{user.orgName}</div>
           </div>
         </div>
       </section>
 
-      <section className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5">
-        <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">Details</h2>
-        <p className="mt-1 mb-4 text-[12px] text-[var(--color-fg-muted)]">
+      <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">Details</h2>
+        <p className="mt-1 mb-4 text-theme-xs text-gray-400 dark:text-gray-500">
           Timezone uses IANA names (e.g. <code>America/Los_Angeles</code>). Locale is a BCP
           47 tag (e.g. <code>en-US</code>).
         </p>

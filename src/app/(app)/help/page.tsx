@@ -53,11 +53,11 @@ export default function HelpIndexPage() {
   return (
     <div className="mx-auto max-w-[1180px] space-y-6 px-4 py-5 sm:px-6 md:px-8 md:py-7">
       <header>
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">Help &amp; docs</h1>
-        <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Help &amp; docs</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           How George works and how to work with him. New here? Start with{" "}
-          <span className="text-[var(--color-fg-muted)]">Getting started</span>, then
-          read <span className="text-[var(--color-fg-muted)]">Chatting with George</span>{" "}
+          <span className="text-gray-400 dark:text-gray-500">Getting started</span>, then
+          read <span className="text-gray-400 dark:text-gray-500">Chatting with George</span>{" "}
           to see him in action.
         </p>
       </header>
@@ -81,28 +81,28 @@ function TopicCard({ topic }: { topic: Topic }) {
       );
   return (
     <Wrap
-      className={`block rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-5 transition-colors ${
+      className={`block rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5 transition-colors ${
         isStub
           ? "cursor-not-allowed opacity-70"
-          : "hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-surface-2)]"
+          : "hover:border-brand-500 dark:hover:border-brand-400/40 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
       }`}
     >
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
           <Icon size={18} />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-[15px] font-semibold text-[var(--color-fg)]">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
               {topic.title}
             </h2>
             {isStub && (
-              <span className="rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-fg-muted)]">
+              <span className="rounded-full bg-gray-50 dark:bg-white/[0.03] px-2 py-0.5 text-theme-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
                 Coming soon
               </span>
             )}
           </div>
-          <p className="mt-1 text-[13px] leading-relaxed text-[var(--color-fg-secondary)]">
+          <p className="mt-1 text-theme-sm leading-relaxed text-gray-500 dark:text-gray-400">
             {topic.description}
           </p>
         </div>

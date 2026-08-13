@@ -23,20 +23,20 @@ export function DomainRow({ d, mode }: { d: DomainRequest; mode: "decide" | "rev
   return (
     <form
       action={formAction}
-      className="rounded-[12px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-4"
+      className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-4"
     >
       <input type="hidden" name="domain_id" value={d.id} />
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-mono text-[14px] font-semibold text-[var(--color-fg)]">
+          <div className="font-mono text-theme-sm font-semibold text-gray-800 dark:text-white/90">
             {d.domain}
           </div>
           {d.reason && (
-            <p className="mt-1 text-[12px] text-[var(--color-fg-secondary)]">{d.reason}</p>
+            <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">{d.reason}</p>
           )}
         </div>
-        <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">
+        <span className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500">
           {new Date(d.created_at).toLocaleDateString()}
         </span>
       </div>
@@ -46,16 +46,16 @@ export function DomainRow({ d, mode }: { d: DomainRequest; mode: "decide" | "rev
           <input
             name="note"
             placeholder="Optional note…"
-            className="mt-3 h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-[13px] text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
+            className="mt-3 h-9 w-full rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-theme-sm text-gray-800 dark:text-white/90 outline-none focus:border-brand-500 dark:focus:border-brand-400"
           />
 
           {state.error && (
-            <div className="mt-2 rounded-md border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 px-3 py-1.5 text-[12px] text-[var(--color-error)]">
+            <div className="mt-2 rounded-md border border-error-500/30 bg-error-500/10 px-3 py-1.5 text-theme-xs text-error-500">
               {state.error}
             </div>
           )}
           {state.info && (
-            <div className="mt-2 rounded-md border border-[var(--color-success)]/30 bg-[var(--color-success-light)] px-3 py-1.5 text-[12px] text-[var(--color-success)]">
+            <div className="mt-2 rounded-md border border-success-500/30 bg-success-50 dark:bg-success-500/15 px-3 py-1.5 text-theme-xs text-success-500">
               {state.info}
             </div>
           )}
@@ -66,7 +66,7 @@ export function DomainRow({ d, mode }: { d: DomainRequest; mode: "decide" | "rev
               name="decision"
               value="approved"
               disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-60"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-60"
             >
               <Check size={14} /> Approve
             </button>
@@ -75,7 +75,7 @@ export function DomainRow({ d, mode }: { d: DomainRequest; mode: "decide" | "rev
               name="decision"
               value="rejected"
               disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:border-[var(--color-error)] hover:text-[var(--color-error)] disabled:opacity-60"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-sm font-medium text-gray-800 dark:text-white/90 hover:border-error-500 hover:text-error-500 disabled:opacity-60"
             >
               <X size={14} /> Reject
             </button>
@@ -88,7 +88,7 @@ export function DomainRow({ d, mode }: { d: DomainRequest; mode: "decide" | "rev
           <button
             type="submit"
             formAction={revokeDomainAction}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:border-[var(--color-error)] hover:text-[var(--color-error)]"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-sm font-medium text-gray-800 dark:text-white/90 hover:border-error-500 hover:text-error-500"
           >
             <Ban size={14} /> Revoke access
           </button>

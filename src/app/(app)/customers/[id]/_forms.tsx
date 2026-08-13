@@ -84,7 +84,7 @@ export function EditCustomerButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]"
+        className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90"
       >
         <Pencil size={13} />
         {label}
@@ -101,7 +101,7 @@ export function EditCustomerButton({
               type="button"
               onClick={close}
               disabled={pending}
-              className="inline-flex h-9 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)] disabled:opacity-50"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -109,7 +109,7 @@ export function EditCustomerButton({
               type="submit"
               form="edit-customer-form"
               disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-50"
             >
               {pending && <Loader2 size={14} className="animate-spin" />}
               Save changes
@@ -174,7 +174,7 @@ export function EditCustomerButton({
             />
           </DialogField>
           {error && (
-            <div className="rounded-md border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-3 py-2 text-[13px] text-[var(--color-error)]">
+            <div className="rounded-md border border-error-500/40 bg-error-500/10 px-3 py-2 text-theme-sm text-error-500">
               {error}
             </div>
           )}
@@ -223,7 +223,7 @@ export function AddContactButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
+        className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900"
       >
         <UserPlus size={14} />
         Add contact
@@ -239,7 +239,7 @@ export function AddContactButton({
               type="button"
               onClick={close}
               disabled={pending}
-              className="inline-flex h-9 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)] disabled:opacity-50"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -247,7 +247,7 @@ export function AddContactButton({
               type="submit"
               form="add-contact-form"
               disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-50"
             >
               {pending && <Loader2 size={14} className="animate-spin" />}
               Add contact
@@ -296,17 +296,17 @@ export function AddContactButton({
               className={dialogInputClass}
             />
           </DialogField>
-          <label className="flex items-start gap-2 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3 text-sm">
+          <label className="flex items-start gap-2 rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3 text-sm">
             <input
               type="checkbox"
               name="is_primary"
-              className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+              className="mt-0.5 h-4 w-4 accent-brand-500"
             />
             <div>
-              <div className="font-medium text-[var(--color-fg)]">
+              <div className="font-medium text-gray-800 dark:text-white/90">
                 Primary contact
               </div>
-              <div className="text-[12px] text-[var(--color-fg-secondary)]">
+              <div className="text-theme-xs text-gray-500 dark:text-gray-400">
                 {hasPrimary
                   ? "Will replace the current primary contact."
                   : "There's no primary yet — recommend marking one."}
@@ -314,7 +314,7 @@ export function AddContactButton({
             </div>
           </label>
           {error && (
-            <div className="rounded-md border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-3 py-2 text-[13px] text-[var(--color-error)]">
+            <div className="rounded-md border border-error-500/40 bg-error-500/10 px-3 py-2 text-theme-sm text-error-500">
               {error}
             </div>
           )}
@@ -368,7 +368,7 @@ export function EditContactButton({ contact }: { contact: ContactEditValues }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Edit contact"
-        className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.03] hover:text-gray-800 dark:hover:text-white/90"
       >
         <Pencil size={12} />
       </button>
@@ -383,7 +383,7 @@ export function EditContactButton({ contact }: { contact: ContactEditValues }) {
               type="button"
               onClick={close}
               disabled={pending}
-              className="inline-flex h-9 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)] disabled:opacity-50"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -391,7 +391,7 @@ export function EditContactButton({ contact }: { contact: ContactEditValues }) {
               type="submit"
               form="edit-contact-form"
               disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-50"
             >
               {pending && <Loader2 size={14} className="animate-spin" />}
               Save changes
@@ -445,15 +445,15 @@ export function EditContactButton({ contact }: { contact: ContactEditValues }) {
               type="checkbox"
               name="is_primary"
               defaultChecked={contact.is_primary}
-              className="h-4 w-4 accent-[var(--color-accent)]"
+              className="h-4 w-4 accent-brand-500"
             />
-            <span className="flex items-center gap-1.5 text-[var(--color-fg)]">
-              <Star size={11} className="text-[var(--color-accent)]" />
+            <span className="flex items-center gap-1.5 text-gray-800 dark:text-white/90">
+              <Star size={11} className="text-brand-500 dark:text-brand-400" />
               Primary contact
             </span>
           </label>
           {error && (
-            <div className="rounded-md border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-3 py-2 text-[13px] text-[var(--color-error)]">
+            <div className="rounded-md border border-error-500/40 bg-error-500/10 px-3 py-2 text-theme-sm text-error-500">
               {error}
             </div>
           )}
@@ -502,7 +502,7 @@ export function AddEndCustomerButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)]"
+        className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900"
       >
         <Plus size={14} />
         Add end customer
@@ -519,7 +519,7 @@ export function AddEndCustomerButton({
               type="button"
               onClick={close}
               disabled={pending}
-              className="inline-flex h-9 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)] disabled:opacity-50"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -527,7 +527,7 @@ export function AddEndCustomerButton({
               type="submit"
               form="add-end-customer-form"
               disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-50"
             >
               {pending && <Loader2 size={14} className="animate-spin" />}
               Add end customer
@@ -591,7 +591,7 @@ export function AddEndCustomerButton({
             />
           </DialogField>
           {error && (
-            <div className="rounded-md border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-3 py-2 text-[13px] text-[var(--color-error)]">
+            <div className="rounded-md border border-error-500/40 bg-error-500/10 px-3 py-2 text-theme-sm text-error-500">
               {error}
             </div>
           )}
@@ -635,7 +635,7 @@ export function UploadDocumentButton({ customerId }: { customerId: string }) {
         type="button"
         onClick={onClick}
         disabled={pending}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 text-sm font-semibold text-[var(--color-fg-inverse)] shadow-[var(--shadow-cta)] hover:bg-[var(--color-accent-hover)] disabled:opacity-60"
+        className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-60"
       >
         {pending ? (
           <Loader2 size={14} className="animate-spin" />
@@ -652,7 +652,7 @@ export function UploadDocumentButton({ customerId }: { customerId: string }) {
         onChange={onPicked}
       />
       {error && (
-        <div className="mt-2 w-full rounded-md border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-3 py-2 text-[12px] text-[var(--color-error)]">
+        <div className="mt-2 w-full rounded-md border border-error-500/40 bg-error-500/10 px-3 py-2 text-theme-xs text-error-500">
           {error}
         </div>
       )}
@@ -671,7 +671,7 @@ export type DocumentListItem = {
 
 export function DocumentList({ docs }: { docs: DocumentListItem[] }) {
   return (
-    <ul className="divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)]">
+    <ul className="divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
       {docs.map((d) => (
         <DocumentRow key={d.id} doc={d} />
       ))}
@@ -699,15 +699,15 @@ function DocumentRow({ doc }: { doc: DocumentListItem }) {
   }
 
   return (
-    <li className="flex items-center gap-3 px-4 py-3 text-[13px]">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent-light)] text-[var(--color-accent)]">
+    <li className="flex items-center gap-3 px-4 py-3 text-theme-sm">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
         <Icon size={15} />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium text-[var(--color-fg)]">
+        <div className="truncate font-medium text-gray-800 dark:text-white/90">
           {doc.original_name}
         </div>
-        <div className="text-[11px] text-[var(--color-fg-muted)]">
+        <div className="text-theme-xs text-gray-400 dark:text-gray-500">
           {prettyBytes(doc.file_size)} · {doc.mime_type}
           {doc.uploader_name ? ` · ${doc.uploader_name}` : ""}
           {" · "}
@@ -718,7 +718,7 @@ function DocumentRow({ doc }: { doc: DocumentListItem }) {
         type="button"
         onClick={open}
         disabled={opening}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2.5 text-[12px] font-medium text-[var(--color-fg)] hover:bg-[var(--color-surface-2)] disabled:opacity-60"
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-2.5 text-theme-xs font-medium text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03] disabled:opacity-60"
       >
         {opening ? (
           <Loader2 size={12} className="animate-spin" />

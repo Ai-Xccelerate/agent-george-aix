@@ -18,7 +18,7 @@ export function RoleSelect({
         name="role"
         defaultValue={currentRole}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-card)] px-2 py-1 text-[12px] text-[var(--color-fg)]"
+        className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-2 py-1 text-theme-xs text-gray-800 dark:text-white/90"
       >
         {ROLES.map((r) => (
           <option key={r} value={r}>

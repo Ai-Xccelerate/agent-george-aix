@@ -39,6 +39,7 @@
     "@composio/core": "^0.9.1",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
+    "apexcharts": "^6.8.0",
     "botbuilder": "^4.23.1",
     "botframework-connector": "^4.23.1",
     "class-variance-authority": "^0.7.1",
@@ -53,6 +54,7 @@
     "openai": "^6.37.0",
     "pg": "^8.23.0",
     "react": "19.2.4",
+    "react-apexcharts": "^2.1.1",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
@@ -61,6 +63,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@svgr/webpack": "^8.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/node-cron": "^3.0.11",

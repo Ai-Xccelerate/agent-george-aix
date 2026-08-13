@@ -16,21 +16,21 @@ export default async function NewKnowledgeDocPage() {
     <div className="space-y-5">
       <Link
         href="/settings/knowledge"
-        className="inline-flex items-center gap-1 text-[13px] text-[var(--color-fg-secondary)] hover:text-[var(--color-fg)]"
+        className="inline-flex items-center gap-1 text-theme-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white/90"
       >
         <ChevronLeft size={14} />
         All knowledge
       </Link>
 
       <header>
-        <h1 className="text-[22px] font-bold text-[var(--color-fg)]">New knowledge doc</h1>
-        <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">New knowledge doc</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Adds a doc for {user.orgName}. UI-managed docs are independent of{" "}
-          <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5 text-[12px]">
+          <code className="rounded bg-gray-50 dark:bg-white/[0.03] px-1 py-0.5 text-theme-xs">
             pnpm sync:knowledge
           </code>{" "}
           — that script only manages files committed under{" "}
-          <code className="rounded bg-[var(--color-surface-2)] px-1 py-0.5 text-[12px]">
+          <code className="rounded bg-gray-50 dark:bg-white/[0.03] px-1 py-0.5 text-theme-xs">
             knowledge/
           </code>
           .
