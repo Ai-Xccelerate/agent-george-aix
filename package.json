@@ -24,6 +24,7 @@
     "verify:pg-shim": "tsx scripts/verify-pg-shim.ts",
     "verify:tools": "tsx scripts/verify-tools-on-pg.ts",
     "verify:r2": "tsx scripts/verify-r2-storage.ts",
+    "verify:parchment": "tsx scripts/verify-parchment.ts",
     "storage:copy": "tsx scripts/copy-storage-to-r2.ts",
     "test": "vitest run",
     "test:watch": "vitest"
