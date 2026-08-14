@@ -11,14 +11,23 @@
  */
 export function GeorgeAvatar({
   size = 48,
+  shape = "square",
   className = "",
 }: {
   size?: number;
+  /**
+   * "square" — the rounded brand tile, used for the sidebar/header lockup.
+   * "circle" — George as a participant, e.g. the floating chat widget, where
+   *   a round avatar reads as "someone you're talking to" rather than a logo.
+   */
+  shape?: "square" | "circle";
   className?: string;
 }) {
   return (
     <span
-      className={`block shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-brand-300 to-brand-400 ${className}`}
+      className={`block shrink-0 overflow-hidden bg-gradient-to-br from-brand-300 to-brand-400 ${
+        shape === "circle" ? "rounded-full" : "rounded-2xl"
+      } ${className}`}
       style={{ width: size, height: size }}
     >
       <img

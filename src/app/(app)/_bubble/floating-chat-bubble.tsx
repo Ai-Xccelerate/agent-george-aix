@@ -226,7 +226,7 @@ export function FloatingChatBubble() {
         aria-label="Open AIX George"
         className="fixed bottom-6 right-6 z-999999 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg shadow-orange-500/25 ring-2 ring-brand-500/20 transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:ring-offset-gray-900"
       >
-        <GeorgeAvatar size={52} />
+        <GeorgeAvatar size={52} shape="circle" />
       </button>
     );
   }
@@ -260,7 +260,7 @@ export function FloatingChatBubble() {
     >
       <header className="flex items-center justify-between gap-2 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.03] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <GeorgeAvatar size={28} />
+          <GeorgeAvatar size={28} shape="circle" />
           <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
             AIX George
           </span>

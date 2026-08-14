@@ -5,6 +5,7 @@ import { useClerk } from "@clerk/nextjs";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
 import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
 import { initials } from "@/lib/utils";
+import { resetGrab } from "@/lib/grab";
 
 export type HeaderUser = {
   fullName: string;
@@ -118,6 +119,9 @@ export default function UserDropdown({ user }: { user: HeaderUser }) {
           <DropdownItem
             onItemClick={() => {
               setIsOpen(false);
+              // Clear the Grab identity first, so the next person to use this
+              // browser isn't attributed to whoever just signed out.
+              resetGrab();
               void signOut({ redirectUrl: "/" });
             }}
             className="rounded-lg"
