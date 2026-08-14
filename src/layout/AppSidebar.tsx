@@ -22,6 +22,12 @@ type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
+  /**
+   * Prefix that keeps this item highlighted, when it's broader than `path`.
+   * Settings links straight to /settings/profile to skip a redirect, but must
+   * still read as active anywhere under /settings.
+   */
+  match?: string;
   subItems?: { name: string; path: string; new?: boolean }[];
 };
 
@@ -45,19 +51,19 @@ const channelItems: NavItem[] = [
   { icon: <DocsIcon />, name: "Transcripts", path: "/transcripts" },
 ];
 
+/**
+ * Settings is a single link, not an expanding group. The settings screen has
+ * its own left sub-nav (see settings/_nav.tsx) which is role-aware — a second
+ * copy in the sidebar duplicated it, couldn't hide admin-only items, and drifted
+ * out of step whenever the real one changed.
+ *
+ * It points straight at /settings/profile rather than /settings. The index route
+ * only exists to role-check and redirect, and every hop through it costs a full
+ * server render plus another getCurrentUser() (Clerk + Core entitlement check +
+ * tenant mirror). Linking past it removes that round trip on every click.
+ */
 const accountItems: NavItem[] = [
-  {
-    icon: <PlugInIcon />,
-    name: "Settings",
-    subItems: [
-      { name: "Profile", path: "/settings/profile" },
-      { name: "Organisation", path: "/settings/organization" },
-      { name: "Users", path: "/settings/users" },
-      { name: "Integrations", path: "/settings/integrations" },
-      { name: "Knowledge", path: "/settings/knowledge" },
-      { name: "Agent", path: "/settings/agent" },
-    ],
-  },
+  { icon: <PlugInIcon />, name: "Settings", path: "/settings/profile", match: "/settings" },
   { icon: <InfoIcon />, name: "Help & docs", path: "/help" },
 ];
 
@@ -173,14 +179,16 @@ const AppSidebar: React.FC = () => {
               <Link
                 href={nav.path}
                 className={`menu-item group ${
-                  isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
+                  isActive(nav.match ?? nav.path)
+                    ? "menu-item-active"
+                    : "menu-item-inactive"
                 } ${
                   !isExpanded && !isHovered ? "lg:justify-center" : "lg:justify-start"
                 }`}
               >
                 <span
                   className={`flex size-6 shrink-0 items-center justify-center [&>svg]:size-5 [&>svg]:shrink-0 ${
-                    isActive(nav.path)
+                    isActive(nav.match ?? nav.path)
                       ? "menu-item-icon-active"
                       : "menu-item-icon-inactive"
                   }`}
