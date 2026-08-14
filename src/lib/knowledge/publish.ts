@@ -13,56 +13,29 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CHUNK_OVERLAP, CHUNK_TARGET, chunkMarkdown } from "./chunk";
 import { embedBatch, hasEmbeddingProvider } from "./embeddings";
 import { serializeFrontmatter } from "./frontmatter";
-import { parchmentForOrg } from "@/lib/parchment/connection";
 
 function toVectorLiteral(v: number[]): string {
   return `[${v.join(",")}]`;
 }
 
 export type PublishResult =
-  | { ok: true; docId: string; chunks: number; parchment?: ParchmentMirror }
+  | { ok: true; docId: string; chunks: number }
   | { ok: false; error: string };
 
-/** Outcome of mirroring an approved concept into Parchment, when connected. */
-export type ParchmentMirror =
-  | { mirrored: true; jobId: string }
-  | { mirrored: false; reason: string };
-
-/**
- * Push an approved concept into Parchment, which holds the organisation's
- * knowledge once it is connected.
+/*
+ * NOTE — why nothing is pushed to Parchment here.
  *
- * WHY APPROVAL IS THE HANDOFF POINT, NOT PROPOSAL
- * Parchment's REST API has no "propose" endpoint — staging a learning for review
- * is MCP-only. Rather than add a second protocol, review stays in George, where
- * the reviewers are already configured (`/settings/agent/knowledge`), and only
- * approved knowledge crosses over. That keeps the human gate exactly where it
- * was and means Parchment never holds anything unreviewed.
+ * An earlier version mirrored every approved concept into Parchment's `/ingest`.
+ * That cannot work on the internal agent path: it grants exactly the `agent`
+ * role, and `/ingest` refuses it with "Requires editor role; credential has
+ * agent" (verified against staging, HTTP 403). Writing back therefore needs
+ * either an editor-role key or Parchment's proposal tools, which are MCP-only.
  *
- * `/ingest` MERGES on `source_file`: matching sections update in place, new ones
- * append, omitted ones are kept. So re-approving an edited concept updates it
- * rather than duplicating — which is why the path is used as the source_file.
- *
- * Fails open and never throws. Publishing must not depend on Parchment being
- * reachable: the concept is already live in George's own knowledge base by this
- * point, and blocking a reviewer's approval on an unrelated outage would be
- * indefensible. A failed mirror is recorded in the audit log so it can be
- * replayed rather than silently lost.
+ * So the direction of travel is one-way for now: Parchment holds the
+ * organisation's knowledge and George reads it; George's own approved concepts
+ * stay in its local knowledge base. Pushing them back is a follow-up that needs
+ * the MCP transport, not a missing line here.
  */
-async function mirrorToParchment(
-  admin: SupabaseClient,
-  orgId: string,
-  path: string,
-  content: string,
-): Promise<ParchmentMirror> {
-  // Resolved per org: an approved concept must go to the hub THIS org connected,
-  // never to a deployment default belonging to someone else.
-  const hub = await parchmentForOrg(admin, orgId);
-  if (!hub) return { mirrored: false, reason: "No Parchment hub connected" };
-  const res = await hub.ingest({ source_file: path, content });
-  if (!res.ok) return { mirrored: false, reason: res.error };
-  return { mirrored: true, jobId: res.data.job_id };
-}
 
 type Proposal = {
   id: string;
@@ -163,17 +136,7 @@ export async function publishProposal(
     if (ins.error) return { ok: false, error: ins.error.message };
   }
 
-  // Hand the approved concept to Parchment, if connected. Deliberately after the
-  // local publish succeeded: George's own knowledge base is the thing that must
-  // be correct, and the mirror is additive.
-  const mirror = await mirrorToParchment(admin, prop.org_id, prop.path, fullDoc);
-  if (!mirror.mirrored && mirror.reason !== "No Parchment hub connected") {
-    console.warn(`[knowledge] Parchment mirror failed for ${prop.path}: ${mirror.reason}`);
-  }
-
   // Audit-log entry — the OKF-style change history for George-authored knowledge.
-  // The mirror outcome is recorded here so a failed hand-off is recoverable
-  // rather than invisible.
   await admin.from("audit_log").insert({
     org_id: prop.org_id,
     actor: reviewerId ?? "system",
@@ -185,7 +148,6 @@ export async function publishProposal(
       version: ((existing as { version?: number } | null)?.version ?? 0) + 1,
       chunks: chunks.length,
       review_note: reviewNote ?? null,
-      parchment: mirror,
     },
   });
 
@@ -200,5 +162,5 @@ export async function publishProposal(
     .eq("id", prop.id);
   if (markErr) return { ok: false, error: markErr.message };
 
-  return { ok: true, docId: doc.id, chunks: chunks.length, parchment: mirror };
+  return { ok: true, docId: doc.id, chunks: chunks.length };
 }

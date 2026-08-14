@@ -647,10 +647,11 @@ export function buildGeorgeMcpServer(
     async ({ query, limit }) => {
       const k = limit ?? 5;
 
-      // Preferred path when this ORG has connected a knowledge hub. Resolved per
-      // org, never from ambient config: two orgs on one deployment point at two
-      // different workspaces, so reading a process-wide default here could serve
-      // one tenant another tenant's knowledge.
+      // Preferred path: the org's Parchment knowledge base. Resolved per org —
+      // the tenant is identified by its Clerk org id, so reading ambient config
+      // here could serve one organisation another organisation's knowledge.
+      // Available by default for every org (no setup), unless an admin turned
+      // grounding off in Settings → Knowledge.
       //
       // Parchment returns whole sections with their ancestor trail, not 800-char
       // chunks, so a hit carries the provenance needed to cite where an answer

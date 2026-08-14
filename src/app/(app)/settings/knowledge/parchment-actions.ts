@@ -1,23 +1,20 @@
 "use server";
 
 /**
- * Connect, re-check and disconnect an org's Parchment knowledge hub.
+ * Choose an org's Parchment workspace, or switch knowledge grounding off.
  *
- * Admin-only, and the org is taken from the session rather than the form — a
- * user must not be able to attach a knowledge hub to somebody else's
- * organisation by editing a hidden field.
+ * There is no "connect" action any more: the internal agent path is
+ * default-allow, so an org's default workspace exists the moment anything asks
+ * for it. What remains is a preference — which workspace, and an escape hatch to
+ * stop using Parchment for this org at all.
  *
- * The API key arrives here and stops here: it is encrypted before storage and
- * never sent back to the browser.
+ * Admin-only, and the org comes from the session rather than the form, so a user
+ * cannot repoint somebody else's organisation by editing a hidden field.
  */
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import {
-  disconnectParchment,
-  recheckParchmentConnection,
-  saveParchmentConnection,
-} from "@/lib/parchment/connection";
+import { selectWorkspace, setParchmentEnabled } from "@/lib/parchment/connection";
 
 export type ActionState = { error?: string; info?: string };
 
@@ -30,53 +27,49 @@ async function requireAdmin() {
   return { error: null, user };
 }
 
-export async function connectParchmentAction(
+export async function selectWorkspaceAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const { error: authError, user } = await requireAdmin();
   if (authError || !user) return { error: authError ?? "Not signed in." };
 
-  const baseUrl = String(formData.get("base_url") ?? "");
-  const apiKey = String(formData.get("api_key") ?? "");
+  const raw = String(formData.get("workspace_id") ?? "").trim();
+  // Empty string is the "use the organisation's default" option.
+  const workspaceId = raw === "" ? null : raw;
 
-  const res = await saveParchmentConnection(createSupabaseAdmin(), user.orgId, {
-    baseUrl,
-    apiKey,
-    actor: user.email ?? user.id,
-  });
+  const res = await selectWorkspace(
+    createSupabaseAdmin(),
+    user.orgId,
+    workspaceId,
+    user.email ?? user.id,
+  );
   if (!res.ok) return { error: res.error };
 
   revalidatePath("/settings/knowledge");
   return {
-    info:
-      res.documents === 0
-        ? "Connected. The workspace is empty, so searches will return nothing until documents are ingested there."
-        : `Connected. ${res.documents ?? "?"} document${res.documents === 1 ? "" : "s"} available to George.`,
+    info: workspaceId
+      ? "Knowledge base updated. George will search that workspace."
+      : "Using the organisation's default workspace.",
   };
 }
 
-export async function recheckParchmentAction(): Promise<ActionState> {
+export async function setParchmentEnabledAction(enabled: boolean): Promise<ActionState> {
   const { error: authError, user } = await requireAdmin();
   if (authError || !user) return { error: authError ?? "Not signed in." };
 
-  const res = await recheckParchmentConnection(createSupabaseAdmin(), user.orgId);
-  revalidatePath("/settings/knowledge");
-  return res.ok
-    ? { info: `Connection is healthy. ${res.documents ?? "?"} document(s) visible.` }
-    : { error: res.error };
-}
-
-export async function disconnectParchmentAction(): Promise<ActionState> {
-  const { error: authError, user } = await requireAdmin();
-  if (authError || !user) return { error: authError ?? "Not signed in." };
-
-  const res = await disconnectParchment(createSupabaseAdmin(), user.orgId);
+  const res = await setParchmentEnabled(
+    createSupabaseAdmin(),
+    user.orgId,
+    enabled,
+    user.email ?? user.id,
+  );
   if (!res.ok) return { error: res.error };
 
   revalidatePath("/settings/knowledge");
   return {
-    info:
-      "Disconnected. The stored key has been deleted and George is back to its own knowledge base.",
+    info: enabled
+      ? "George will search your organisation's knowledge base again."
+      : "Knowledge grounding is off for this organisation. George will answer from its core playbooks and its own supplemental docs only.",
   };
 }
