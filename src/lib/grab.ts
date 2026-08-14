@@ -28,8 +28,22 @@ declare global {
   }
 }
 
-/** The publishable key. Absent = the widget is simply not installed. */
-export const GRAB_KEY = process.env.NEXT_PUBLIC_GRAB_KEY;
+/**
+ * The publishable key, read on the SERVER and passed down as a prop.
+ *
+ * It is deliberately not read from a client component. George builds in Docker,
+ * and `RUN pnpm build` there sees none of Railway's variables — so a
+ * `process.env.NEXT_PUBLIC_*` reference inside client code gets inlined as
+ * `undefined` at compile time and the widget silently never installs, no matter
+ * what the service variable says. Read server-side it resolves at runtime from
+ * the container's real environment, so the key can also be changed or rotated
+ * with a restart instead of a rebuild.
+ *
+ * Absent = the widget is simply not installed.
+ */
+export function readGrabKey(): string | undefined {
+  return process.env.NEXT_PUBLIC_GRAB_KEY || process.env.GRAB_KEY || undefined;
+}
 
 export function grabScriptSrc(key: string): string {
   return `https://grab-api.aiworkforce.md/widget.js?key=${encodeURIComponent(key)}`;
