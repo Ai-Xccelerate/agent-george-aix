@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { ClerkProvider } from "@clerk/nextjs";
 import LiquidBackdrop from "@/components/common/LiquidBackdrop";
+import { GrabWidget } from "@/components/grab/grab-widget";
 import { DensityProvider, type Density } from "@/context/DensityContext";
 import { SidebarProvider } from "@/context/SidebarContext";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -86,6 +87,7 @@ export default async function RootLayout({
               <SidebarProvider>{children}</SidebarProvider>
             </DensityProvider>
           </ThemeProvider>
+          <GrabWidget />
         </body>
       </html>
     </ClerkProvider>
