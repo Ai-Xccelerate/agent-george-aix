@@ -1,32 +1,43 @@
 /**
  * Parchment REST client — the org knowledge base George reads from.
  *
- * WHY REST AND NOT MCP
- * Parchment offers both, on the same key. MCP would mean George's agent runtime
- * connecting out to another MCP server mid-conversation, with its own session
- * lifecycle and failure modes inside the SSE chat path. REST is a plain HTTP
- * call we can time out, cache, and fail open on — and George already wraps its
- * own tools, so the MCP tool surface buys nothing here. The one thing MCP has
- * that REST does not is `browse_bundle`/`lookup_entity`; if those become
- * necessary they can be added as endpoints or a second path later.
+ * AUTH: THE INTERNAL AGENT PATH, NOT A PASTED API KEY
+ * Parchment has two integration models. The public one needs a human to log in,
+ * create a workspace and mint a workspace-bound `pcm_...` key. The internal one
+ * — documented in the Parchment repo as docs/agent-integration-internal.md —
+ * exists precisely so AIX Core agent products don't have to do that: George
+ * presents one shared secret plus the org's Clerk id, and Parchment resolves (or
+ * lazily creates) that org's default workspace on the first call.
+ *
+ *   X-Internal-Key:  the shared secret, from PARCHMENT_INTERNAL_AGENT_KEY
+ *   X-Clerk-Org-Id:  the org's Clerk organization id
+ *   X-Agent-Id:      "george" — attribution, not permission
+ *   X-Workspace-Id:  optional, only when not using the org's default
+ *
+ * That is why there is no connect form and no stored credential: there is
+ * nothing for a user to paste. Access is default-allow for every org.
+ *
+ * ACCESS CEILING — READ AND PROPOSE ONLY
+ * This path grants exactly the `agent` role. `/ingest` is refused with
+ * "Requires editor role; credential has agent" (verified against staging), so
+ * George cannot write sections directly. Corrections go through the proposal
+ * tools, staged for human review.
  *
  * FAIL OPEN, ALWAYS
  * Nothing here throws. Every method resolves `{ ok: true, data }` or
- * `{ ok: false, error }`, because these calls sit behind agent tools on the chat
- * path: an unreachable knowledge base must degrade George's answer, never break
- * the conversation. Parchment's own integration guide asks for exactly this.
+ * `{ ok: false, error }`, because these calls sit behind agent tools on the SSE
+ * chat path: an unreachable knowledge base must degrade George's answer, never
+ * break the conversation. Parchment's own guide asks for exactly this.
  *
  * DIVISION OF KNOWLEDGE (see AGENTS.md)
- * Parchment holds ORGANISATIONAL knowledge — policies, product, licensing,
- * customer specifics. George's CORE playbooks stay as repo markdown in
- * knowledge/core/ and are served from Postgres by read_knowledge_doc, because
- * they are George's operating instructions: version-controlled, reviewed in
- * PRs, and required even when Parchment is down.
- *
- * Enabled only when both PARCHMENT_API_BASE and PARCHMENT_API_KEY are set, so
- * this is reversible by deleting a variable — the same pattern as DATABASE_URL
- * and STORAGE_DRIVER.
+ * Parchment holds ORGANISATIONAL knowledge. George's CORE playbooks stay as repo
+ * markdown in knowledge/core/ and are served from Postgres by read_knowledge_doc,
+ * because they are George's operating instructions: version-controlled, reviewed
+ * in PRs, and required even when Parchment is down.
  */
+
+/** This agent's attribution label, sent as X-Agent-Id. */
+export const AGENT_ID = "george";
 
 /** A section as Parchment returns it: full content plus its ancestor chain. */
 export type ParchmentSection = {
@@ -62,84 +73,105 @@ export type ParchmentDocument = {
   [key: string]: unknown;
 };
 
-export type ParchmentJob = {
-  job_id: string;
-  status: "queued" | "processing" | "done" | "failed";
-  sections_created?: number;
-  error?: string | null;
+export type ParchmentWorkspace = {
+  id: string;
+  name: string;
+  visibility: string;
+};
+
+export type WorkspaceResolution = {
+  org_id: string;
+  default_workspace_id: string;
+  workspaces: ParchmentWorkspace[];
 };
 
 export type Ok<T> = { ok: true; data: T };
 export type Err = { ok: false; error: string; status?: number };
 export type ParchmentResult<T> = Ok<T> | Err;
 
-export type ParchmentConfig = { base: string; apiKey: string };
+/** Everything needed to talk to one org's knowledge base. */
+export type ParchmentConfig = {
+  base: string;
+  internalKey: string;
+  /** The org's Clerk organization id — how Parchment identifies the tenant. */
+  clerkOrgId: string;
+  /** Optional: a specific workspace instead of the org's default. */
+  workspaceId?: string | null;
+  agentId?: string;
+};
+
+/** The deployment-level half of the config: URL + shared secret. */
+export type ParchmentDeployment = { base: string; internalKey: string };
 
 /**
- * Both variables must be present. A base URL without a key would 401 on every
- * call; a key without a base has nowhere to go. Treating half-configuration as
- * "off" is deliberate — the alternative is an integration that looks enabled in
- * the UI and fails on every request.
+ * The deployment's Parchment settings, or null when this path is switched off.
+ *
+ * Both variables are required: a URL without the secret 401s on every call, and
+ * a secret without a URL has nowhere to go. Treating half-configuration as "off"
+ * is deliberate — the alternative is an integration that looks enabled and fails
+ * on every request.
+ *
+ * PARCHMENT_API_BASE is accepted as an alias for PARCHMENT_API_URL so an
+ * environment configured before the internal path existed keeps working.
  */
-export function parchmentConfig(): ParchmentConfig | null {
-  const base = process.env.PARCHMENT_API_BASE?.trim().replace(/\/+$/, "");
-  const apiKey = process.env.PARCHMENT_API_KEY?.trim();
-  if (!base || !apiKey) return null;
-  return { base, apiKey };
+export function parchmentDeployment(): ParchmentDeployment | null {
+  const base = (process.env.PARCHMENT_API_URL ?? process.env.PARCHMENT_API_BASE)
+    ?.trim()
+    .replace(/\/+$/, "");
+  const internalKey = process.env.PARCHMENT_INTERNAL_AGENT_KEY?.trim();
+  if (!base || !internalKey) return null;
+  return { base, internalKey };
 }
 
-export function isParchmentEnabled(): boolean {
-  return parchmentConfig() !== null;
+/** True when this deployment can reach Parchment at all. */
+export function isParchmentConfigured(): boolean {
+  return parchmentDeployment() !== null;
 }
 
-/**
- * Which variables are missing, for the Settings UI to explain itself. Returns an
- * empty array when fully configured.
- */
+/** Which variables are missing, for the Settings UI to explain itself. */
 export function parchmentMissingVars(): string[] {
   const missing: string[] = [];
-  if (!process.env.PARCHMENT_API_BASE?.trim()) missing.push("PARCHMENT_API_BASE");
-  if (!process.env.PARCHMENT_API_KEY?.trim()) missing.push("PARCHMENT_API_KEY");
+  if (!process.env.PARCHMENT_API_URL?.trim() && !process.env.PARCHMENT_API_BASE?.trim()) {
+    missing.push("PARCHMENT_API_URL");
+  }
+  if (!process.env.PARCHMENT_INTERNAL_AGENT_KEY?.trim()) {
+    missing.push("PARCHMENT_INTERNAL_AGENT_KEY");
+  }
   return missing;
 }
 
 /** Read calls are on the chat path, so they get a short leash. */
 const READ_TIMEOUT_MS = 12_000;
-/** Ingestion returns a job id immediately, but the upload itself can be large. */
-const WRITE_TIMEOUT_MS = 60_000;
+/** Provisioning on first touch can be slower than a plain read. */
+const RESOLVE_TIMEOUT_MS = 20_000;
 
 type RequestOpts = {
   method?: "GET" | "POST";
   body?: unknown;
-  formData?: FormData;
   timeoutMs?: number;
-  /** Query-string parameters; undefined and null values are dropped. */
   params?: Record<string, string | number | boolean | null | undefined>;
+  /** Omit the tenant headers — only the org-scoped calls need them. */
+  tenantless?: boolean;
 };
 
 async function request<T>(
+  cfg: ParchmentConfig,
   path: string,
   opts: RequestOpts = {},
-  explicit?: ParchmentConfig,
 ): Promise<ParchmentResult<T>> {
-  // An explicit config is the normal case: it comes from the org's own saved
-  // connection. Falling back to env keeps scripts and a deployment-wide default
-  // working, and is how verify-parchment.ts runs.
-  const cfg = explicit ?? parchmentConfig();
-  if (!cfg) {
-    return {
-      ok: false,
-      error:
-        "No Parchment knowledge hub is connected. Connect one in Settings → Knowledge, or set PARCHMENT_API_BASE and PARCHMENT_API_KEY for a deployment-wide default.",
-    };
-  }
-
   const url = new URL(`${cfg.base}${path}`);
   for (const [k, v] of Object.entries(opts.params ?? {})) {
     if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
   }
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${cfg.apiKey}` };
+  const headers: Record<string, string> = { "X-Internal-Key": cfg.internalKey };
+  if (!opts.tenantless) {
+    headers["X-Clerk-Org-Id"] = cfg.clerkOrgId;
+    headers["X-Agent-Id"] = cfg.agentId ?? AGENT_ID;
+    // Only send a workspace when one was chosen; absent means "the org's
+    // default", which is what almost every org wants.
+    if (cfg.workspaceId) headers["X-Workspace-Id"] = cfg.workspaceId;
+  }
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
 
   const timeoutMs = opts.timeoutMs ?? READ_TIMEOUT_MS;
@@ -150,7 +182,7 @@ async function request<T>(
     const res = await fetch(url, {
       method: opts.method ?? "GET",
       headers,
-      body: opts.formData ?? (opts.body === undefined ? undefined : JSON.stringify(opts.body)),
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
       signal: controller.signal,
       // Knowledge changes when someone ingests, not on a timer — and a stale
       // answer to a policy question is worse than a slow one.
@@ -158,17 +190,18 @@ async function request<T>(
     });
 
     if (!res.ok) {
-      // Parchment's documented failure modes, translated into something a
-      // reviewer reading George's logs can act on rather than a bare status.
+      // Translated into something an operator reading George's logs can act on.
+      // The meanings differ from the public API-key path: here a 401 is about
+      // the shared secret or the org header, and a 403 means either the path is
+      // switched off in Parchment or the endpoint needs a role above `agent`.
       const detail = await res.text().catch(() => "");
       const known: Record<number, string> = {
-        401: "Parchment rejected the API key (401). It may be revoked — reissue it from the console's Connect tab.",
-        403: "Parchment key lacks the required role (403). Ingestion needs an 'editor' key; 'agent' is read-only.",
-        404: "Not found in this Parchment workspace (404). Cross-workspace reads return 404 rather than 403, so check the key belongs to the right workspace.",
+        401: "Parchment rejected the internal credential (401). Either PARCHMENT_INTERNAL_AGENT_KEY is wrong, or this org has no Clerk organization id, or the selected workspace does not belong to it.",
+        403: "Parchment refused this call (403). Either the internal agent path is not enabled on that Parchment instance, or the endpoint needs a role above 'agent' — George's credential is read-and-propose only, so it cannot ingest or edit sections.",
+        404: "Not found in this Parchment workspace (404).",
         413: "Content exceeds Parchment's size cap (413).",
-        415: "File type not supported by Parchment ingestion (415).",
-        429: "Rate limited by Parchment (429). /query allows 300/min, ingestion 120/hour.",
-        503: "Parchment's ingestion queue is unavailable (503) — retry.",
+        429: "Rate limited by Parchment (429). /query allows 300/min.",
+        503: "Parchment is temporarily unavailable (503) — retry.",
       };
       return {
         ok: false,
@@ -177,7 +210,6 @@ async function request<T>(
       };
     }
 
-    // 202 from /ingest has a body; a 204 would not.
     if (res.status === 204) return { ok: true, data: undefined as T };
     return { ok: true, data: (await res.json()) as T };
   } catch (err) {
@@ -194,119 +226,114 @@ async function request<T>(
 }
 
 /**
- * Build a client bound to one workspace's credentials.
+ * Build a client bound to one org's knowledge base.
  *
- * Each org connects its own hub, so config is a parameter rather than ambient
- * state. `parchment` below is the same surface bound to the environment default,
- * kept for scripts and single-tenant deployments.
+ * Config is a parameter rather than ambient state because the tenant header
+ * changes per org: reading a process-wide default here could serve one
+ * organisation another organisation's knowledge.
  */
 export function createParchmentClient(cfg: ParchmentConfig) {
-  return makeApi(cfg);
-}
-
-function makeApi(cfg?: ParchmentConfig) {
   return {
-  /** Liveness — used by the Settings panel to show connection state. */
-  health(): Promise<ParchmentResult<{ status: string; database?: string }>> {
-    return request("/health", { timeoutMs: 6_000 }, cfg);
-  },
+    /** Liveness. Needs no tenant headers, so it also works before an org exists. */
+    health(): Promise<ParchmentResult<{ status: string; database?: string }>> {
+      return request(cfg, "/health", { timeoutMs: 6_000, tenantless: true });
+    },
 
-  /**
-   * The primary endpoint. `iterative` runs Parchment's ReAct refine loop, which
-   * recovers recall a plain AND-match misses at the cost of latency — off by
-   * default because this runs inside a chat turn.
-   */
-  query(args: {
-    query: string;
-    limit?: number;
-    business_function?: string | null;
-    business_objective?: string | null;
-    iterative?: boolean;
-  }): Promise<ParchmentResult<ParchmentQueryResult>> {
-    return request("/query", {
-      method: "POST",
-      body: {
-        query: args.query,
-        limit: Math.min(Math.max(args.limit ?? 5, 1), 50),
-        business_function: args.business_function ?? null,
-        business_objective: args.business_objective ?? null,
-        iterative: args.iterative ?? false,
-      },
-    }, cfg);
-  },
+    /**
+     * Discover the org's workspaces, provisioning its default one on first
+     * touch. Idempotent — every later call returns the same list.
+     *
+     * The org id goes in the PATH here (not the header), per the internal doc.
+     */
+    resolveWorkspaces(): Promise<ParchmentResult<WorkspaceResolution>> {
+      return request(
+        cfg,
+        `/internal/orgs/${encodeURIComponent(cfg.clerkOrgId)}/workspaces/resolve`,
+        {
+          method: "POST",
+          body: { agent_id: cfg.agentId ?? AGENT_ID },
+          timeoutMs: RESOLVE_TIMEOUT_MS,
+          tenantless: true,
+        },
+      );
+    },
 
-  /** One section plus its ancestors — the follow-up to a search hit. */
-  section(sectionId: string): Promise<ParchmentResult<ParchmentSection>> {
-    return request(`/sections/${encodeURIComponent(sectionId)}`, {}, cfg);
-  },
+    /**
+     * The primary endpoint. `iterative` runs Parchment's ReAct refine loop, which
+     * recovers recall a plain AND-match misses at the cost of latency — off by
+     * default because this runs inside a chat turn.
+     */
+    query(args: {
+      query: string;
+      limit?: number;
+      business_function?: string | null;
+      business_objective?: string | null;
+      iterative?: boolean;
+    }): Promise<ParchmentResult<ParchmentQueryResult>> {
+      return request(cfg, "/query", {
+        method: "POST",
+        body: {
+          query: args.query,
+          limit: Math.min(Math.max(args.limit ?? 5, 1), 50),
+          business_function: args.business_function ?? null,
+          business_objective: args.business_objective ?? null,
+          iterative: args.iterative ?? false,
+        },
+      });
+    },
 
-  sections(args: { business_function?: string; limit?: number } = {}): Promise<
-    ParchmentResult<ParchmentSection[]>
-  > {
-    return request("/sections", { params: { ...args } }, cfg);
-  },
+    /** One section plus its ancestors — the follow-up to a search hit. */
+    section(sectionId: string): Promise<ParchmentResult<ParchmentSection>> {
+      return request(cfg, `/sections/${encodeURIComponent(sectionId)}`);
+    },
 
-  documents(): Promise<ParchmentResult<ParchmentDocument[]>> {
-    return request("/documents", {}, cfg);
-  },
+    sections(
+      args: { business_function?: string; limit?: number } = {},
+    ): Promise<ParchmentResult<{ sections?: ParchmentSection[] } | ParchmentSection[]>> {
+      return request(cfg, "/sections", { params: { ...args } });
+    },
 
-  documentStructure(sourceFile: string): Promise<ParchmentResult<unknown>> {
-    return request("/documents/structure", { params: { source_file: sourceFile } }, cfg);
-  },
+    /**
+     * Ingested documents. Verified against staging: the response is
+     * `{"documents": [...]}`, not a bare array — hence `documentCount()` below
+     * rather than callers guessing.
+     */
+    documents(): Promise<
+      ParchmentResult<{ documents?: ParchmentDocument[] } | ParchmentDocument[]>
+    > {
+      return request(cfg, "/documents");
+    },
 
-  taxonomy(): Promise<ParchmentResult<unknown>> {
-    return request("/taxonomy", {}, cfg);
-  },
+    taxonomy(): Promise<ParchmentResult<unknown>> {
+      return request(cfg, "/taxonomy");
+    },
 
-  objectives(): Promise<ParchmentResult<unknown>> {
-    return request("/objectives", {}, cfg);
-  },
+    objectives(): Promise<ParchmentResult<unknown>> {
+      return request(cfg, "/objectives");
+    },
 
-  overview(): Promise<ParchmentResult<unknown>> {
-    return request("/knowledge/overview", {}, cfg);
-  },
-
-  /**
-   * Ingest markdown. Re-sending the same source_file MERGES — matching sections
-   * update in place, omitted ones are kept rather than wiped. Needs an editor
-   * key; an agent key gets 403.
-   */
-  ingest(args: { source_file: string; content: string }): Promise<ParchmentResult<ParchmentJob>> {
-    return request("/ingest", { method: "POST", body: args, timeoutMs: WRITE_TIMEOUT_MS }, cfg);
-  },
-
-  /** Upload a PDF/docx/xlsx/pptx/txt. Same async job flow as ingest(). */
-  ingestFile(file: File | Blob, filename: string): Promise<ParchmentResult<ParchmentJob>> {
-    const fd = new FormData();
-    fd.append("file", file, filename);
-    return request("/ingest/file", {
-      method: "POST",
-      formData: fd,
-      timeoutMs: WRITE_TIMEOUT_MS,
-    }, cfg);
-  },
-
-  /** Poll an ingestion job until status is done or failed. */
-  status(jobId: string): Promise<ParchmentResult<ParchmentJob>> {
-    return request(`/status/${encodeURIComponent(jobId)}`, {}, cfg);
-  },
-
-  /** Endpoint + current tool list, per Parchment's discovery endpoint. */
-  mcpInfo(): Promise<ParchmentResult<unknown>> {
-    return request("/mcp-info", {}, cfg);
-  },
+    overview(): Promise<ParchmentResult<unknown>> {
+      return request(cfg, "/knowledge/overview");
+    },
   };
 }
 
-/**
- * Environment-default client. Used by scripts and as a deployment-wide fallback
- * when an org has not connected its own hub. Resolves env at call time, so
- * setting the variables does not require a restart of anything holding this
- * reference.
- */
-export const parchment = makeApi();
-
 export type ParchmentClient = ReturnType<typeof createParchmentClient>;
+
+/**
+ * Count documents from whatever shape the endpoint returned.
+ *
+ * Staging returns `{documents: [...]}`; the public REST doc reads like a bare
+ * array. Tolerating both is cheaper than being wrong in the UI, where the
+ * difference is a silent "—" instead of a real number.
+ */
+export function documentCount(
+  data: { documents?: ParchmentDocument[] } | ParchmentDocument[] | null | undefined,
+): number | null {
+  if (Array.isArray(data)) return data.length;
+  if (data && Array.isArray(data.documents)) return data.documents.length;
+  return null;
+}
 
 /**
  * Flatten a query result into the shape George's `search_knowledge` tool already
@@ -316,7 +343,7 @@ export type ParchmentClient = ReturnType<typeof createParchmentClient>;
  * could never give it.
  */
 export function toKnowledgeHits(result: ParchmentQueryResult) {
-  return result.results.map((s) => ({
+  return (result.results ?? []).map((s) => ({
     score: typeof s.score === "number" ? Number(s.score.toFixed(4)) : undefined,
     path: s.source_file,
     title: s.title,
@@ -327,7 +354,7 @@ export function toKnowledgeHits(result: ParchmentQueryResult) {
     snippet: s.content,
     // Ancestors are the difference between a chunk and a grounded section, but
     // the full chain would flood the context — titles give the model the frame
-    // and it can call retrieve_section for the bodies.
+    // and it can fetch the section for the bodies.
     context: (s.ancestors ?? []).map((a) => a.title).join(" > ") || undefined,
   }));
 }

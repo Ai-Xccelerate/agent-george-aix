@@ -1,32 +1,34 @@
 /**
  * Parchment client contract tests.
  *
- * The behaviour that matters here is not "does fetch work" but the promises this
- * client makes to its callers, which sit on the chat path: it never throws, it
- * treats half-configuration as off, and it turns Parchment's documented status
- * codes into something an operator can act on. All of it runs with fetch mocked,
- * so CI needs no instance and no API key.
+ * What matters here is not "does fetch work" but the promises this client makes
+ * to callers sitting on the chat path: it never throws, it sends the internal
+ * agent credential rather than a bearer token, it scopes every call to one org,
+ * and it turns Parchment's documented status codes into something an operator can
+ * act on. All with fetch mocked, so CI needs no instance and no secret.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  AGENT_ID,
   createParchmentClient,
-  isParchmentEnabled,
-  parchment,
-  parchmentConfig,
+  documentCount,
+  isParchmentConfigured,
+  parchmentDeployment,
   parchmentMissingVars,
   toKnowledgeHits,
+  type ParchmentConfig,
   type ParchmentQueryResult,
 } from "./client";
 
+const CFG: ParchmentConfig = {
+  base: "https://parchment.example.test",
+  internalKey: "internal-secret",
+  clerkOrgId: "org_abc123",
+};
+
+const VARS = ["PARCHMENT_API_URL", "PARCHMENT_API_BASE", "PARCHMENT_INTERNAL_AGENT_KEY"] as const;
 const saved: Record<string, string | undefined> = {};
-const VARS = ["PARCHMENT_API_BASE", "PARCHMENT_API_KEY"] as const;
 
-function configured() {
-  process.env.PARCHMENT_API_BASE = "https://parchment.example.test";
-  process.env.PARCHMENT_API_KEY = "pcm_test_key";
-}
-
-/** Stand in for fetch, capturing the request so the call shape can be asserted. */
 function mockFetch(response: {
   ok?: boolean;
   status?: number;
@@ -49,7 +51,9 @@ function mockFetch(response: {
 
 beforeEach(() => {
   for (const k of VARS) saved[k] = process.env[k];
-  configured();
+  delete process.env.PARCHMENT_API_BASE;
+  process.env.PARCHMENT_API_URL = "https://parchment.example.test";
+  process.env.PARCHMENT_INTERNAL_AGENT_KEY = "internal-secret";
 });
 
 afterEach(() => {
@@ -61,128 +65,132 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("configuration", () => {
-  it("is enabled only when both variables are present", () => {
-    expect(isParchmentEnabled()).toBe(true);
+describe("deployment configuration", () => {
+  it("requires both the URL and the shared secret", () => {
+    expect(isParchmentConfigured()).toBe(true);
 
-    delete process.env.PARCHMENT_API_KEY;
-    expect(isParchmentEnabled()).toBe(false);
-    expect(parchmentMissingVars()).toEqual(["PARCHMENT_API_KEY"]);
-
-    delete process.env.PARCHMENT_API_BASE;
-    expect(parchmentMissingVars()).toEqual(["PARCHMENT_API_BASE", "PARCHMENT_API_KEY"]);
+    delete process.env.PARCHMENT_INTERNAL_AGENT_KEY;
+    expect(isParchmentConfigured()).toBe(false);
+    expect(parchmentMissingVars()).toEqual(["PARCHMENT_INTERNAL_AGENT_KEY"]);
   });
 
-  it("trims a trailing slash from the base so paths never double up", () => {
-    process.env.PARCHMENT_API_BASE = "https://parchment.example.test/";
-    expect(parchmentConfig()?.base).toBe("https://parchment.example.test");
-  });
-
-  it("returns a clear error instead of calling out when nothing is connected", async () => {
-    delete process.env.PARCHMENT_API_KEY;
-    const spy = mockFetch({ json: {} });
-
-    const res = await parchment.query({ query: "refund policy" });
-
-    expect(res.ok).toBe(false);
-    // The message has to tell a person what to do about it, not just report a
-    // missing variable — most readers of this error are admins in the UI, not
-    // engineers reading a deploy log.
-    if (!res.ok) expect(res.error).toMatch(/Settings → Knowledge/);
-    // The important half: no request was attempted.
-    expect(spy).not.toHaveBeenCalled();
+  it("trims a trailing slash so paths never double up", () => {
+    process.env.PARCHMENT_API_URL = "https://parchment.example.test/";
+    expect(parchmentDeployment()?.base).toBe("https://parchment.example.test");
   });
 });
 
-describe("per-org clients", () => {
-  it("uses the passed credentials, not the environment's", async () => {
-    // The multi-tenant requirement: two orgs on one deployment must be able to
-    // reach two different workspaces.
+describe("auth headers", () => {
+  it("sends the three internal headers instead of a bearer token", async () => {
     const spy = mockFetch({ json: { query: "x", count: 0, results: [] } });
-    const client = createParchmentClient({
-      base: "https://org-b.parchment.test",
-      apiKey: "pcm_org_b",
-    });
 
-    await client.query({ query: "a" });
+    await createParchmentClient(CFG).query({ query: "refund policy" });
 
-    const [url, init] = spy.mock.calls[0] as unknown as [URL, RequestInit];
-    expect(String(url)).toBe("https://org-b.parchment.test/query");
-    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer pcm_org_b");
+    const [, init] = spy.mock.calls[0] as unknown as [URL, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers["X-Internal-Key"]).toBe("internal-secret");
+    expect(headers["X-Clerk-Org-Id"]).toBe("org_abc123");
+    expect(headers["X-Agent-Id"]).toBe(AGENT_ID);
+    // The internal path does not use bearer auth at all.
+    expect(headers.Authorization).toBeUndefined();
   });
 
-  it("works even when the environment has no configuration at all", async () => {
-    delete process.env.PARCHMENT_API_BASE;
-    delete process.env.PARCHMENT_API_KEY;
+  it("omits X-Workspace-Id unless a workspace was chosen", async () => {
+    const spy = mockFetch({ json: {} });
+
+    await createParchmentClient(CFG).documents();
+    let headers = (spy.mock.calls[0] as unknown as [URL, RequestInit])[1].headers as Record<
+      string,
+      string
+    >;
+    // Absent means "the org's default", which is what most orgs want.
+    expect(headers["X-Workspace-Id"]).toBeUndefined();
+
+    await createParchmentClient({ ...CFG, workspaceId: "ws-9" }).documents();
+    headers = (spy.mock.calls[1] as unknown as [URL, RequestInit])[1].headers as Record<
+      string,
+      string
+    >;
+    expect(headers["X-Workspace-Id"]).toBe("ws-9");
+  });
+
+  it("scopes each client to its own org", async () => {
+    const spy = mockFetch({ json: {} });
+
+    await createParchmentClient({ ...CFG, clerkOrgId: "org_a" }).documents();
+    await createParchmentClient({ ...CFG, clerkOrgId: "org_b" }).documents();
+
+    const orgs = spy.mock.calls.map(
+      (c) => ((c as unknown as [URL, RequestInit])[1].headers as Record<string, string>)["X-Clerk-Org-Id"],
+    );
+    expect(orgs).toEqual(["org_a", "org_b"]);
+  });
+
+  it("does not send tenant headers on health, so it works before an org exists", async () => {
     const spy = mockFetch({ json: { status: "ok" } });
 
-    const res = await createParchmentClient({
-      base: "https://org-c.parchment.test",
-      apiKey: "pcm_org_c",
-    }).health();
+    await createParchmentClient(CFG).health();
 
-    expect(res.ok).toBe(true);
-    expect(spy).toHaveBeenCalledOnce();
+    const headers = (spy.mock.calls[0] as unknown as [URL, RequestInit])[1].headers as Record<
+      string,
+      string
+    >;
+    expect(headers["X-Internal-Key"]).toBe("internal-secret");
+    expect(headers["X-Clerk-Org-Id"]).toBeUndefined();
   });
 });
 
-describe("request shape", () => {
-  it("sends the bearer token and the documented query body", async () => {
-    const spy = mockFetch({ json: { query: "x", count: 0, results: [] } });
+describe("workspace resolution", () => {
+  it("puts the org id in the path and posts the agent id", async () => {
+    const spy = mockFetch({
+      json: { org_id: "p", default_workspace_id: "ws-1", workspaces: [] },
+    });
 
-    await parchment.query({ query: "refund policy", limit: 3, iterative: true });
+    await createParchmentClient(CFG).resolveWorkspaces();
 
     const [url, init] = spy.mock.calls[0] as unknown as [URL, RequestInit];
-    expect(String(url)).toBe("https://parchment.example.test/query");
-    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer pcm_test_key");
-    expect(JSON.parse(init.body as string)).toEqual({
-      query: "refund policy",
-      limit: 3,
-      business_function: null,
-      business_objective: null,
-      iterative: true,
-    });
+    expect(String(url)).toBe(
+      "https://parchment.example.test/internal/orgs/org_abc123/workspaces/resolve",
+    );
+    expect(JSON.parse(init.body as string)).toEqual({ agent_id: "george" });
   });
 
-  it("clamps limit to Parchment's documented 1..50", async () => {
-    const spy = mockFetch({ json: { query: "x", count: 0, results: [] } });
-
-    await parchment.query({ query: "a", limit: 999 });
-    expect(JSON.parse((spy.mock.calls[0] as unknown as [URL, RequestInit])[1].body as string).limit).toBe(50);
-
-    await parchment.query({ query: "a", limit: 0 });
-    expect(JSON.parse((spy.mock.calls[1] as unknown as [URL, RequestInit])[1].body as string).limit).toBe(1);
-  });
-
-  it("url-encodes ids so a section id can never break out of the path", async () => {
+  it("url-encodes the org id so it cannot break out of the path", async () => {
     const spy = mockFetch({ json: {} });
-    await parchment.section("../../admin?x=1");
+    await createParchmentClient({ ...CFG, clerkOrgId: "../../admin" }).resolveWorkspaces();
     const [url] = spy.mock.calls[0] as unknown as [URL];
     expect(String(url)).toContain("%2F");
     expect(String(url)).not.toContain("/../");
   });
+});
 
-  it("drops empty query params rather than sending blanks", async () => {
-    const spy = mockFetch({ json: [] });
-    await parchment.sections({ business_function: undefined, limit: 10 });
-    const [url] = spy.mock.calls[0] as unknown as [URL];
-    expect(String(url)).toBe("https://parchment.example.test/sections?limit=10");
+describe("request shape", () => {
+  it("clamps limit to Parchment's documented 1..50", async () => {
+    const spy = mockFetch({ json: { query: "x", count: 0, results: [] } });
+    const client = createParchmentClient(CFG);
+
+    await client.query({ query: "a", limit: 999 });
+    expect(
+      JSON.parse((spy.mock.calls[0] as unknown as [URL, RequestInit])[1].body as string).limit,
+    ).toBe(50);
+
+    await client.query({ query: "a", limit: 0 });
+    expect(
+      JSON.parse((spy.mock.calls[1] as unknown as [URL, RequestInit])[1].body as string).limit,
+    ).toBe(1);
   });
 });
 
 describe("failure handling — never throws, always explains", () => {
   it.each([
-    [401, /revoked|reissue/i],
-    [403, /editor|read-only/i],
-    [404, /workspace/i],
-    [413, /size cap/i],
-    [415, /file type/i],
+    [401, /PARCHMENT_INTERNAL_AGENT_KEY|Clerk organization id/i],
+    [403, /not enabled|above 'agent'/i],
     [429, /rate limited/i],
-    [503, /queue is unavailable/i],
+    [503, /unavailable/i],
   ])("translates %i into an actionable message", async (status, pattern) => {
     mockFetch({ ok: false, status, text: "upstream detail" });
 
-    const res = await parchment.query({ query: "a" });
+    const res = await createParchmentClient(CFG).query({ query: "a" });
 
     expect(res.ok).toBe(false);
     if (!res.ok) {
@@ -191,35 +199,51 @@ describe("failure handling — never throws, always explains", () => {
     }
   });
 
+  it("explains that 403 can mean the credential cannot write", async () => {
+    // Verified against staging: /ingest returns 403 "Requires editor role;
+    // credential has agent". An operator needs to know that is expected.
+    mockFetch({ ok: false, status: 403, text: "Requires editor role; credential has agent" });
+    const res = await createParchmentClient(CFG).query({ query: "a" });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/read-and-propose only|cannot ingest/i);
+  });
+
   it("resolves rather than rejecting when the network fails", async () => {
     mockFetch({ reject: new Error("ECONNREFUSED") });
 
     // A throw here would break the chat turn instead of degrading the answer.
-    const res = await parchment.query({ query: "a" });
+    const res = await createParchmentClient(CFG).query({ query: "a" });
 
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Could not reach Parchment/);
   });
 
-  it("reports a timeout as a timeout, not a generic failure", async () => {
+  it("reports a timeout as a timeout", async () => {
     const abort = new Error("aborted");
     abort.name = "AbortError";
     mockFetch({ reject: abort });
 
-    const res = await parchment.query({ query: "a" });
+    const res = await createParchmentClient(CFG).query({ query: "a" });
 
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/did not respond within \d+s/);
   });
+});
 
-  it("passes an unknown status through with its body, truncated", async () => {
-    mockFetch({ ok: false, status: 500, text: "x".repeat(500) });
-    const res = await parchment.query({ query: "a" });
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.error).toMatch(/^Parchment returned 500/);
-      expect(res.error.length).toBeLessThan(260);
-    }
+describe("documentCount", () => {
+  it("handles the wrapped shape staging actually returns", () => {
+    expect(documentCount({ documents: [{ source_file: "a" }, { source_file: "b" }] })).toBe(2);
+    expect(documentCount({ documents: [] })).toBe(0);
+  });
+
+  it("also handles a bare array, as the public REST doc reads", () => {
+    expect(documentCount([{ source_file: "a" }])).toBe(1);
+  });
+
+  it("returns null for an unexpected shape rather than pretending it is zero", () => {
+    // Zero and "I don't know" are different things to show an admin.
+    expect(documentCount(undefined)).toBeNull();
+    expect(documentCount({} as never)).toBeNull();
   });
 });
 
@@ -263,8 +287,8 @@ describe("toKnowledgeHits", () => {
     expect(toKnowledgeHits(result)[0].is_core).toBe(false);
   });
 
-  it("handles a section with no ancestors", () => {
-    const flat = { ...result, results: [{ ...result.results[0], ancestors: [] }] };
-    expect(toKnowledgeHits(flat)[0].context).toBeUndefined();
+  it("tolerates an empty or missing results array", () => {
+    expect(toKnowledgeHits({ ...result, results: [] })).toEqual([]);
+    expect(toKnowledgeHits({ query: "x", count: 0 } as ParchmentQueryResult)).toEqual([]);
   });
 });

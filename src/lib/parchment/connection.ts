@@ -1,314 +1,297 @@
 /**
- * An org's Parchment connection — stored, resolved, tested, removed.
+ * Resolving an org's Parchment knowledge base.
  *
- * WHY THIS IS PER-ORG DATA AND NOT AN ENVIRONMENT VARIABLE
- * A Parchment API key is bound to one workspace. George is multi-tenant, so two
- * orgs on the same deployment must be able to point at two different knowledge
- * hubs, and connecting one must not require a redeploy. That makes the
- * connection a row, not config — which is also what lets an admin do it from the
- * UI instead of asking an engineer.
+ * WHAT CHANGED, AND WHY THERE IS NO LONGER A CREDENTIAL HERE
+ * The first version of this file stored a per-org API key, encrypted, because
+ * Parchment's public path requires a human to mint one per workspace. The
+ * internal agent path (docs/agent-integration-internal.md in the Parchment repo)
+ * removed that entirely: George presents one deployment-level shared secret plus
+ * the org's Clerk id, and Parchment resolves — or lazily creates — that org's
+ * default workspace. Access is default-allow for every org.
  *
- * It lives in the existing `integrations` table (provider 'parchment'), the same
- * place Composio connections live, so status and history work the same way.
+ * So the only per-org state left is genuinely a preference, not a secret:
  *
- * CREDENTIAL HANDLING
- * The key is encrypted before it reaches the row (see lib/crypto/secret-box) and
- * never returned to the browser — only a fingerprint like "pcm_ab…9f21", which
- * is enough for an admin to tell one key from another after a rotation without
- * exposing the secret itself. `integrations.vault_secret_id` is unused: it
- * assumed Supabase Vault, which the Postgres migration removed.
+ *   - which workspace to use, when an org has created more than the default one
+ *   - whether to use Parchment for this org at all (an opt-OUT escape hatch)
  *
- * The environment variables remain as a deployment-wide default, so a
- * single-tenant install or a script can work without a row. An org's own
- * connection always wins.
+ * Both live in the existing `integrations` table under provider 'parchment',
+ * alongside the Composio connections. Nothing sensitive is stored, which is why
+ * the encryption helper this module used to depend on is gone.
+ *
+ * The tenant key is `orgs.clerk_org_id`, mirrored by lib/aix-core/jit-mirror on
+ * first sign-in. An org without one cannot be resolved — Parchment has no other
+ * way to identify it — and that is reported rather than guessed at.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createParchmentClient,
-  parchmentConfig,
+  documentCount,
+  parchmentDeployment,
   type ParchmentConfig,
+  type ParchmentWorkspace,
 } from "./client";
-import { fingerprint, open, seal, type SealedSecret } from "@/lib/crypto/secret-box";
 
 const PROVIDER = "parchment";
 
-/** What the UI is allowed to see. Deliberately contains no secret. */
-export type ParchmentConnection = {
-  connected: boolean;
-  /** Where the connection came from — an org's own row, or the deployment default. */
-  source: "org" | "environment" | "none";
-  baseUrl: string | null;
-  /** e.g. "pcm_ab…9f21" — identifies the key without revealing it. */
-  keyFingerprint: string | null;
-  status: "connected" | "disconnected" | "error" | "pending" | null;
-  /** Free-text reason when the last check failed. */
-  lastError: string | null;
-  lastCheckedAt: string | null;
-  /** Workspace stats captured at the last successful check. */
-  documents: number | null;
-  connectedBy: string | null;
-};
-
 type Metadata = {
-  base_url?: string;
-  key?: SealedSecret;
-  key_fingerprint?: string;
+  /** Chosen workspace, when the org picked one other than the default. */
+  workspace_id?: string | null;
+  workspace_name?: string | null;
+  /** Opt-out. Absent or true means Parchment is in use. */
+  enabled?: boolean;
+  /** Cached from the last successful resolve, for display only. */
+  known_workspaces?: ParchmentWorkspace[];
+  default_workspace_id?: string | null;
   last_error?: string | null;
   last_checked_at?: string | null;
   documents?: number | null;
-  connected_by?: string | null;
+  updated_by?: string | null;
 };
 
 type Row = {
   id: string;
   status: string;
-  account_label: string | null;
   metadata: Metadata | null;
-  updated_at: string | null;
 };
 
 async function readRow(admin: SupabaseClient, orgId: string): Promise<Row | null> {
   const { data } = await admin
     .from("integrations")
-    .select("id, status, account_label, metadata, updated_at")
+    .select("id, status, metadata")
     .eq("org_id", orgId)
     .eq("provider", PROVIDER)
     .maybeSingle();
   return (data as Row | null) ?? null;
 }
 
+/** The org's Clerk organization id — Parchment's tenant identifier. */
+async function clerkOrgIdFor(admin: SupabaseClient, orgId: string): Promise<string | null> {
+  const { data } = await admin
+    .from("orgs")
+    .select("clerk_org_id")
+    .eq("id", orgId)
+    .maybeSingle();
+  const value = (data as { clerk_org_id?: string | null } | null)?.clerk_org_id;
+  return value?.trim() || null;
+}
+
+export type ResolveFailure =
+  | { reason: "not_configured"; missing: string[] }
+  | { reason: "opted_out" }
+  | { reason: "no_clerk_org" };
+
 /**
- * The credentials George should use for this org, or null if it has none.
+ * The config George should use for this org, or a reason it cannot.
  *
- * Resolution order is org row, then environment. An org that has connected its
- * own hub must never silently fall through to a deployment default pointing at
- * someone else's workspace — so a row that exists but cannot be decrypted
- * returns null rather than falling back.
+ * Returns a discriminated failure rather than plain null so the Settings panel
+ * can explain which of the three very different situations applies instead of
+ * showing one vague "not connected".
  */
 export async function resolveParchmentConfig(
   admin: SupabaseClient,
   orgId: string,
-): Promise<ParchmentConfig | null> {
+): Promise<{ ok: true; config: ParchmentConfig } | { ok: false; failure: ResolveFailure }> {
+  const deployment = parchmentDeployment();
+  if (!deployment) {
+    const { parchmentMissingVars } = await import("./client");
+    return { ok: false, failure: { reason: "not_configured", missing: parchmentMissingVars() } };
+  }
+
   const row = await readRow(admin, orgId);
-  if (row) {
-    if (row.status === "disconnected") return null;
-    const base = row.metadata?.base_url?.trim();
-    const key = open(row.metadata?.key);
-    if (base && key) return { base: base.replace(/\/+$/, ""), apiKey: key };
-    // A row exists but is unusable — most likely APP_ENCRYPTION_KEY changed.
-    // Falling back to the environment here would query the wrong workspace.
-    return null;
-  }
-  return parchmentConfig();
-}
-
-/** Convenience: a client bound to this org's hub, or null if none is connected. */
-export async function parchmentForOrg(admin: SupabaseClient, orgId: string) {
-  const cfg = await resolveParchmentConfig(admin, orgId);
-  return cfg ? createParchmentClient(cfg) : null;
-}
-
-/** Everything the settings UI needs, with no secret in it. */
-export async function getParchmentConnection(
-  admin: SupabaseClient,
-  orgId: string,
-): Promise<ParchmentConnection> {
-  const row = await readRow(admin, orgId);
-
-  if (row) {
-    return {
-      connected: row.status === "connected",
-      source: "org",
-      baseUrl: row.metadata?.base_url ?? null,
-      keyFingerprint: row.metadata?.key_fingerprint ?? null,
-      status: (row.status as ParchmentConnection["status"]) ?? null,
-      lastError: row.metadata?.last_error ?? null,
-      lastCheckedAt: row.metadata?.last_checked_at ?? null,
-      documents: row.metadata?.documents ?? null,
-      connectedBy: row.metadata?.connected_by ?? null,
-    };
+  if (row?.metadata?.enabled === false) {
+    return { ok: false, failure: { reason: "opted_out" } };
   }
 
-  const env = parchmentConfig();
-  if (env) {
-    // A deployment-wide default. Shown as such so an admin understands why
-    // George has knowledge they never connected here.
-    return {
-      connected: true,
-      source: "environment",
-      baseUrl: env.base,
-      keyFingerprint: fingerprint(env.apiKey),
-      status: "connected",
-      lastError: null,
-      lastCheckedAt: null,
-      documents: null,
-      connectedBy: null,
-    };
-  }
-
-  return {
-    connected: false,
-    source: "none",
-    baseUrl: null,
-    keyFingerprint: null,
-    status: null,
-    lastError: null,
-    lastCheckedAt: null,
-    documents: null,
-    connectedBy: null,
-  };
-}
-
-export type TestResult =
-  | { ok: true; documents: number | null; database: string | null }
-  | { ok: false; error: string };
-
-/**
- * Prove a base URL and key actually work before storing them.
- *
- * Health alone is not enough: `/health` needs no auth, so a wrong key would pass
- * it. `/documents` is the cheapest call that requires the key to resolve to a
- * workspace, which is what "connected" has to mean.
- */
-export async function testParchmentCredentials(cfg: ParchmentConfig): Promise<TestResult> {
-  const client = createParchmentClient(cfg);
-
-  const health = await client.health();
-  if (!health.ok) return { ok: false, error: health.error };
-
-  const docs = await client.documents();
-  if (!docs.ok) return { ok: false, error: docs.error };
+  const clerkOrgId = await clerkOrgIdFor(admin, orgId);
+  if (!clerkOrgId) return { ok: false, failure: { reason: "no_clerk_org" } };
 
   return {
     ok: true,
-    documents: Array.isArray(docs.data) ? docs.data.length : null,
-    database: typeof health.data?.database === "string" ? health.data.database : null,
+    config: {
+      ...deployment,
+      clerkOrgId,
+      workspaceId: row?.metadata?.workspace_id ?? null,
+    },
   };
 }
 
-export type SaveResult =
-  | { ok: true; documents: number | null }
-  | { ok: false; error: string };
+/** A client for this org's knowledge base, or null when unavailable. */
+export async function parchmentForOrg(admin: SupabaseClient, orgId: string) {
+  const res = await resolveParchmentConfig(admin, orgId);
+  return res.ok ? createParchmentClient(res.config) : null;
+}
+
+export type ParchmentStatus = {
+  /** Whether George will query Parchment for this org right now. */
+  active: boolean;
+  /** Why not, when inactive. */
+  failure: ResolveFailure | null;
+  endpoint: string | null;
+  /** Live-resolved workspaces, when reachable. */
+  workspaces: ParchmentWorkspace[];
+  defaultWorkspaceId: string | null;
+  selectedWorkspaceId: string | null;
+  documents: number | null;
+  reachable: boolean;
+  error: string | null;
+};
 
 /**
- * Store a connection, but only one that has been proven to work.
+ * Everything the Settings panel needs, resolved live.
  *
- * Saving an untested credential would produce an integration that reads
- * "connected" while every search silently falls back to local knowledge — the
- * failure mode this whole feature is meant to remove.
+ * Deliberately hits Parchment during render: the previous version's stored
+ * "connected" flag could disagree with reality, and the whole point of this panel
+ * is to tell an admin what George will actually do on the next question. The
+ * resolve call also provisions the org's default workspace on first view, which
+ * is why simply opening the page is enough to set an org up.
  */
-export async function saveParchmentConnection(
+export async function getParchmentStatus(
   admin: SupabaseClient,
   orgId: string,
-  input: { baseUrl: string; apiKey: string; actor: string | null },
-): Promise<SaveResult> {
-  const base = input.baseUrl.trim().replace(/\/+$/, "");
-  const apiKey = input.apiKey.trim();
+): Promise<ParchmentStatus> {
+  const empty: ParchmentStatus = {
+    active: false,
+    failure: null,
+    endpoint: parchmentDeployment()?.base ?? null,
+    workspaces: [],
+    defaultWorkspaceId: null,
+    selectedWorkspaceId: null,
+    documents: null,
+    reachable: false,
+    error: null,
+  };
 
-  if (!/^https?:\/\/.+/.test(base)) {
-    return { ok: false, error: "Enter the full API URL, starting with https://" };
+  const resolved = await resolveParchmentConfig(admin, orgId);
+  if (!resolved.ok) return { ...empty, failure: resolved.failure };
+
+  const row = await readRow(admin, orgId);
+  const client = createParchmentClient(resolved.config);
+
+  const [ws, docs] = await Promise.all([client.resolveWorkspaces(), client.documents()]);
+
+  if (!ws.ok) {
+    return {
+      ...empty,
+      active: true,
+      endpoint: resolved.config.base,
+      selectedWorkspaceId: resolved.config.workspaceId ?? null,
+      reachable: false,
+      error: ws.error,
+      // Fall back to whatever the last successful resolve saw, so the dropdown
+      // is not empty just because Parchment is briefly down.
+      workspaces: row?.metadata?.known_workspaces ?? [],
+      defaultWorkspaceId: row?.metadata?.default_workspace_id ?? null,
+      documents: row?.metadata?.documents ?? null,
+    };
   }
-  if (!apiKey) return { ok: false, error: "Enter the API key." };
 
-  const test = await testParchmentCredentials({ base, apiKey });
-  if (!test.ok) return { ok: false, error: test.error };
+  return {
+    active: true,
+    failure: null,
+    endpoint: resolved.config.base,
+    workspaces: ws.data.workspaces ?? [],
+    defaultWorkspaceId: ws.data.default_workspace_id ?? null,
+    selectedWorkspaceId: resolved.config.workspaceId ?? null,
+    documents: docs.ok ? documentCount(docs.data) : null,
+    reachable: true,
+    error: null,
+  };
+}
 
-  let sealed: SealedSecret;
-  try {
-    sealed = seal(apiKey);
-  } catch (err) {
-    // Refusing to store the key in plaintext is deliberate — see secret-box.
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
+type Mutation = { ok: true } | { ok: false; error: string };
 
+async function writeMetadata(
+  admin: SupabaseClient,
+  orgId: string,
+  patch: Metadata,
+  actor: string | null,
+): Promise<Mutation> {
+  const row = await readRow(admin, orgId);
   const metadata: Metadata = {
-    base_url: base,
-    key: sealed,
-    key_fingerprint: fingerprint(apiKey),
-    last_error: null,
+    ...(row?.metadata ?? {}),
+    ...patch,
     last_checked_at: new Date().toISOString(),
-    documents: test.documents,
-    connected_by: input.actor,
+    updated_by: actor,
   };
 
   const { error } = await admin.from("integrations").upsert(
     {
       org_id: orgId,
       provider: PROVIDER,
-      status: "connected",
-      // Host only — a label an admin recognises, without the credential.
-      account_label: safeHost(base),
+      // 'connected' unless the org opted out — there is no credential to be
+      // pending or in error about on this path.
+      status: metadata.enabled === false ? "disconnected" : "connected",
+      account_label: metadata.workspace_name ?? "Default workspace",
       metadata,
-      last_synced_at: new Date().toISOString(),
     },
     { onConflict: "org_id,provider" },
   );
-  if (error) return { ok: false, error: error.message };
-
-  return { ok: true, documents: test.documents };
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 /**
- * Re-check a stored connection and record the outcome, so the settings page can
- * show a real state rather than whatever was true on the day it was connected.
+ * Choose which workspace George reads. `null` means the org's default, which is
+ * also what an org with a single workspace always wants.
  */
-export async function recheckParchmentConnection(
+export async function selectWorkspace(
   admin: SupabaseClient,
   orgId: string,
-): Promise<TestResult> {
-  const row = await readRow(admin, orgId);
-  if (!row) return { ok: false, error: "No Parchment connection is stored for this organisation." };
+  workspaceId: string | null,
+  actor: string | null,
+): Promise<Mutation> {
+  const resolved = await resolveParchmentConfig(admin, orgId);
+  if (!resolved.ok) return { ok: false, error: describeFailure(resolved.failure) };
 
-  const base = row.metadata?.base_url;
-  const key = open(row.metadata?.key);
-  if (!base || !key) {
-    return {
-      ok: false,
-      error:
-        "The stored key could not be read. This usually means APP_ENCRYPTION_KEY changed — reconnect with the key again.",
-    };
+  const client = createParchmentClient(resolved.config);
+  const ws = await client.resolveWorkspaces();
+  if (!ws.ok) return { ok: false, error: ws.error };
+
+  // Validate against what the org actually has. Parchment would reject a
+  // mismatched workspace with a 401 at query time — long after the click, and
+  // reported to the wrong person.
+  const known = ws.data.workspaces ?? [];
+  const chosen = workspaceId ? known.find((w) => w.id === workspaceId) : null;
+  if (workspaceId && !chosen) {
+    return { ok: false, error: "That workspace is not available to this organisation." };
   }
 
-  const test = await testParchmentCredentials({ base, apiKey: key });
-  await admin
-    .from("integrations")
-    .update({
-      status: test.ok ? "connected" : "error",
-      metadata: {
-        ...row.metadata,
-        last_error: test.ok ? null : test.error,
-        last_checked_at: new Date().toISOString(),
-        documents: test.ok ? test.documents : (row.metadata?.documents ?? null),
-      },
-    })
-    .eq("id", row.id);
-
-  return test;
+  return writeMetadata(
+    admin,
+    orgId,
+    {
+      workspace_id: chosen ? chosen.id : null,
+      workspace_name: chosen ? chosen.name : null,
+      known_workspaces: known,
+      default_workspace_id: ws.data.default_workspace_id ?? null,
+      enabled: true,
+      last_error: null,
+    },
+    actor,
+  );
 }
 
 /**
- * Forget the connection entirely, including the ciphertext.
- *
- * The row is deleted rather than flagged disconnected: leaving an encrypted key
- * in the database after someone clicked Disconnect is not what they asked for.
+ * The opt-out. Per Parchment's own UI guidance a toggle only earns its place as
+ * an escape hatch — access is default-allow, so there is nothing to switch on —
+ * and this is that escape hatch: knowledge grounding off for this org.
  */
-export async function disconnectParchment(
+export async function setParchmentEnabled(
   admin: SupabaseClient,
   orgId: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await admin
-    .from("integrations")
-    .delete()
-    .eq("org_id", orgId)
-    .eq("provider", PROVIDER);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  enabled: boolean,
+  actor: string | null,
+): Promise<Mutation> {
+  return writeMetadata(admin, orgId, { enabled }, actor);
 }
 
-function safeHost(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url.slice(0, 80);
+/** Human-readable form of a resolve failure, for UI and tool logs. */
+export function describeFailure(failure: ResolveFailure): string {
+  switch (failure.reason) {
+    case "not_configured":
+      return `Parchment is not configured on this deployment (missing ${failure.missing.join(", ")}).`;
+    case "opted_out":
+      return "Parchment is switched off for this organisation.";
+    case "no_clerk_org":
+      return "This organisation has no Clerk organization id yet, which Parchment uses to identify it. It is set on first sign-in through AIX Core.";
   }
 }

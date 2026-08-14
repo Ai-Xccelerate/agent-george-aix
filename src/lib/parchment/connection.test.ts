@@ -1,39 +1,56 @@
 /**
- * Per-org connection resolution.
+ * Resolving an org's Parchment knowledge base on the internal agent path.
  *
- * The rule under test is a tenancy rule, and getting it wrong would be serious:
- * an org that connected its own hub must never be served a different one. The
- * dangerous case is subtle — a stored row that cannot be decrypted must resolve
- * to "nothing connected", NOT fall through to the deployment default, because
- * that default may belong to another organisation entirely.
+ * The rules under test are tenancy rules, and getting them wrong would be
+ * serious: the org is identified purely by its Clerk org id, so a missing or
+ * wrong one must fail loudly rather than fall back to some other org's
+ * knowledge. There is deliberately no credential to test here — the internal
+ * path replaced the per-org API key with one deployment-level shared secret.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { randomBytes } from "node:crypto";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { seal } from "@/lib/crypto/secret-box";
-import { getParchmentConnection, resolveParchmentConfig } from "./connection";
+import { describeFailure, getParchmentStatus, resolveParchmentConfig } from "./connection";
 
-const KEY_A = randomBytes(32).toString("base64");
-const KEY_B = randomBytes(32).toString("base64");
-
-/** Minimal stand-in for the admin client's `.from().select().eq().eq().maybeSingle()`. */
-function fakeDb(row: unknown): SupabaseClient {
-  const chain = {
-    select: () => chain,
-    eq: () => chain,
-    maybeSingle: async () => ({ data: row, error: null }),
-  };
-  return { from: () => chain } as unknown as SupabaseClient;
-}
-
+const VARS = [
+  "PARCHMENT_API_URL",
+  "PARCHMENT_API_BASE",
+  "PARCHMENT_INTERNAL_AGENT_KEY",
+] as const;
 const saved: Record<string, string | undefined> = {};
-const VARS = ["APP_ENCRYPTION_KEY", "PARCHMENT_API_BASE", "PARCHMENT_API_KEY"] as const;
+
+const CLERK_ORG = "org_3DAfHZvqPP1jys65q7D7d9y79eD";
+
+/**
+ * Stand-in for the admin client. Two tables are read — `integrations` for the
+ * preference row and `orgs` for the Clerk id — so the fake dispatches on table.
+ */
+function fakeDb(opts: { integration?: unknown; clerkOrgId?: string | null }): SupabaseClient {
+  return {
+    from(table: string) {
+      const row =
+        table === "integrations"
+          ? (opts.integration ?? null)
+          : table === "orgs"
+            ? opts.clerkOrgId === undefined
+              ? { clerk_org_id: CLERK_ORG }
+              : { clerk_org_id: opts.clerkOrgId }
+            : null;
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        eq: () => chain,
+        maybeSingle: async () => ({ data: row, error: null }),
+        upsert: async () => ({ error: null }),
+      };
+      return chain;
+    },
+  } as unknown as SupabaseClient;
+}
 
 beforeEach(() => {
   for (const k of VARS) saved[k] = process.env[k];
-  process.env.APP_ENCRYPTION_KEY = KEY_A;
   delete process.env.PARCHMENT_API_BASE;
-  delete process.env.PARCHMENT_API_KEY;
+  process.env.PARCHMENT_API_URL = "https://parchment.example.test";
+  process.env.PARCHMENT_INTERNAL_AGENT_KEY = "internal-secret";
 });
 
 afterEach(() => {
@@ -41,115 +58,166 @@ afterEach(() => {
     if (saved[k] === undefined) delete process.env[k];
     else process.env[k] = saved[k];
   }
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
-
-function connectedRow(base = "https://org-a.parchment.test", key = "pcm_org_a") {
-  return {
-    id: "row-1",
-    status: "connected",
-    account_label: "org-a.parchment.test",
-    metadata: {
-      base_url: base,
-      key: seal(key),
-      key_fingerprint: "pcm_or…rg_a",
-      documents: 12,
-      last_checked_at: "2026-08-12T10:00:00.000Z",
-      connected_by: "vidhi@aixccelerate.com",
-    },
-    updated_at: "2026-08-12T10:00:00.000Z",
-  };
-}
 
 describe("resolveParchmentConfig", () => {
-  it("uses the org's own stored connection", async () => {
-    const cfg = await resolveParchmentConfig(fakeDb(connectedRow()), "org-a");
-    expect(cfg).toEqual({ base: "https://org-a.parchment.test", apiKey: "pcm_org_a" });
+  it("resolves using the org's Clerk id, with no stored credential", async () => {
+    const res = await resolveParchmentConfig(fakeDb({}), "org-uuid");
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.config).toEqual({
+        base: "https://parchment.example.test",
+        internalKey: "internal-secret",
+        clerkOrgId: CLERK_ORG,
+        workspaceId: null,
+      });
+    }
   });
 
-  it("strips a trailing slash from the stored base", async () => {
-    const row = connectedRow("https://org-a.parchment.test/");
-    const cfg = await resolveParchmentConfig(fakeDb(row), "org-a");
-    expect(cfg?.base).toBe("https://org-a.parchment.test");
+  it("is available by default — an org with no integrations row still resolves", async () => {
+    // The whole point of the internal path: no setup step, no opt-in.
+    const res = await resolveParchmentConfig(fakeDb({ integration: null }), "org-uuid");
+    expect(res.ok).toBe(true);
   });
 
-  it("falls back to the environment default when the org has no row", async () => {
-    process.env.PARCHMENT_API_BASE = "https://deployment-default.test";
-    process.env.PARCHMENT_API_KEY = "pcm_default";
-
-    const cfg = await resolveParchmentConfig(fakeDb(null), "org-with-no-row");
-
-    expect(cfg).toEqual({ base: "https://deployment-default.test", apiKey: "pcm_default" });
+  it("passes a chosen workspace through", async () => {
+    const res = await resolveParchmentConfig(
+      fakeDb({ integration: { id: "r", status: "connected", metadata: { workspace_id: "ws-2" } } }),
+      "org-uuid",
+    );
+    expect(res.ok && res.config.workspaceId).toBe("ws-2");
   });
 
-  it("returns nothing when neither a row nor an environment default exists", async () => {
-    expect(await resolveParchmentConfig(fakeDb(null), "org-a")).toBeNull();
+  it("honours the opt-out", async () => {
+    const res = await resolveParchmentConfig(
+      fakeDb({ integration: { id: "r", status: "disconnected", metadata: { enabled: false } } }),
+      "org-uuid",
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.failure.reason).toBe("opted_out");
   });
 
-  it("treats a disconnected row as no connection, ignoring the environment", async () => {
-    process.env.PARCHMENT_API_BASE = "https://deployment-default.test";
-    process.env.PARCHMENT_API_KEY = "pcm_default";
-    const row = { ...connectedRow(), status: "disconnected" };
-
-    // Someone clicked Disconnect. Silently reverting them to a shared default
-    // would be the opposite of what they asked for.
-    expect(await resolveParchmentConfig(fakeDb(row), "org-a")).toBeNull();
+  it("refuses when the org has no Clerk org id, rather than guessing", async () => {
+    // Parchment has no other way to identify the tenant. Proceeding would either
+    // 401 or, worse, resolve to the wrong organisation.
+    const res = await resolveParchmentConfig(fakeDb({ clerkOrgId: null }), "org-uuid");
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.failure.reason).toBe("no_clerk_org");
   });
 
-  it("does NOT fall back to the environment when the stored key cannot be decrypted", async () => {
-    const row = connectedRow();
-    process.env.PARCHMENT_API_BASE = "https://deployment-default.test";
-    process.env.PARCHMENT_API_KEY = "pcm_default";
-    // Simulate a rotated APP_ENCRYPTION_KEY.
-    process.env.APP_ENCRYPTION_KEY = KEY_B;
+  it("treats half-configuration as off and names what is missing", async () => {
+    delete process.env.PARCHMENT_INTERNAL_AGENT_KEY;
+    const res = await resolveParchmentConfig(fakeDb({}), "org-uuid");
+    expect(res.ok).toBe(false);
+    if (!res.ok && res.failure.reason === "not_configured") {
+      expect(res.failure.missing).toEqual(["PARCHMENT_INTERNAL_AGENT_KEY"]);
+    } else {
+      throw new Error("expected not_configured");
+    }
+  });
 
-    const cfg = await resolveParchmentConfig(fakeDb(row), "org-a");
-
-    // The tenancy rule: this org chose a hub. If we cannot read that choice we
-    // serve nothing, rather than querying a workspace it never connected.
-    expect(cfg).toBeNull();
+  it("accepts PARCHMENT_API_BASE as a legacy alias for the URL", async () => {
+    delete process.env.PARCHMENT_API_URL;
+    process.env.PARCHMENT_API_BASE = "https://legacy.example.test";
+    const res = await resolveParchmentConfig(fakeDb({}), "org-uuid");
+    expect(res.ok && res.config.base).toBe("https://legacy.example.test");
   });
 });
 
-describe("getParchmentConnection", () => {
-  it("reports an org connection without exposing the key", async () => {
-    const conn = await getParchmentConnection(fakeDb(connectedRow()), "org-a");
+describe("getParchmentStatus", () => {
+  function mockFetch(handler: (url: string) => { status?: number; json: unknown }) {
+    const spy = vi.fn(async (url: URL) => {
+      const { status = 200, json } = handler(String(url));
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => json,
+        text: async () => JSON.stringify(json),
+      } as unknown as Response;
+    });
+    vi.stubGlobal("fetch", spy);
+    return spy;
+  }
 
-    expect(conn.connected).toBe(true);
-    expect(conn.source).toBe("org");
-    expect(conn.baseUrl).toBe("https://org-a.parchment.test");
-    expect(conn.documents).toBe(12);
-    expect(conn.connectedBy).toBe("vidhi@aixccelerate.com");
-    // No plaintext secret anywhere in what the UI receives.
-    expect(JSON.stringify(conn)).not.toContain("pcm_org_a");
+  it("reports the live workspace list and document count", async () => {
+    mockFetch((url) =>
+      url.includes("/workspaces/resolve")
+        ? {
+            json: {
+              org_id: "p-org",
+              default_workspace_id: "ws-1",
+              workspaces: [{ id: "ws-1", name: "General", visibility: "org" }],
+            },
+          }
+        : // Verified against staging: documents comes back wrapped, not bare.
+          { json: { documents: [{ source_file: "a.md" }, { source_file: "b.md" }] } },
+    );
+
+    const status = await getParchmentStatus(fakeDb({}), "org-uuid");
+
+    expect(status.active).toBe(true);
+    expect(status.reachable).toBe(true);
+    expect(status.workspaces).toHaveLength(1);
+    expect(status.defaultWorkspaceId).toBe("ws-1");
+    expect(status.documents).toBe(2);
   });
 
-  it("labels a deployment-wide default as coming from the environment", async () => {
-    process.env.PARCHMENT_API_BASE = "https://deployment-default.test";
-    process.env.PARCHMENT_API_KEY = "pcm_default_key_1234";
+  it("sends the three internal headers, not a bearer token", async () => {
+    const spy = mockFetch(() => ({
+      json: { org_id: "p", default_workspace_id: "ws-1", workspaces: [] },
+    }));
 
-    const conn = await getParchmentConnection(fakeDb(null), "org-a");
+    await getParchmentStatus(fakeDb({}), "org-uuid");
 
-    expect(conn.source).toBe("environment");
-    expect(conn.connected).toBe(true);
-    // Fingerprint only — the admin can identify it without seeing it.
-    expect(conn.keyFingerprint).toBe("pcm_de…1234");
-    expect(JSON.stringify(conn)).not.toContain("pcm_default_key_1234");
+    const [, init] = spy.mock.calls[0] as unknown as [URL, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers["X-Internal-Key"]).toBe("internal-secret");
+    expect(headers.Authorization).toBeUndefined();
   });
 
-  it("reports nothing connected when there is no row and no default", async () => {
-    const conn = await getParchmentConnection(fakeDb(null), "org-a");
-    expect(conn).toMatchObject({ connected: false, source: "none", baseUrl: null });
+  it("stays usable when Parchment is unreachable", async () => {
+    mockFetch(() => ({ status: 503, json: { detail: "down" } }));
+
+    const status = await getParchmentStatus(fakeDb({}), "org-uuid");
+
+    // Active but unreachable is a real, distinct state: George falls back to
+    // local knowledge and the admin sees why.
+    expect(status.active).toBe(true);
+    expect(status.reachable).toBe(false);
+    expect(status.error).toMatch(/unavailable/i);
   });
 
-  it("surfaces the stored error from a failed check", async () => {
-    const row = connectedRow();
-    row.status = "error";
-    (row.metadata as Record<string, unknown>).last_error = "Parchment rejected the API key (401)";
+  it("falls back to the last known workspaces when a resolve fails", async () => {
+    mockFetch(() => ({ status: 503, json: {} }));
 
-    const conn = await getParchmentConnection(fakeDb(row), "org-a");
+    const status = await getParchmentStatus(
+      fakeDb({
+        integration: {
+          id: "r",
+          status: "connected",
+          metadata: {
+            known_workspaces: [{ id: "ws-1", name: "General", visibility: "org" }],
+            default_workspace_id: "ws-1",
+          },
+        },
+      }),
+      "org-uuid",
+    );
 
-    expect(conn.connected).toBe(false);
-    expect(conn.status).toBe("error");
-    expect(conn.lastError).toMatch(/401/);
+    // So the picker is not empty just because Parchment blipped.
+    expect(status.workspaces).toHaveLength(1);
+  });
+});
+
+describe("describeFailure", () => {
+  it("explains each reason in terms an admin can act on", () => {
+    expect(describeFailure({ reason: "not_configured", missing: ["PARCHMENT_API_URL"] })).toMatch(
+      /PARCHMENT_API_URL/,
+    );
+    expect(describeFailure({ reason: "opted_out" })).toMatch(/switched off/i);
+    expect(describeFailure({ reason: "no_clerk_org" })).toMatch(/Clerk/);
   });
 });
