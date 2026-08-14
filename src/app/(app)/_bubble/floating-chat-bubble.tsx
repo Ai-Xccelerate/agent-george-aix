@@ -224,7 +224,7 @@ export function FloatingChatBubble() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open AIX George"
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg shadow-orange-500/25 ring-2 ring-brand-500/20 transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:ring-offset-gray-900"
+        className="fixed bottom-6 right-6 z-999999 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg shadow-orange-500/25 ring-2 ring-brand-500/20 transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:ring-offset-gray-900"
       >
         <GeorgeAvatar size={52} />
       </button>
@@ -236,7 +236,11 @@ export function FloatingChatBubble() {
       role="dialog"
       aria-label="AIX George"
       className={cn(
-        "fixed z-40 flex flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 shadow-2xl shadow-black/40",
+        // z-999999 puts the panel above the app header, which the AIX theme
+        // pins at z-99999. At z-40 the maximised panel's top edge (inset-y-6vh)
+        // sat *under* the header, hiding its whole title bar — new chat,
+        // minimise and close all became unreachable.
+        "fixed z-999999 flex flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 shadow-2xl shadow-black/40",
         maximised
           ? "inset-x-[5vw] inset-y-[6vh]"
           : "bottom-6 right-6 resize",

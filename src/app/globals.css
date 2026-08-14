@@ -475,16 +475,40 @@ html[data-density='compact'] {
 .liquid-backdrop-blob {
   position: absolute;
   border-radius: 9999px;
-  filter: blur(72px);
+  /* No `filter: blur()` here on purpose. Each blob is already a radial-gradient
+     fading to transparent at 65%, so it is soft-edged by construction — a real
+     blur on top was visually near-identical but forced the browser to
+     re-rasterise a ~1100px bitmap every frame, for three blobs, forever. The
+     glass chrome above then re-read that changing backdrop through its own
+     backdrop-filter, so the whole viewport repainted continuously. That was the
+     app-wide navigation jank. */
   will-change: transform;
+  /* Keeps each blob on its own compositor layer so the drift below is a pure
+     GPU transform with no main-thread paint. */
+  transform: translateZ(0);
 }
+/* The blobs are STATIC. The drift animation is defined below but deliberately
+   not applied.
+
+   `glass-surface` sits on the header and the full-height sidebar — a large,
+   permanent L of the viewport, each with `backdrop-filter: blur(20px)`. A
+   backdrop-filter has to re-sample and re-blur everything behind it on any
+   frame where that backdrop changes. Animating the blobs therefore forced both
+   surfaces to re-blur continuously, forever, whether or not anyone was looking
+   — and that cost landed hardest exactly when the main thread was already busy,
+   i.e. during navigation.
+
+   The ambient look comes from the gradients, not the motion: a 90-second drift
+   across a heavily-feathered blob is imperceptible frame to frame. Dropping it
+   costs nothing visually and removes a permanent whole-viewport repaint. To
+   re-enable, add `animation: liquid-drift-a 90s var(--ease-quiet) infinite
+   alternate;` back — but measure the header and sidebar repaint cost first. */
 .liquid-blob-a {
   width: 55vw;
   height: 55vw;
   left: -12vw;
   top: -18vw;
   background: radial-gradient(circle at center, var(--backdrop-blob-a) 0%, transparent 65%);
-  animation: liquid-drift-a 90s var(--ease-quiet) infinite alternate;
 }
 .liquid-blob-b {
   width: 60vw;
@@ -492,7 +516,6 @@ html[data-density='compact'] {
   right: -18vw;
   bottom: -22vw;
   background: radial-gradient(circle at center, var(--backdrop-blob-b) 0%, transparent 65%);
-  animation: liquid-drift-b 110s var(--ease-quiet) infinite alternate;
 }
 .liquid-blob-c {
   width: 36vw;
@@ -500,19 +523,21 @@ html[data-density='compact'] {
   right: 8vw;
   top: -10vw;
   background: radial-gradient(circle at center, var(--backdrop-blob-c) 0%, transparent 65%);
-  animation: liquid-drift-c 70s var(--ease-quiet) infinite alternate;
 }
+/* Translate only — no scale(). Scaling a layer forces a re-raster every frame,
+   which defeats the point of promoting it; translation is a pure composite.
+   The blobs are large and soft enough that the drift reads the same without it. */
 @keyframes liquid-drift-a {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(9vw, 7vh) scale(1.12); }
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(9vw, 7vh, 0); }
 }
 @keyframes liquid-drift-b {
-  0% { transform: translate(0, 0) scale(1.08); }
-  100% { transform: translate(-8vw, -6vh) scale(0.96); }
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-8vw, -6vh, 0); }
 }
 @keyframes liquid-drift-c {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(-6vw, 8vh) scale(1.18); }
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-6vw, 8vh, 0); }
 }
 
 .glass-surface.glass-surface {
