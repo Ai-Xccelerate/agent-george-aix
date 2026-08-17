@@ -1,0 +1,9 @@
+# Pinned exactly. A migration tool that behaves differently on two machines is
+# worse than no migration tool.
+#
+# psycopg[binary] ships a wheel, so nobody needs a C compiler to apply a
+# migration. SQLAlchemy is here only because Alembic requires it — George has no
+# ORM models and autogenerate is deliberately off (see alembic/env.py).
+alembic==1.16.5
+SQLAlchemy==2.0.43
+psycopg[binary]==3.2.10

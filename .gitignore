@@ -45,3 +45,9 @@ next-env.d.ts
 
 # local reference clones (not part of the app)
 /reference/
+
+# python virtualenv for Alembic migrations (db/). The pinned requirements.txt is
+# committed; the environment built from it is not.
+/db/.venv/
+__pycache__/
+*.pyc
