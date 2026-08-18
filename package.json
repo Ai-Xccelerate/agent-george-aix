@@ -26,7 +26,8 @@
     "verify:parchment": "tsx scripts/verify-parchment.ts",
     "storage:copy": "tsx scripts/copy-storage-to-r2.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:nylas": "tsx scripts/verify-nylas.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.139",
