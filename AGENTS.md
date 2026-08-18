@@ -113,7 +113,9 @@ These are decided; **don't redo them without saying so**.
 - **Theme.** Dark-first, on the AIX palette (brand orange `#F47920`). `src/app/layout.tsx` reads the `george-theme` cookie server-side and stamps `class="dark"` + `data-theme` on `<html>` — no FOUC. `src/context/ThemeContext.tsx` owns the client side and writes both `george-theme` (resolved) and `george-theme-pref` (light/dark/system). **Never** bootstrap the theme with an inline `<script>` — the security hook blocks it, which is why this is cookie-driven.
 - **The UI is the AIX template, not bespoke.** Reuse `src/components/ui/*`, `form/*`, `aix/*` before writing a component. Style with the theme's scale utilities (`bg-white dark:bg-white/[0.03]`, `text-gray-800 dark:text-white/90`, `bg-brand-500`) — **not** arbitrary hexes or `var(--color-*)`, which was the pre-port dialect and is fully removed. Cards `rounded-2xl`, controls `rounded-lg`; never hardcode a radius. Glass (`glass-surface`/`glass-float`/`glass-popover`) is for chrome only — content cards stay opaque.
 - **Icons.** Template SVGR icons (`@/icons`) for chrome; `lucide-react` for page content. Deliberate: the template ships 57 icons and George needs 54 distinct ones, only ~22 of which have equivalents. Keeping each surface internally consistent beats mixing two styles inside one page.
-- **Railway is the host.** Deployed on Railway as a persistent Docker container (`Dockerfile` → `next start`, Node 24), not on serverless functions. Project **Agent George - Onyx**, service `george-onyx`, builds from `rvbhavsar/george-onyx` via the Dockerfile (`railway.json`). Because it's a long-lived server there is **no 300s function ceiling** — long work is bounded only by deploys/restarts (single instance). The earlier Vercel-primitive plan (Fluid Compute / Workflow DevKit / DurableAgent / Sandbox) in `docs/01-vercel-deployment.md` is **superseded** — keep it as a future-option reference, not current reality. Supabase stays where it is; **never** migrate Postgres / Auth / Storage off it.
+- **Railway is the host.** Deployed on Railway as a persistent Docker container (`Dockerfile` → `next start`, Node 24), not on serverless functions. Project **Agent George - Onyx**, service `george-onyx`, builds from `rvbhavsar/george-onyx` via the Dockerfile (`railway.json`). Because it's a long-lived server there is **no 300s function ceiling** — long work is bounded only by deploys/restarts (single instance). The earlier Vercel-primitive plan (Fluid Compute / Workflow DevKit / DurableAgent / Sandbox) in `docs/01-vercel-deployment.md` is **superseded** — keep it as a future-option reference, not current reality.
+
+**Supabase is being retired, not preserved** (this reverses an earlier "never migrate off Supabase" rule, deliberately). Auth moved to Clerk; the database moved to Railway Postgres and storage to R2, each behind its own switch (`DATABASE_URL`, `STORAGE_DRIVER`) — see the stack table. Staging runs on both; production still runs on Supabase for database and storage until its cutover, which needs a fresh dump plus a write-freeze or delta-sync decision.
 
 ## Runtime — what's actually true on Railway
 
@@ -143,12 +145,14 @@ pnpm sync:knowledge      # walks knowledge/, upserts knowledge_docs + chunks. is
 # Composio sanity check
 pnpm tsx scripts/verify-composio.ts   # verifies API key + auth config IDs
 
-# Database — there is no CLI access token, use psql against the pooler.
-# Pattern that works (load env first):
-#   set -a && . ./.env.local && set +a
-#   PGPASSWORD="$SUPABASE_DB_PASSWORD" psql -h aws-1-us-east-1.pooler.supabase.com -p 5432 \
-#     -U "postgres.$SUPABASE_PROJECT_REF" -d postgres -v ON_ERROR_STOP=1 -f <migration.sql>
-# Inline passwords are blocked by the sandbox — always source from env file.
+# Database migrations — Alembic, in db/. See db/README.md for the full workflow.
+#   cd db && uv venv && uv pip install -r requirements.txt   # one-time
+#   export DATABASE_URL="postgresql://..."                   # never defaulted, always explicit
+#   alembic current                                          # where is this database?
+#   alembic revision --rev-id 0002 -m "..."                  # new change (raw SQL, both directions)
+#   alembic upgrade head                                     # apply
+#   alembic upgrade head --sql > review.sql                  # MANDATORY before production
+# Inline passwords are blocked by the sandbox — always source from an env file.
 ```
 
 ## Database
@@ -157,7 +161,16 @@ pnpm tsx scripts/verify-composio.ts   # verifies API key + auth config IDs
 
 Key tables: `orgs`, `org_members`, `invites`, `customers`, `contacts`, `contracts`, `onboarding_plans`, `onboarding_steps`, `customer_health`, `agent_sessions`, `agent_messages`, `memories` (pgvector), `knowledge_docs` (+ `is_core` flag), `knowledge_chunks` (pgvector ivfflat), `integrations`, `audit_log`.
 
-Migrations live in `supabase/migrations/` — applied in timestamp order. **Always add a new file** rather than editing past ones (prod parity).
+### Migrations — Alembic (`db/`)
+
+Schema changes are managed by **Alembic**, matching AIX Core and Parchment so there is one tool and one playbook across AIX products. Full workflow in **`db/README.md`**; commands in the cheat sheet above.
+
+- The 35 files in `supabase/migrations/` are **history, not the source of truth**. Don't add to them, don't re-run them.
+- Revision `0001_baseline` is a `pg_dump --schema-only` of the live schema — it *is* the schema, not a description of it. Existing databases are **stamped** at it (`alembic stamp 0001`); only a brand-new database executes it, which is what makes a from-scratch environment reproducible.
+- **No SQLAlchemy models, so `--autogenerate` is off by design.** Revisions are raw SQL in `op.execute()`. With no models, autogenerate would diff against nothing and propose dropping every table.
+- `DATABASE_URL` is never defaulted — Alembic exits with instructions if it's unset. Applying a migration to the wrong database is the one mistake worth designing out.
+- **Out of scope: RLS policies.** Production (Supabase) has 75; staging (Railway) has none, since every query goes through the service-role admin client and the policies were dropped in the Postgres migration. Managing them here would assert the two environments match when they don't.
+- Python lives only in `db/`. `package.json`, the `Dockerfile` and the build are untouched, and Alembic never runs inside the container.
 
 ## Gotchas (real surprises we hit)
 
@@ -183,7 +196,7 @@ When asked "does George remember?", the honest answer today: within a session ye
 ## When you make changes
 
 - **Build green = green.** Run `pnpm build` before declaring done — it catches Suspense, RSC/client, and TS issues the dev server hides.
-- **New migration** for every schema change. Apply via the psql pattern above.
+- **New Alembic revision** for every schema change — `cd db && alembic revision --rev-id <next> -m "..."`, raw SQL, both `upgrade()` and `downgrade()`, rollback proven locally before you commit. Ship it in the same PR as the code that needs it. Never edit an applied revision; fix forward.
 - **Update `docs/BACKLOG.md`** when you defer something. Always say *why deferred*.
 - **Don't introduce alternative stacks.** No Prisma, no Express, no different agent framework, no Drizzle. We chose this stack deliberately — extend it.
 - **No emojis in user-facing copy** unless the user uses them first. Match the design system tone (specific, calm, no fluff).
