@@ -17,6 +17,8 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildComposioTools } from "./composio-tools";
+import { buildNylasEmailTools } from "./nylas-tools";
+import { isNylasEnabled } from "@/lib/nylas/client";
 import { embedText, hasEmbeddingProvider } from "@/lib/knowledge/embeddings";
 import { toKnowledgeHits } from "@/lib/parchment/client";
 import { parchmentForOrg } from "@/lib/parchment/connection";
@@ -1857,15 +1859,38 @@ export function buildGeorgeMcpServer(
     readTranscript,
   ];
 
-  const composioTools = buildComposioTools({
+  const mailCtx = {
     orgId,
     userId: ctx.userId,
     sessionId: ctx.sessionId ?? null,
     emailSendPolicy: ctx.emailSendPolicy ?? "chat",
     db,
-  });
+  };
+  const composioTools = buildComposioTools(mailCtx);
 
-  const tools = [...supabaseTools, ...composioTools];
+  // Email runs on George's OWN mailbox when one is configured (Nylas); calendar
+  // stays on Composio/Outlook until that is migrated separately. Chosen at build
+  // time, so a deployment with no NYLAS_* variables behaves exactly as before —
+  // the same switch discipline as DATABASE_URL and STORAGE_DRIVER.
+  const EMAIL_TOOL_NAMES = new Set([
+    "draft_email",
+    "draft_email_reply",
+    "send_email_draft",
+    "list_recent_emails",
+    "get_email",
+    "search_emails",
+    "get_thread",
+  ]);
+  const mailTools = isNylasEnabled()
+    ? [
+        ...buildNylasEmailTools(mailCtx),
+        // Keep only the non-email Composio tools, so no tool name is ever
+        // registered twice — the SDK would silently keep just one of them.
+        ...composioTools.filter((t) => !EMAIL_TOOL_NAMES.has(t.name)),
+      ]
+    : composioTools;
+
+  const tools = [...supabaseTools, ...mailTools];
 
   const server = createSdkMcpServer({
     name: "george",
