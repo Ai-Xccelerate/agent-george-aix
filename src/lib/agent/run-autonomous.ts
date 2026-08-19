@@ -16,6 +16,7 @@ import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { resolveClaudeCodeExecutable } from "./sdk-binary";
 import { buildGeorgeMcpServer } from "./tools";
 import { buildScribeMcpServer } from "./scribe";
+import { buildAgentDbMcpServer, clerkOrgIdFor } from "./agentdb";
 import { georgeCanUseTool } from "./permissions";
 import { buildGeorgeSystemPrompt } from "./system-prompt";
 import type { AutonomousSendPolicy } from "./prompt";
@@ -76,6 +77,11 @@ export async function runGeorgeAutonomous(
     emailSendPolicy: emailSendPolicy === "internal_only" ? "internal_only" : "chat",
   });
   const scribe = buildScribeMcpServer();
+  // Same read-only AgentDB access as the chat path — an autonomous run must
+  // not get a wider grant than a supervised one.
+  const agentdb = buildAgentDbMcpServer({
+    clerkOrgId: await clerkOrgIdFor(admin, input.orgId),
+  });
 
   // Autonomous mode allowlist:
   //   - WebFetch / WebSearch: research is fine in the background.
@@ -110,11 +116,13 @@ export async function runGeorgeAutonomous(
         mcpServers: {
           george: georgeServer,
           ...(scribe ? { scribe: scribe.server } : {}),
+          ...(agentdb ? { agentdb: agentdb.server } : {}),
         },
         allowedTools: [
           ...builtinAllow,
           ...allowedMcpTools,
           ...(scribe ? scribe.toolNames : []),
+          ...(agentdb ? agentdb.toolNames : []),
         ],
         canUseTool: georgeCanUseTool,
         pathToClaudeCodeExecutable: resolveClaudeCodeExecutable(),

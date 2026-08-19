@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { buildGeorgeMcpServer } from "@/lib/agent/tools";
 import { buildScribeMcpServer } from "@/lib/agent/scribe";
+import { buildAgentDbMcpServer, clerkOrgIdFor } from "@/lib/agent/agentdb";
 import { georgeCanUseTool } from "@/lib/agent/permissions";
 import { buildGeorgeSystemPrompt } from "@/lib/agent/system-prompt";
 import { generateSessionTitle } from "@/lib/agent/title";
@@ -140,6 +141,13 @@ export async function POST(req: NextRequest) {
         sessionId: dbSession!.id,
       });
       const scribe = buildScribeMcpServer();
+      // AgentDB is the org's operational database (CRM). Tenanted by the org's
+      // Clerk id, and READ-ONLY by allowlist — see lib/agent/agentdb.ts before
+      // widening it. Null when unconfigured or the org has no Clerk id, in which
+      // case George simply runs without it.
+      const agentdb = buildAgentDbMcpServer({
+        clerkOrgId: await clerkOrgIdFor(admin, user.orgId),
+      });
 
       const fullSystemPrompt = await buildGeorgeSystemPrompt(admin, {
         orgId: user.orgId,
@@ -181,11 +189,14 @@ export async function POST(req: NextRequest) {
             mcpServers: {
               george: georgeServer,
               ...(scribe ? { scribe: scribe.server } : {}),
+              ...(agentdb ? { agentdb: agentdb.server } : {}),
             },
             allowedTools: [
               ...builtinAllow,
               ...toolNames,
               ...(scribe ? scribe.toolNames : []),
+              // Read-only by design — see the allowlist note in lib/agent/agentdb.ts.
+              ...(agentdb ? agentdb.toolNames : []),
             ],
             canUseTool: georgeCanUseTool,
             pathToClaudeCodeExecutable: resolveClaudeCodeExecutable(),
