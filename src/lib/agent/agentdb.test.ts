@@ -13,6 +13,7 @@ import {
   agentDbDeployment,
   agentDbMissingVars,
   buildAgentDbMcpServer,
+  getAgentDbStatus,
   isAgentDbConfigured,
 } from "./agentdb";
 
@@ -143,5 +144,72 @@ describe("buildAgentDbMcpServer", () => {
   it("returns null when unconfigured, so George still runs without AgentDB", () => {
     delete process.env.AGENTDB_API_URL;
     expect(buildAgentDbMcpServer({ clerkOrgId: ORG })).toBeNull();
+  });
+});
+
+/**
+ * The settings row must distinguish three failure modes that look identical to a
+ * user otherwise: not configured on the deployment, configured but this org is
+ * not switched on, and AgentDB being unreachable. Only the middle one has a
+ * button, so conflating them means an admin either presses something that cannot
+ * work or waits for someone to fix a problem that is not theirs.
+ */
+describe("getAgentDbStatus", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  function respondWith(status: number) {
+    globalThis.fetch = (async () =>
+      new Response(status === 200 ? "# AGENTS.md" : "", { status })) as typeof fetch;
+  }
+
+  it("reports the missing variable when the deployment is unconfigured", async () => {
+    delete process.env.AGENTDB_API_URL;
+    const s = await getAgentDbStatus(ORG);
+    expect(s.configured).toBe(false);
+    expect(s.canEnable).toBe(false);
+    expect(s.missingVars).toContain("AGENTDB_API_URL");
+    // Says which variable, so the fix does not require reading the source.
+    expect(s.detail).toContain("AGENTDB_API_URL");
+  });
+
+  it("offers Enable on a 403, which is the not-yet-enabled answer", async () => {
+    respondWith(403);
+    const s = await getAgentDbStatus(ORG);
+    expect(s.reachable).toBe(true);
+    expect(s.enabled).toBe(false);
+    expect(s.canEnable).toBe(true);
+  });
+
+  it("reports enabled on a 200 and offers no button", async () => {
+    respondWith(200);
+    const s = await getAgentDbStatus(ORG);
+    expect(s.enabled).toBe(true);
+    expect(s.canEnable).toBe(false);
+    // The row asserts read-only; if that word vanishes the UI is lying.
+    expect(s.detail).toContain("read");
+  });
+
+  it("does not offer Enable when AgentDB is unreachable", async () => {
+    globalThis.fetch = (async () => {
+      throw new Error("ECONNREFUSED");
+    }) as typeof fetch;
+    const s = await getAgentDbStatus(ORG);
+    expect(s.reachable).toBe(false);
+    // Pressing Enable against a dead service would just fail confusingly.
+    expect(s.canEnable).toBe(false);
+  });
+
+  it("handles an org with no Clerk id without calling AgentDB", async () => {
+    let called = false;
+    globalThis.fetch = (async () => {
+      called = true;
+      return new Response("", { status: 200 });
+    }) as typeof fetch;
+    const s = await getAgentDbStatus(null);
+    expect(s.canEnable).toBe(false);
+    expect(called).toBe(false);
   });
 });
