@@ -1,6 +1,8 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
 import { isSenderAllowed } from "./sender-allowlist";
+import { isNylasEnabled } from "@/lib/nylas/client";
+import { syncNylasMailbox } from "./nylas-mailbox-sync";
 
 /**
  * Mirrors George's M365 mailbox + calendar into Supabase (mail_folders,
@@ -67,7 +69,24 @@ function asObj(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 }
 
+/**
+ * Mirror the mailbox George is actually using.
+ *
+ * George owns its own mailbox now, so when Nylas is configured the mirror must
+ * read from there — otherwise /mailbox keeps showing a team member's Outlook
+ * while George sends from its own address, which is worse than showing nothing.
+ *
+ * Kept as a dispatcher under the original name so the three callers (the cron
+ * tick, the Sync now button, and the Composio OAuth callback) are untouched.
+ * Composio stays available: remove the Nylas env vars and this reverts.
+ */
 export async function syncMailbox(orgId: string): Promise<MailboxSyncResult> {
+  if (isNylasEnabled()) return syncNylasMailbox(orgId);
+  return syncOutlookMailbox(orgId);
+}
+
+/** The original Composio/Microsoft Graph mirror. */
+export async function syncOutlookMailbox(orgId: string): Promise<MailboxSyncResult> {
   const result: MailboxSyncResult = {
     folders: 0,
     messages_upserted: 0,

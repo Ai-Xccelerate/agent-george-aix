@@ -30,6 +30,10 @@ import {
   type IntegrationSummary,
 } from "@/lib/composio/connections";
 import { getScribeConnection } from "@/lib/agent/scribe";
+import {
+  getMailProviderStatus,
+  type MailProviderStatus,
+} from "@/lib/agent/mail-provider";
 import { Badge } from "@/components/ui/badge";
 import { connectToolkitAction, disconnectToolkitAction } from "./actions";
 
@@ -92,6 +96,11 @@ export default async function IntegrationsPage({
 
   const result = await listOrgIntegrations(user.orgId);
   const scribe = getScribeConnection();
+  // Shown as a status card, never as something to connect: George's own mailbox
+  // is provisioned by API and simply exists. A Connect button here would offer
+  // an action that does not exist, and imply George's email were gated on
+  // someone doing something.
+  const mail = await getMailProviderStatus(user.orgId);
   const sp = await searchParams;
 
   return (
@@ -99,8 +108,9 @@ export default async function IntegrationsPage({
       <header>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Integrations</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          George talks to the outside world through Composio. Add auth configs
-          in the Composio dashboard and they&apos;ll show up here automatically.
+          How George reaches the outside world. Accounts linked through Composio
+          appear here automatically once their auth configs exist in the Composio
+          dashboard. George&apos;s own mailbox is not a linked account — see below.
         </p>
       </header>
 
@@ -121,6 +131,7 @@ export default async function IntegrationsPage({
       )}
 
       <div className="space-y-3">
+        {mail.provider === "nylas" ? <GeorgeMailboxRow mail={mail} /> : null}
         <ScribeRow scribe={scribe} />
 
         {!result.ok ? (
@@ -160,6 +171,45 @@ function IntegrationRow({ c }: { c: IntegrationSummary }) {
       </div>
 
       <ConnectOrDisconnect c={c} />
+    </div>
+  );
+}
+
+/**
+ * George's own mailbox and calendar. Deliberately has no Connect or Disconnect
+ * control: there is no OAuth flow and no account to link — the mailbox is
+ * provisioned by API and belongs to George, the way a work address belongs to
+ * an employee. The card exists so that someone looking for George's email on
+ * this page finds it, instead of finding a stale Outlook row and believing it.
+ */
+function GeorgeMailboxRow({ mail }: { mail: MailProviderStatus }) {
+  return (
+    <div className="flex min-h-[84px] items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15">
+          <Mail size={18} className="text-brand-500 dark:text-brand-400" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold text-gray-800 dark:text-white/90">
+              Email &amp; calendar
+            </span>
+            <StatusPill status={mail.connected ? "connected" : "error"} />
+          </div>
+          <p className="mt-0.5 truncate text-theme-sm text-gray-500 dark:text-gray-400">
+            {mail.connected
+              ? `${mail.mailbox} · George's own mailbox and calendar`
+              : (mail.detail ?? "George's mailbox is unreachable")}
+          </p>
+        </div>
+      </div>
+
+      <span
+        className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500"
+        title="George owns this mailbox. It is provisioned through Nylas from the server environment, so there is nothing to connect or disconnect here."
+      >
+        No connection needed
+      </span>
     </div>
   );
 }

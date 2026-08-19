@@ -414,6 +414,16 @@ export function createNylasClient(cfg: NylasConfig) {
       });
     },
 
+    /**
+     * Trash a message. Nylas has no move-to-deleted-items verb; DELETE on a
+     * message is the trash operation.
+     */
+    deleteMessage(messageId: string): Promise<NylasResult<void>> {
+      return request(cfg, `${g}/messages/${encodeURIComponent(messageId)}`, {
+        method: "DELETE",
+      });
+    },
+
     deleteEvent(eventId: string, calendarId: string): Promise<NylasResult<void>> {
       return request(cfg, `${g}/events/${encodeURIComponent(eventId)}`, {
         method: "DELETE",

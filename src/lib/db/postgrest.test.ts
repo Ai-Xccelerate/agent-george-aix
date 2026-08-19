@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSelect, parseOr } from "./postgrest";
+import { parseSelect, parseOr, coerceForColumn } from "./postgrest";
 
 /**
  * Parsing is where a shim silently returns wrong rows rather than failing, so
@@ -80,5 +80,51 @@ describe("parseOr", () => {
 
   it("rejects a malformed term instead of guessing", () => {
     expect(() => parseOr("justacolumn")).toThrow(/unsupported \.or\(\) term/);
+  });
+});
+
+describe("coerceForColumn — json/jsonb binding", () => {
+  // Regression guard for a bug that shipped silently with the shim: PostgREST
+  // lets the column type decide how to parse JSON, so callers pass a JS array
+  // for both `tags text[]` and `to_recipients jsonb`. node-postgres serialises a
+  // JS array as a Postgres ARRAY literal, which jsonb rejects with "invalid
+  // input syntax for type json". Nothing wrote an array into a jsonb column
+  // until the mailbox mirror did, so it went unnoticed for weeks.
+  const json = new Set(["to_recipients", "raw", "metadata"]);
+
+  it("stringifies an array bound for a jsonb column", () => {
+    expect(coerceForColumn("to_recipients", [{ email: "a@b.com" }], json)).toBe(
+      '[{"email":"a@b.com"}]',
+    );
+  });
+
+  it("stringifies an object bound for a jsonb column", () => {
+    expect(coerceForColumn("metadata", { a: 1 }, json)).toBe('{"a":1}');
+  });
+
+  it("stringifies an EMPTY array — the exact case that broke the mirror", () => {
+    expect(coerceForColumn("to_recipients", [], json)).toBe("[]");
+  });
+
+  it("leaves arrays for non-json columns alone, so text[] still works", () => {
+    // `tags text[]` must keep receiving a real array or pg can't build the
+    // array literal.
+    const tags = ["a", "b"];
+    expect(coerceForColumn("tags", tags, json)).toBe(tags);
+  });
+
+  it("does not double-encode a value the caller already stringified", () => {
+    expect(coerceForColumn("raw", '{"already":"json"}', json)).toBe('{"already":"json"}');
+  });
+
+  it("maps null and undefined to null", () => {
+    expect(coerceForColumn("to_recipients", null, json)).toBeNull();
+    expect(coerceForColumn("to_recipients", undefined, json)).toBeNull();
+  });
+
+  it("passes scalars through untouched", () => {
+    expect(coerceForColumn("subject", "hello", json)).toBe("hello");
+    expect(coerceForColumn("count", 7, json)).toBe(7);
+    expect(coerceForColumn("is_read", true, json)).toBe(true);
   });
 });

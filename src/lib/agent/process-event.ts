@@ -23,6 +23,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
 import { isSenderAllowed } from "./sender-allowlist";
 import { isInternalDomain } from "./identity";
+import { createNylasClient, nylasConfig } from "@/lib/nylas/client";
 
 type EventRow = {
   id: string;
@@ -86,11 +87,16 @@ export async function processAgentEvent(
   //    today; everything else gets marked 'skipped' so we don't leave rows hanging.
   //    OUTLOOK_MESSAGE_TRIGGER is the current Composio slug; OUTLOOK_NEW_MESSAGE
   //    is kept as a legacy alias.
-  const OUTLOOK_NEW_MAIL_SLUGS = new Set([
+  // Inbound-mail events, whichever transport delivered them. NYLAS_NEW_MESSAGE
+  // comes from George's own mailbox (webhook or the mirror backstop); the
+  // OUTLOOK_* slugs are Composio's. Everything downstream of extraction is
+  // provider-agnostic, so both converge on the same agent run.
+  const NEW_MAIL_SLUGS = new Set([
     "OUTLOOK_MESSAGE_TRIGGER",
     "OUTLOOK_NEW_MESSAGE",
+    "NYLAS_NEW_MESSAGE",
   ]);
-  if (!OUTLOOK_NEW_MAIL_SLUGS.has(event.event_type)) {
+  if (!NEW_MAIL_SLUGS.has(event.event_type)) {
     await admin
       .from("agent_events")
       .update({
@@ -138,9 +144,15 @@ export async function processAgentEvent(
   }
   // Pass both the original envelope (for fallback paths) and the fetched
   // full message. The parser tries the fetched one first.
-  const email = extractOutlookMessage(
-    fetchedMessage ? { ...event.payload, fetched: fetchedMessage } : event.payload,
-  );
+  // George's own mailbox: fetch and normalise through Nylas instead of Graph.
+  // extractNylasMessage returns the identical shape, so the framing prompt,
+  // the allowlist gate and the session seeding below are untouched.
+  const isNylasEvent = event.event_type === "NYLAS_NEW_MESSAGE";
+  const email = isNylasEvent
+    ? await extractNylasMessage(event.payload)
+    : extractOutlookMessage(
+        fetchedMessage ? { ...event.payload, fetched: fetchedMessage } : event.payload,
+      );
 
   // Sender allowlist gate. Drop firehose/spam without creating a session.
   const senderDecision = await isSenderAllowed(event.org_id, email.from?.address ?? null);
@@ -303,6 +315,75 @@ type OutlookMessageFields = {
  * If real deliveries don't match these paths, fix here once and re-run; the
  * full envelope is preserved in `agent_events.payload` for diagnosis.
  */
+/**
+ * Normalise a Nylas inbound message into the same shape as the Graph path.
+ *
+ * Two envelope shapes reach here:
+ *   webhook  { type, data: { object: { …message… } } }
+ *   mirror   { data: { id }, source: "mailbox_sync" }  — id only
+ *
+ * The mirror form carries no body, so the message is fetched from Nylas. That
+ * fetch is best-effort: a failure degrades to whatever the envelope held rather
+ * than aborting the run, matching how the Graph path tolerates a failed
+ * OUTLOOK_GET_MESSAGE.
+ */
+export async function extractNylasMessage(
+  payload: Record<string, unknown> | null | undefined,
+): Promise<OutlookMessageFields> {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const data = (p.data ?? {}) as Record<string, unknown>;
+  let m = ((data.object ?? data) ?? {}) as Record<string, unknown>;
+
+  const id = (m.id as string) ?? null;
+  // Body absent (mirror backstop, or a webhook that only sent metadata) —
+  // fetch the full message so the agent has something to reason about.
+  if (id && !m.body && !m.snippet) {
+    const cfg = nylasConfig();
+    if (cfg) {
+      const full = await createNylasClient(cfg).getMessage(id);
+      if (full.ok) m = full.data as unknown as Record<string, unknown>;
+      else console.warn("[process-event] nylas getMessage failed", { id, error: full.error });
+    }
+  }
+
+  const fromArr = Array.isArray(m.from) ? (m.from as Array<Record<string, unknown>>) : [];
+  const first = fromArr[0] ?? null;
+  const toArr = Array.isArray(m.to) ? (m.to as Array<Record<string, unknown>>) : [];
+  const html = (m.body as string) ?? null;
+
+  return {
+    message_id: id,
+    conversation_id: (m.thread_id as string) ?? null,
+    subject: (m.subject as string) ?? null,
+    from: first
+      ? { name: (first.name as string) ?? null, address: (first.email as string) ?? null }
+      : null,
+    to: toArr.map((t) => (t.email as string) ?? "").filter(Boolean),
+    // The framing prompt wants prose, not markup.
+    body_text: html ? htmlToText(html) : ((m.snippet as string) ?? null),
+    body_preview: (m.snippet as string) ?? null,
+    received_at:
+      typeof m.date === "number" ? new Date(m.date * 1000).toISOString() : null,
+  };
+}
+
+/** Minimal HTML-to-text for inbound bodies. */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function extractOutlookMessage(
   payload: Record<string, unknown> | null | undefined,
 ): OutlookMessageFields {
