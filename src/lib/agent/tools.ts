@@ -1868,27 +1868,15 @@ export function buildGeorgeMcpServer(
   };
   const composioTools = buildComposioTools(mailCtx);
 
-  // Email runs on George's OWN mailbox when one is configured (Nylas); calendar
-  // stays on Composio/Outlook until that is migrated separately. Chosen at build
-  // time, so a deployment with no NYLAS_* variables behaves exactly as before —
-  // the same switch discipline as DATABASE_URL and STORAGE_DRIVER.
-  const EMAIL_TOOL_NAMES = new Set([
-    "draft_email",
-    "draft_email_reply",
-    "send_email_draft",
-    "list_recent_emails",
-    "get_email",
-    "search_emails",
-    "get_thread",
-  ]);
-  const mailTools = isNylasEnabled()
-    ? [
-        ...buildNylasEmailTools(mailCtx),
-        // Keep only the non-email Composio tools, so no tool name is ever
-        // registered twice — the SDK would silently keep just one of them.
-        ...composioTools.filter((t) => !EMAIL_TOOL_NAMES.has(t.name)),
-      ]
-    : composioTools;
+  // George is an employee: it owns its mailbox AND its calendar, and never
+  // reaches into a person's account. So when a Nylas mailbox is configured it
+  // supplies email and calendar both, and NO Composio tool is registered.
+  //
+  // Composio deliberately stays in the codebase rather than being deleted: it
+  // is the fallback until the Nylas approach is proven in real use. Removing
+  // one env var reverts George to it — same switch discipline as DATABASE_URL
+  // and STORAGE_DRIVER.
+  const mailTools = isNylasEnabled() ? buildNylasEmailTools(mailCtx) : composioTools;
 
   const tools = [...supabaseTools, ...mailTools];
 

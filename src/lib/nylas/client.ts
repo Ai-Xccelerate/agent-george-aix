@@ -68,6 +68,28 @@ export type NylasThread = {
 
 export type NylasFolder = { id: string; name?: string; attributes?: string[] };
 
+export type NylasCalendar = {
+  id: string;
+  name?: string;
+  timezone?: string;
+  is_primary?: boolean;
+  read_only?: boolean;
+};
+
+export type NylasEvent = {
+  id: string;
+  calendar_id?: string;
+  title?: string;
+  description?: string;
+  status?: string;
+  ical_uid?: string;
+  organizer?: { name?: string; email?: string };
+  participants?: Array<{ email: string; name?: string; status?: string }>;
+  /** Nylas uses a tagged union; timespan is what we create. */
+  when?: { object?: string; start_time?: number; end_time?: number };
+  conferencing?: { provider?: string; details?: Record<string, unknown> };
+};
+
 export type Ok<T> = { ok: true; data: T };
 export type Err = { ok: false; error: string; status?: number };
 export type NylasResult<T> = Ok<T> | Err;
@@ -118,6 +140,9 @@ export function nylasMissingVars(): string[] {
   if (!process.env.NYLAS_GRANT_ID?.trim()) missing.push("NYLAS_GRANT_ID");
   return missing;
 }
+
+/** Endpoints that return a collection, for the null-payload normalisation above. */
+const COLLECTION_PATH = /(messages|threads|drafts|folders|calendars|events)$/;
 
 /** Reads happen inside a chat turn, so they get a short leash. */
 const READ_TIMEOUT_MS = 15_000;
@@ -207,6 +232,13 @@ async function request<T>(
       parsed && typeof parsed === "object" && "data" in (parsed as Record<string, unknown>)
         ? ((parsed as { data: T }).data)
         : (parsed as T);
+    // Nylas answers an empty collection with {"data": null} rather than [].
+    // Callers are typed to receive an array, so a null made list tools throw on
+    // an empty mailbox or calendar — breaking the never-throw contract this
+    // module promises. Normalised once, here, so no caller has to remember.
+    if (data === null && COLLECTION_PATH.test(path)) {
+      return { ok: true, data: [] as unknown as T };
+    }
     return { ok: true, data };
   } catch (err) {
     const aborted = err instanceof Error && err.name === "AbortError";
@@ -326,6 +358,66 @@ export function createNylasClient(cfg: NylasConfig) {
     listThreadMessages(threadId: string, limit = 50): Promise<NylasResult<NylasMessage[]>> {
       return request(cfg, `${g}/messages`, {
         params: { thread_id: threadId, limit: Math.min(Math.max(limit, 1), 200) },
+      });
+    },
+
+    // ---- calendar: George owns its own, like any employee ------------
+    listCalendars(): Promise<NylasResult<NylasCalendar[]>> {
+      return request(cfg, `${g}/calendars`);
+    },
+
+    /**
+     * Create an event. `notifyParticipants` defaults ON, because an event
+     * nobody is told about is not a meeting. Tests against a real calendar
+     * should pass false.
+     */
+    createEvent(args: {
+      calendarId: string;
+      title: string;
+      description?: string;
+      /** Unix seconds. */
+      startTime: number;
+      endTime: number;
+      participants?: NylasAddress[];
+      notifyParticipants?: boolean;
+    }): Promise<NylasResult<NylasEvent>> {
+      return request(cfg, `${g}/events`, {
+        method: "POST",
+        params: {
+          calendar_id: args.calendarId,
+          notify_participants: args.notifyParticipants ?? true,
+        },
+        body: {
+          title: args.title,
+          ...(args.description ? { description: args.description } : {}),
+          when: { start_time: args.startTime, end_time: args.endTime },
+          ...(args.participants?.length ? { participants: args.participants } : {}),
+        },
+        timeoutMs: WRITE_TIMEOUT_MS,
+      });
+    },
+
+    listEvents(args: {
+      calendarId: string;
+      /** Unix seconds. Nylas requires both bounds for a timespan query. */
+      start?: number;
+      end?: number;
+      limit?: number;
+    }): Promise<NylasResult<NylasEvent[]>> {
+      return request(cfg, `${g}/events`, {
+        params: {
+          calendar_id: args.calendarId,
+          start: args.start,
+          end: args.end,
+          limit: Math.min(Math.max(args.limit ?? 50, 1), 200),
+        },
+      });
+    },
+
+    deleteEvent(eventId: string, calendarId: string): Promise<NylasResult<void>> {
+      return request(cfg, `${g}/events/${encodeURIComponent(eventId)}`, {
+        method: "DELETE",
+        params: { calendar_id: calendarId, notify_participants: false },
       });
     },
 

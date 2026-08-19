@@ -35,6 +35,7 @@ import {
   type NylasAddress,
   type NylasClient,
   type NylasMessage,
+  type NylasEvent,
 } from "@/lib/nylas/client";
 import { wrapGeorgeEmailHtml, injectReplyHtml } from "@/lib/agent/email-branding";
 import { isInternalAddress } from "@/lib/agent/identity";
@@ -353,7 +354,7 @@ export function buildNylasEmailTools(ctx: Ctx) {
       const wanted = folder ?? "inbox";
       const folders = await nylas.listFolders();
       if (folders.ok) {
-        const match = folders.data.find(
+        const match = (folders.data ?? []).find(
           (f) =>
             (f.name ?? "").toLowerCase() === wanted ||
             (f.attributes ?? []).some((a) => a.toLowerCase() === `\\${wanted}`),
@@ -444,5 +445,147 @@ export function buildNylasEmailTools(ctx: Ctx) {
     },
   );
 
-  return [draftEmail, draftReply, sendDraft, listRecentEmails, getEmail, searchEmails, getThread];
+  // ---- CALENDAR: George owns its own, like any employee -------------
+  // These previously ran against a team member's Outlook calendar, so every
+  // event George booked landed on her calendar and invites came from her.
+  // George's Nylas mailbox comes with its own primary calendar, so it now
+  // schedules as itself.
+
+  /** Resolve George's primary calendar. */
+  const primaryCalendarId = async (): Promise<string | null> => {
+    if (!nylas) return null;
+    const res = await nylas.listCalendars();
+    if (!res.ok) return null;
+    const cals = res.data ?? [];
+    return (cals.find((c) => c.is_primary) ?? cals[0])?.id ?? null;
+  };
+
+  const summariseEvent = (e: NylasEvent) => ({
+    event_id: e.id,
+    title: e.title ?? "",
+    status: e.status ?? null,
+    start: e.when?.start_time ? new Date(e.when.start_time * 1000).toISOString() : null,
+    end: e.when?.end_time ? new Date(e.when.end_time * 1000).toISOString() : null,
+    organizer: e.organizer?.email ?? null,
+    participants: (e.participants ?? []).map((pt) => ({
+      email: pt.email,
+      status: pt.status ?? null,
+    })),
+  });
+
+  const createCalendarEvent = tool(
+    "create_calendar_event",
+    "Create an event on George's own calendar and invite attendees. Use to schedule kickoffs, check-ins and reviews. Returns the event id and the invited participants.",
+    {
+      subject: z.string().min(1),
+      start_iso: z.string().datetime().describe("ISO 8601 start time (with timezone)."),
+      end_iso: z.string().datetime(),
+      attendees: z.array(z.string().email()).default([]).optional(),
+      body_html: z.string().optional(),
+      online_meeting: z.boolean().default(true).optional(),
+      customer_id: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("If this event is for a known customer, pass their id so it is logged against them."),
+    },
+    async (input) => {
+      if (!nylas) return notConfigured();
+      const calendarId = await primaryCalendarId();
+      if (!calendarId) return fail("Couldn't find George's calendar.");
+
+      const start = Math.floor(new Date(input.start_iso).getTime() / 1000);
+      const end = Math.floor(new Date(input.end_iso).getTime() / 1000);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) {
+        return fail("start_iso / end_iso must be valid ISO 8601 timestamps.");
+      }
+      if (end <= start) return fail("The event must end after it starts.");
+
+      const res = await nylas.createEvent({
+        calendarId,
+        title: input.subject,
+        description: input.body_html ? stripHtml(input.body_html) : undefined,
+        startTime: start,
+        endTime: end,
+        participants: (input.attendees ?? []).map((email) => ({ email })),
+        // An event nobody is told about is not a meeting.
+        notifyParticipants: true,
+      });
+      if (!res.ok) return fail(res.error);
+
+      await audit(
+        ctx,
+        "calendar.event_created",
+        {
+          event_id: res.data.id,
+          title: input.subject,
+          start: input.start_iso,
+          end: input.end_iso,
+          attendees: input.attendees ?? [],
+        },
+        input.customer_id,
+      );
+
+      return ok({
+        ...summariseEvent(res.data),
+        // Stated plainly so the model never promises a join link that does not
+        // exist: a Nylas-hosted calendar has no Teams/Meet bridge, so a video
+        // link has to be put in the body by whoever has one.
+        online_meeting_requested: input.online_meeting ?? true,
+        conferencing: null,
+        note: "No video-conferencing link was attached — George's calendar has no meeting bridge. Put a link in the body if one is needed.",
+      });
+    },
+  );
+
+  const listCalendarEvents = tool(
+    "list_calendar_events",
+    "List events on George's own calendar within a time window. Use to check what is already scheduled before proposing a time.",
+    {
+      start_iso: z.string().datetime().optional().describe("Window start. Defaults to now."),
+      end_iso: z.string().datetime().optional().describe("Window end. Defaults to 14 days out."),
+      limit: z.number().int().min(1).max(100).default(50).optional(),
+    },
+    async ({ start_iso, end_iso, limit }) => {
+      if (!nylas) return notConfigured();
+      const calendarId = await primaryCalendarId();
+      if (!calendarId) return fail("Couldn't find George's calendar.");
+
+      // Nylas requires both bounds for a timespan query, so default them
+      // rather than surfacing an unhelpful provider error.
+      const start = start_iso
+        ? Math.floor(new Date(start_iso).getTime() / 1000)
+        : Math.floor(Date.now() / 1000);
+      const end = end_iso
+        ? Math.floor(new Date(end_iso).getTime() / 1000)
+        : start + 14 * 86_400;
+
+      const res = await nylas.listEvents({ calendarId, start, end, limit: limit ?? 50 });
+      if (!res.ok) return fail(res.error);
+
+      const events = res.data
+        .map(summariseEvent)
+        .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
+      return ok({
+        window: {
+          start: new Date(start * 1000).toISOString(),
+          end: new Date(end * 1000).toISOString(),
+        },
+        count: events.length,
+        events,
+      });
+    },
+  );
+
+  return [
+    draftEmail,
+    draftReply,
+    sendDraft,
+    listRecentEmails,
+    getEmail,
+    searchEmails,
+    getThread,
+    createCalendarEvent,
+    listCalendarEvents,
+  ];
 }
