@@ -227,6 +227,56 @@ const OPS: Record<string, string> = {
 
 // ── the builder ─────────────────────────────────────────────────────────────
 
+/**
+ * json/jsonb columns per table, cached for the process lifetime.
+ *
+ * WHY THIS IS NEEDED
+ * PostgREST accepts JSON and lets the column type decide how to parse it, so
+ * supabase-js callers pass a JS array for BOTH `tags text[]` and
+ * `to_recipients jsonb`. node-postgres has no such luxury: it serialises a JS
+ * array as a Postgres ARRAY literal ({...}), which a jsonb column rejects with
+ * `invalid input syntax for type json`. A plain object hits the same wall.
+ *
+ * So the shim has to know which columns are json to stringify only those. The
+ * lookup is one query per table, cached — a schema change needs a restart,
+ * which is acceptable for a mirror of the deployed schema.
+ *
+ * This was silently broken from the day the shim shipped: nothing wrote an
+ * array into a jsonb column until the mailbox mirror did.
+ */
+const jsonColumnCache = new Map<string, Promise<Set<string>>>();
+
+function jsonColumns(table: string): Promise<Set<string>> {
+  const hit = jsonColumnCache.get(table);
+  if (hit) return hit;
+  const p = query<{ column_name: string }>(
+    `select column_name from information_schema.columns
+      where table_schema = 'public' and table_name = $1
+        and data_type in ('json', 'jsonb')`,
+    [table],
+  )
+    .then(({ rows }) => new Set(rows.map((r) => r.column_name)))
+    // A failed lookup must not fail the write: fall back to no json columns,
+    // which is exactly the old behaviour.
+    .catch(() => new Set<string>());
+  jsonColumnCache.set(table, p);
+  return p;
+}
+
+/**
+ * Bind-ready value for one column. Objects and arrays bound for a json/jsonb
+ * column are stringified; everything else passes through untouched so that
+ * `text[]` columns keep receiving real arrays.
+ */
+export function coerceForColumn(column: string, value: unknown, json: Set<string>): unknown {
+  if (value === null || value === undefined) return null;
+  if (!json.has(column)) return value;
+  // Already serialised by the caller — don't double-encode.
+  if (typeof value === "string") return value;
+  if (typeof value === "object") return JSON.stringify(value);
+  return value;
+}
+
 class QueryBuilder<T = Record<string, unknown>> implements PromiseLike<PostgrestResult<T>> {
   private op: Operation = "select";
   private selectSpec: string | null = null;
@@ -516,7 +566,7 @@ class QueryBuilder<T = Record<string, unknown>> implements PromiseLike<Postgrest
     };
   }
 
-  private buildWriteSql(): { text: string; values: unknown[] } {
+  private buildWriteSql(json: Set<string>): { text: string; values: unknown[] } {
     const params: unknown[] = [];
     const returning = this.selectSpec
       ? ` RETURNING ${
@@ -537,7 +587,7 @@ class QueryBuilder<T = Record<string, unknown>> implements PromiseLike<Postgrest
         (row) =>
           `(${cols
             .map((c) => {
-              params.push(row[c] ?? null);
+              params.push(coerceForColumn(c, row[c], json));
               return `$${params.length}`;
             })
             .join(", ")})`,
@@ -573,7 +623,7 @@ class QueryBuilder<T = Record<string, unknown>> implements PromiseLike<Postgrest
       const values = this.payload[0] ?? {};
       const sets = Object.keys(values)
         .map((c) => {
-          params.push(values[c] ?? null);
+          params.push(coerceForColumn(c, values[c], json));
           return `${ident(c)} = $${params.length}`;
         })
         .join(", ");
@@ -625,7 +675,9 @@ class QueryBuilder<T = Record<string, unknown>> implements PromiseLike<Postgrest
     if (this.deferredError) return { data: null, error: this.deferredError };
     try {
       const { text, values } =
-        this.op === "select" ? await this.buildSelectSql() : this.buildWriteSql();
+        this.op === "select"
+          ? await this.buildSelectSql()
+          : this.buildWriteSql(await jsonColumns(this.table));
       const { rows } = await query<Record<string, unknown>>(text, values);
 
       if (this.wantCount && this.headOnly) {

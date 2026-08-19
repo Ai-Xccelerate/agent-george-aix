@@ -17,6 +17,8 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildComposioTools } from "./composio-tools";
+import { buildNylasEmailTools } from "./nylas-tools";
+import { isNylasEnabled } from "@/lib/nylas/client";
 import { embedText, hasEmbeddingProvider } from "@/lib/knowledge/embeddings";
 import { toKnowledgeHits } from "@/lib/parchment/client";
 import { parchmentForOrg } from "@/lib/parchment/connection";
@@ -1857,15 +1859,26 @@ export function buildGeorgeMcpServer(
     readTranscript,
   ];
 
-  const composioTools = buildComposioTools({
+  const mailCtx = {
     orgId,
     userId: ctx.userId,
     sessionId: ctx.sessionId ?? null,
     emailSendPolicy: ctx.emailSendPolicy ?? "chat",
     db,
-  });
+  };
+  const composioTools = buildComposioTools(mailCtx);
 
-  const tools = [...supabaseTools, ...composioTools];
+  // George is an employee: it owns its mailbox AND its calendar, and never
+  // reaches into a person's account. So when a Nylas mailbox is configured it
+  // supplies email and calendar both, and NO Composio tool is registered.
+  //
+  // Composio deliberately stays in the codebase rather than being deleted: it
+  // is the fallback until the Nylas approach is proven in real use. Removing
+  // one env var reverts George to it — same switch discipline as DATABASE_URL
+  // and STORAGE_DRIVER.
+  const mailTools = isNylasEnabled() ? buildNylasEmailTools(mailCtx) : composioTools;
+
+  const tools = [...supabaseTools, ...mailTools];
 
   const server = createSdkMcpServer({
     name: "george",

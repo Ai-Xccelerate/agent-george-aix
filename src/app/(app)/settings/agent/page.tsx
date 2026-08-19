@@ -4,11 +4,8 @@ import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getAgentSettings } from "@/lib/agent/agent-settings";
 import { getScribeConnection } from "@/lib/agent/scribe";
+import { getMailProviderStatus } from "@/lib/agent/mail-provider";
 import { DEFAULT_TIMEZONE } from "@/lib/agent/agent-settings";
-import {
-  listOrgIntegrations,
-  type IntegrationSummary,
-} from "@/lib/composio/connections";
 import { AgentForm, AvatarUploadForm, type OwnerOption } from "./_agent-form";
 import {
   removeAgentAvatarAction,
@@ -47,12 +44,13 @@ export default async function AgentSettingsPage() {
 
   const avatarUrl = publicUrl(admin, agent.avatar_path);
 
-  // Best-effort: what mailbox/note-taker is George actually wired to? This is
-  // bound to the Composio connection, not free-text — so we read it, never edit
-  // it here. Failure (bad key, outage) degrades to the default mailbox label.
-  const integrationsResult = await listOrgIntegrations(user.orgId);
-  const integrations = integrationsResult.ok ? integrationsResult.integrations : [];
-  const mailbox = connectedAccountLabel(integrations, ["OUTLOOK", "MICROSOFTOUTLOOK", "GMAIL"]);
+  // Which mailbox is George ACTUALLY operating from? Read from whichever
+  // provider is live rather than assuming Composio: once George has its own
+  // Nylas mailbox, showing a team member's Outlook address here would be a
+  // straightforward lie, and someone would act on it. Read-only either way —
+  // this page describes the accounts, it never edits them.
+  const mail = await getMailProviderStatus(user.orgId);
+  const mailbox = mail.mailbox;
   // Scribe is a direct remote MCP server (not Composio) — status from env only.
   const scribe = getScribeConnection();
 
@@ -154,15 +152,21 @@ export default async function AgentSettingsPage() {
         <div className="space-y-2">
           <AccountRow
             icon={Mail}
-            label="Mailbox & calendar"
-            value={mailbox ?? DEFAULT_MAILBOX}
-            connected={Boolean(mailbox)}
+            label={
+              mail.provider === "nylas" ? "Mailbox (George's own)" : "Mailbox & calendar"
+            }
+            value={
+              mail.connected
+                ? [mailbox ?? DEFAULT_MAILBOX, mail.detail].filter(Boolean).join(" · ")
+                : (mail.detail ?? mailbox ?? DEFAULT_MAILBOX)
+            }
+            connected={mail.connected}
           />
           <AccountRow
             icon={CalendarClock}
             label="Calendar"
-            value={mailbox ? `Synced with ${mailbox}` : "Synced with the connected mailbox"}
-            connected={Boolean(mailbox)}
+            value={mail.calendar ?? "Synced with the connected mailbox"}
+            connected={mail.connected}
           />
           <AccountRow
             icon={Mic}
@@ -230,18 +234,6 @@ function AccountRow({
       </span>
     </div>
   );
-}
-
-function connectedAccountLabel(
-  integrations: IntegrationSummary[],
-  toolkits: string[],
-): string | null {
-  const set = new Set(toolkits);
-  const match = integrations.find(
-    (i) => set.has(i.toolkit) && i.status === "connected",
-  );
-  if (!match) return null;
-  return match.accountLabel ?? match.label;
 }
 
 function publicUrl(

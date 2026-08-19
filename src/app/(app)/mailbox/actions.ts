@@ -5,6 +5,11 @@ import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
 import { syncMailbox } from "@/lib/agent/mailbox-sync";
+import {
+  createNylasClient,
+  isNylasEnabled,
+  nylasConfig,
+} from "@/lib/nylas/client";
 
 export type SyncResult = { error?: string; info?: string };
 
@@ -43,13 +48,25 @@ export async function deleteEmailAction(formData: FormData): Promise<void> {
   const externalId = String(formData.get("external_id") ?? "");
   if (!externalId) return;
 
-  const res = await callAction("OUTLOOK_BATCH_MOVE_MESSAGES", user.orgId, {
-    message_ids: [externalId],
-    destination_id: "deleteditems",
-  });
-  if (!res.ok) {
-    console.error("[mailbox] delete failed", { externalId, error: res.error });
-    return; // leave the row in place so it's clear nothing was deleted
+  // George owns its own mailbox now, so deleting has to happen wherever the mail
+  // actually lives. Nylas has no 'move to deleted items' verb — DELETE on a
+  // message is the trash operation.
+  if (isNylasEnabled()) {
+    const cfg = nylasConfig()!;
+    const del = await createNylasClient(cfg).deleteMessage(externalId);
+    if (!del.ok) {
+      console.error("[mailbox] nylas delete failed", { externalId, error: del.error });
+      return; // leave the row in place so it's clear nothing was deleted
+    }
+  } else {
+    const res = await callAction("OUTLOOK_BATCH_MOVE_MESSAGES", user.orgId, {
+      message_ids: [externalId],
+      destination_id: "deleteditems",
+    });
+    if (!res.ok) {
+      console.error("[mailbox] delete failed", { externalId, error: res.error });
+      return; // leave the row in place so it's clear nothing was deleted
+    }
   }
 
   const admin = createSupabaseAdmin();
@@ -100,12 +117,23 @@ export async function sendMailboxDraftAction(formData: FormData): Promise<void> 
     return; // not a draft in this org — refuse silently
   }
 
-  const res = await callAction("OUTLOOK_SEND_DRAFT", user.orgId, {
-    message_id: externalId,
-  });
-  if (!res.ok) {
-    console.error("[mailbox] send draft failed", { externalId, error: res.error });
-    return;
+  // This is still the only human path for sending an external email George
+  // prepared — the agent's own send tool always refuses external recipients.
+  if (isNylasEnabled()) {
+    const cfg = nylasConfig()!;
+    const sent = await createNylasClient(cfg).sendDraft(externalId);
+    if (!sent.ok) {
+      console.error("[mailbox] nylas send draft failed", { externalId, error: sent.error });
+      return;
+    }
+  } else {
+    const res = await callAction("OUTLOOK_SEND_DRAFT", user.orgId, {
+      message_id: externalId,
+    });
+    if (!res.ok) {
+      console.error("[mailbox] send draft failed", { externalId, error: res.error });
+      return;
+    }
   }
 
   // Sent — Outlook moves it out of Drafts (to Sent Items, with a new id). Drop
