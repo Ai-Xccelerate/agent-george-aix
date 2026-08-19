@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Circle,
   Cloud,
+  Database,
   FileText,
   GitBranch,
   Hash,
@@ -30,12 +31,15 @@ import {
   type IntegrationSummary,
 } from "@/lib/composio/connections";
 import { getScribeConnection } from "@/lib/agent/scribe";
+import { getAgentDbStatus, clerkOrgIdFor, type AgentDbStatus } from "@/lib/agent/agentdb";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   getMailProviderStatus,
   type MailProviderStatus,
 } from "@/lib/agent/mail-provider";
 import { Badge } from "@/components/ui/badge";
 import { connectToolkitAction, disconnectToolkitAction } from "./actions";
+import { enableAgentDbAction } from "./agentdb-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +92,8 @@ export default async function IntegrationsPage({
     connected?: string;
     disconnected?: string;
     error?: string;
+    agentdb?: string;
+    detail?: string;
   }>;
 }) {
   const user = await getCurrentUser();
@@ -101,6 +107,11 @@ export default async function IntegrationsPage({
   // an action that does not exist, and imply George's email were gated on
   // someone doing something.
   const mail = await getMailProviderStatus(user.orgId);
+  // Resolved the same way the agent runtime resolves it, so this row reflects
+  // what George will actually experience rather than a parallel guess.
+  const agentdb = await getAgentDbStatus(
+    await clerkOrgIdFor(createSupabaseAdmin(), user.orgId),
+  );
   const sp = await searchParams;
 
   return (
@@ -129,10 +140,22 @@ export default async function IntegrationsPage({
           <AlertTriangle size={14} /> {errorMessage(sp.error)}
         </Banner>
       )}
+      {sp.agentdb === "enabled" && (
+        <Banner tone="success">
+          <CheckCircle2 size={14} /> Customer database enabled. George can query it now,
+          read-only.
+        </Banner>
+      )}
+      {sp.agentdb && sp.agentdb !== "enabled" && (
+        <Banner tone="error">
+          <AlertTriangle size={14} /> {agentDbMessage(sp.agentdb, sp.detail)}
+        </Banner>
+      )}
 
       <div className="space-y-3">
         {mail.provider === "nylas" ? <GeorgeMailboxRow mail={mail} /> : null}
         <ScribeRow scribe={scribe} />
+        <AgentDbRow agentdb={agentdb} />
 
         {!result.ok ? (
           <ConnectionError message={result.error} />
@@ -212,6 +235,88 @@ function GeorgeMailboxRow({ mail }: { mail: MailProviderStatus }) {
       </span>
     </div>
   );
+}
+
+/**
+ * The organisation's operational database (AgentDB) — George's CRM.
+ *
+ * Unlike the Composio rows this is not an OAuth connection, and unlike Scribe it
+ * is not purely environment-managed: an org must be deliberately switched on by
+ * someone whose Clerk JWT proves entitlement in AIX Core, so this row owns that
+ * one action and nothing else.
+ *
+ * Read-only is stated on the row rather than buried in a tooltip, because it sets
+ * the expectation for what George will claim it can do with the database.
+ */
+function AgentDbRow({ agentdb }: { agentdb: AgentDbStatus }) {
+  const status = agentdb.enabled
+    ? "connected"
+    : !agentdb.configured || !agentdb.reachable
+      ? "error"
+      : "disconnected";
+
+  return (
+    <div className="flex min-h-[84px] items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15">
+          <Database size={18} className="text-brand-500 dark:text-brand-400" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold text-gray-800 dark:text-white/90">
+              Customer database
+            </span>
+            <StatusPill status={status} />
+            {agentdb.enabled && (
+              <Badge tone="neutral" withDot={false}>
+                read-only
+              </Badge>
+            )}
+          </div>
+          <p
+            className="mt-0.5 truncate text-theme-sm text-gray-500 dark:text-gray-400"
+            title={agentdb.detail}
+          >
+            {agentdb.detail}
+          </p>
+        </div>
+      </div>
+
+      {agentdb.canEnable ? (
+        <form action={enableAgentDbAction}>
+          <button
+            type="submit"
+            className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900"
+            title="Checks your entitlement with AIX Core, then gives George read-only access to this organisation&apos;s database."
+          >
+            <PlugZap size={14} />
+            Enable
+          </button>
+        </form>
+      ) : (
+        <span
+          className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500"
+          title={
+            agentdb.enabled
+              ? "George queries this database directly over MCP. Write access is deliberately not granted."
+              : "AgentDB is configured with AGENTDB_API_URL and the shared internal key in the server environment."
+          }
+        >
+          {agentdb.enabled ? "Managed in environment" : "Unavailable"}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Enable-attempt outcomes, written for whoever pressed the button. */
+function agentDbMessage(code: string, detail?: string) {
+  if (code === "not_entitled")
+    return "AIX Core says this organisation is not entitled to the customer database. Nothing was changed — ask an AIX admin to enable it on the account.";
+  if (code === "no_org") return "No active organisation in your session. Pick one and try again.";
+  if (code === "no_token")
+    return "Your session token could not be read. Sign out and back in, then try again.";
+  return detail ?? "Could not enable the customer database.";
 }
 
 function ScribeRow({

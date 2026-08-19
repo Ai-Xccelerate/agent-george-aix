@@ -282,3 +282,88 @@ export async function checkAgentDbAccess(clerkOrgId: string): Promise<
     clearTimeout(timer);
   }
 }
+
+/** What the Integrations page needs to render one honest row. */
+export type AgentDbStatus = {
+  /** Deployment-level: are the URL and key present at all? */
+  configured: boolean;
+  /** Env vars still missing, for the "what do I do about it" line. */
+  missingVars: string[];
+  /** Whether this org has been enabled — the thing an admin can change here. */
+  enabled: boolean;
+  /** False when AgentDB itself is down or the URL is wrong. */
+  reachable: boolean;
+  /** Whether the Enable button can do anything right now. */
+  canEnable: boolean;
+  /** One sentence for the row's subtitle. */
+  detail: string;
+};
+
+/**
+ * Status for one org, shaped for the settings UI.
+ *
+ * Deliberately does NOT throw and does NOT hide the unconfigured case: a row
+ * that silently vanishes when AGENTDB_API_URL is unset is how you end up
+ * unable to tell "switched off" from "broken". Each state says what it is and,
+ * where there is one, what the next action is.
+ */
+export async function getAgentDbStatus(clerkOrgId: string | null): Promise<AgentDbStatus> {
+  const missingVars = agentDbMissingVars();
+
+  if (missingVars.length > 0) {
+    return {
+      configured: false,
+      missingVars,
+      enabled: false,
+      reachable: false,
+      canEnable: false,
+      detail: `Not configured on this deployment — set ${missingVars.join(" and ")} in the server environment.`,
+    };
+  }
+
+  if (!clerkOrgId) {
+    return {
+      configured: true,
+      missingVars: [],
+      enabled: false,
+      reachable: false,
+      canEnable: false,
+      detail: "This organisation has no Clerk id, so AgentDB cannot identify the tenant.",
+    };
+  }
+
+  const access = await checkAgentDbAccess(clerkOrgId);
+
+  if (!access.reachable) {
+    return {
+      configured: true,
+      missingVars: [],
+      enabled: false,
+      reachable: false,
+      canEnable: false,
+      detail: access.detail,
+    };
+  }
+
+  if (access.enabled) {
+    return {
+      configured: true,
+      missingVars: [],
+      enabled: true,
+      reachable: true,
+      canEnable: false,
+      detail: "Read-only access to the organisation's database — George can query records and read files, but cannot change anything.",
+    };
+  }
+
+  return {
+    configured: true,
+    missingVars: [],
+    enabled: false,
+    reachable: true,
+    canEnable: true,
+    detail:
+      access.detail ??
+      "Not enabled for this organisation yet. Enabling checks your entitlement with AIX Core.",
+  };
+}
