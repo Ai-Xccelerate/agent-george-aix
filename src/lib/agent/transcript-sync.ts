@@ -87,8 +87,20 @@ function isEmptyReply(v: unknown): boolean {
 
 /** Scribe's documented maximum; asking for more is silently clamped to it. */
 const SCRIBE_PAGE_SIZE = 20;
-/** Bound, not a target — stops a paging bug from looping forever. */
-const SCRIBE_MAX_PAGES = 15;
+/**
+ * Bound, not a target — stops a paging bug from looping forever.
+ *
+ * Sized against reality: the AIX workspace already holds ~680 meetings (34
+ * pages), so a small cap would silently mirror only the newest slice. Paging is
+ * cheap — one list call each, and the expensive per-meeting fetches are gated
+ * separately by has_transcript and by what is already mirrored.
+ *
+ * Deliberately NOT an early exit on the first fully-mirrored page: ordering is
+ * by start time, but a transcript can land days after its meeting, so
+ * done-ness is not monotonic down the list. Stopping at the first complete
+ * page would strand exactly those late arrivals.
+ */
+const SCRIBE_MAX_PAGES = 60;
 
 /**
  * One page of list_meetings. `items` is the real key; the others are tolerated
@@ -333,6 +345,16 @@ export async function syncTranscripts(orgId: string): Promise<TranscriptSyncResu
     // where a full last page happens to land exactly on the boundary.
     if (items.length < SCRIBE_PAGE_SIZE) break;
     if (total !== null && seen.length >= total) break;
+
+    // Reached the cap with more to fetch: say so. A truncated sweep that looks
+    // identical to a complete one is the failure mode this file already had.
+    if (page === SCRIBE_MAX_PAGES) {
+      result.errors.push(
+        `list_meetings: stopped at the ${SCRIBE_MAX_PAGES}-page cap after ${seen.length} meetings` +
+          (total !== null ? ` of ${total}` : "") +
+          " — raise SCRIBE_MAX_PAGES to mirror the rest.",
+      );
+    }
   }
 
   result.meetings_seen = seen.length;

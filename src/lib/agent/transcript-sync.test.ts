@@ -151,13 +151,16 @@ describe("the list_meetings contract", () => {
     expect(pages).toEqual([1, 2]);
   });
 
-  it("stops paging instead of looping when a page repeats a full result", async () => {
+  it("stops at the cap, and says so rather than looking complete", async () => {
     // total omitted and every page full: the page cap is the only thing that
     // ends this, which is exactly what it is for.
     const full = Array.from({ length: 20 }, (_, i) => meeting({ id: `m-${i}` }));
-    meetingPages = Array.from({ length: 40 }, () => ({ items: full }));
-    await syncTranscripts(ORG);
-    expect(calls.filter((c) => c.name === "list_meetings").length).toBeLessThanOrEqual(15);
+    meetingPages = Array.from({ length: 90 }, () => ({ items: full }));
+    const r = await syncTranscripts(ORG);
+    expect(calls.filter((c) => c.name === "list_meetings").length).toBeLessThanOrEqual(60);
+    // A truncated sweep that reads as a complete one is the whole failure mode
+    // this file suffered from, so the cap must announce itself.
+    expect(r.errors.join(" ")).toMatch(/cap/i);
   });
 });
 
