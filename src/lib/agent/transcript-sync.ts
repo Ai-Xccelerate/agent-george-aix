@@ -7,12 +7,29 @@ import { analyzeMeetingIntelligence } from "@/lib/agent/meeting-intelligence";
  * The mirror is the source George reasons over (list_transcripts / read_transcript
  * tools) and the data the /transcripts UI renders from.
  *
- * Mechanism: list_meetings(status=completed) → for any meeting not yet stored
- * (or stored without a transcript), pull get_transcript + get_insights and
- * upsert on (org_id, external_id). Scribe auto-joins meetings George is invited
- * to, so there's nothing to dispatch — we just pull what's finished.
+ * Mechanism: page through list_meetings → keep the completed ones → for any
+ * meeting not yet stored (or stored without a transcript), pull get_transcript
+ * + get_insights and upsert on (org_id, external_id). Scribe auto-joins meetings
+ * George is invited to, so there's nothing to dispatch — we just pull what's
+ * finished.
  *
  * Idempotent: every upsert keys on (org_id, external_id), so re-runs converge.
+ *
+ * THE CONTRACT THIS FILE DEPENDS ON, AND HOW IT BIT US
+ * Scribe's MCP tools (Scribe-Notetaker backend/app/routers/mcp.py) are typed
+ * loosely and fail quietly, so every assumption below is deliberate:
+ *
+ *   list_meetings takes ONLY page + page_size (max 20). Unknown arguments are
+ *   dropped by args.get(), not rejected — an earlier version of this file sent
+ *   {status, limit} and silently received the 10 newest meetings, unfiltered.
+ *
+ *   list_meetings returns {items, total, page, page_size}. Reading the wrong key
+ *   yields undefined, which looks exactly like an empty mailbox: this file
+ *   reported meetings_seen: 0 with no error for as long as it was wrong.
+ *
+ *   get_transcript / get_insights answer with PROSE when there is nothing to
+ *   return ("No transcript available for this meeting."). Those strings are
+ *   truthy and would be stored as content — see isEmptyReply.
  */
 
 export type TranscriptSyncResult = {
@@ -45,6 +62,68 @@ function isoOrNull(v: unknown): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/**
+ * Scribe answers with a human sentence rather than an error or null when a
+ * meeting has no transcript or no analysis yet.
+ *
+ * Left undetected, "No transcript available for this meeting." is a truthy
+ * string: it passes `if (text)`, gets written to transcript_text, and on the
+ * next run marks the meeting as already-mirrored — so the real transcript,
+ * which usually lands a few minutes later, is never fetched. It also burned a
+ * Sonnet call analysing a 40-character error message.
+ */
+const SCRIBE_EMPTY_REPLIES = [
+  "no transcript available",
+  "transcript is empty",
+  "no ai insights available",
+  "no chat messages",
+];
+
+function isEmptyReply(v: unknown): boolean {
+  if (typeof v !== "string") return false;
+  const s = v.trim().toLowerCase();
+  return SCRIBE_EMPTY_REPLIES.some((prefix) => s.startsWith(prefix));
+}
+
+/** Scribe's documented maximum; asking for more is silently clamped to it. */
+const SCRIBE_PAGE_SIZE = 20;
+/** Bound, not a target — stops a paging bug from looping forever. */
+const SCRIBE_MAX_PAGES = 15;
+
+/**
+ * One page of list_meetings. `items` is the real key; the others are tolerated
+ * so a rename upstream degrades instead of silently returning nothing.
+ */
+function readMeetingPage(raw: unknown): { items: Json[]; total: number | null } {
+  if (Array.isArray(raw)) return { items: raw.map(asObj), total: null };
+  const o = asObj(raw);
+  const items = pick(o, ["items", "meetings", "results", "data"]);
+  return {
+    items: Array.isArray(items) ? items.map(asObj) : [],
+    total: typeof o.total === "number" ? o.total : null,
+  };
+}
+
+/**
+ * Scribe's status lifecycle is pending → bot_sent → completed / failed
+ * (Scribe-Notetaker backend/database.py). Only a completed meeting has a final
+ * transcript worth mirroring — a bot_sent one may expose a partial transcript,
+ * and since a stored transcript marks the row done forever, mirroring a partial
+ * would freeze it half-written.
+ *
+ * There is no server-side status filter, so this is enforced here.
+ */
+function isMirrorable(m: Json): boolean {
+  // Scribe already told us there is nothing to fetch; skip three round trips.
+  if (pick(m, ["has_transcript"]) === false) return false;
+  const status = str(pick(m, ["status"]))?.toLowerCase();
+  // A MISSING status is allowed through on purpose. If Scribe renames the field
+  // we would rather attempt the fetch — and discard the sentinel — than silently
+  // stop mirroring everything, which is the failure mode that hid the last bug.
+  if (!status) return true;
+  return status === "completed";
+}
+
 function meetingId(m: Json): string | null {
   return str(pick(m, ["id", "meeting_id", "uuid"]));
 }
@@ -65,6 +144,9 @@ function attendeeEmails(attendees: unknown): string[] {
 
 /** Flatten Scribe transcript segments into speaker-labelled text. */
 function flattenTranscript(raw: unknown): { text: string | null; count: number } {
+  // Must come first: the sentinel is a plain string and would otherwise be
+  // adopted verbatim as the transcript by the `typeof raw === "string"` branch.
+  if (isEmptyReply(raw)) return { text: null, count: 0 };
   const segments = Array.isArray(raw)
     ? raw
     : Array.isArray(asObj(raw).segments)
@@ -135,7 +217,8 @@ async function syncOneMeeting(
   const { text, count } = transcriptRes.ok
     ? flattenTranscript(transcriptRes.data)
     : { text: null, count: 0 };
-  const scribeInsights = insightsRes.ok ? insightsRes.data : null;
+  const scribeInsights =
+    insightsRes.ok && !isEmptyReply(insightsRes.data) ? insightsRes.data : null;
   const summary = summaryFromInsights(scribeInsights);
 
   // Enrich with George-derived sentiment + learnings (Scribe doesn't provide
@@ -232,16 +315,31 @@ export async function syncTranscripts(orgId: string): Promise<TranscriptSyncResu
 
   const admin = createSupabaseAdmin();
 
-  const list = await callScribeTool<unknown>("list_meetings", { status: "completed", limit: 100 });
-  if (!list.ok) {
-    result.errors.push(`list_meetings: ${list.error}`);
-    return result;
+  // Page rather than asking for one big list: page_size is capped at 20, and an
+  // over-large request is clamped silently rather than refused.
+  const seen: Json[] = [];
+  for (let page = 1; page <= SCRIBE_MAX_PAGES; page++) {
+    const list = await callScribeTool<unknown>("list_meetings", {
+      page,
+      page_size: SCRIBE_PAGE_SIZE,
+    });
+    if (!list.ok) {
+      result.errors.push(`list_meetings page ${page}: ${list.error}`);
+      break;
+    }
+    const { items, total } = readMeetingPage(list.data);
+    seen.push(...items);
+    // Short page means the end. `total` is a second stop condition for the case
+    // where a full last page happens to land exactly on the boundary.
+    if (items.length < SCRIBE_PAGE_SIZE) break;
+    if (total !== null && seen.length >= total) break;
   }
-  const meetings = (Array.isArray(list.data) ? list.data : asObj(list.data).meetings) as
-    | unknown[]
-    | undefined;
-  const rows = (meetings ?? []).map(asObj);
-  result.meetings_seen = rows.length;
+
+  result.meetings_seen = seen.length;
+  const rows = seen.filter(isMirrorable);
+  // Counted as skipped so a run that saw meetings but mirrored none is legible
+  // rather than looking like an empty account.
+  result.skipped += seen.length - rows.length;
   if (rows.length === 0) return result;
 
   // Which meetings do we already have a transcript for? Skip those.
