@@ -85,6 +85,21 @@ function isEmptyReply(v: unknown): boolean {
   return SCRIBE_EMPTY_REPLIES.some((prefix) => s.startsWith(prefix));
 }
 
+/**
+ * Meetings actually fetched per run.
+ *
+ * The first sweep of a real workspace had ~490 to pull, each costing three
+ * Scribe calls plus a model call on up to 40k characters. Serially that ran for
+ * over half an hour and held the single cron lock the whole time, so every other
+ * job — mailbox mirror, objectives, health checks — was skipped tick after tick.
+ * That is what happened on the first live run.
+ *
+ * Bounding the batch keeps each tick short. Progress is monotonic because
+ * already-mirrored meetings are skipped, so successive runs work through the
+ * backlog until it clears.
+ */
+const SCRIBE_MAX_PER_RUN = 25;
+
 /** Scribe's documented maximum; asking for more is silently clamped to it. */
 const SCRIBE_PAGE_SIZE = 20;
 /**
@@ -378,7 +393,24 @@ export async function syncTranscripts(orgId: string): Promise<TranscriptSyncResu
     }
   }
 
-  for (const m of rows) {
+  // Bound the batch: already-mirrored meetings are cheap to recognise here, so
+  // spend the run's budget on ones that still need fetching.
+  const pending = rows.filter((m) => {
+    const id = meetingId(m);
+    return id !== null && !existingWithTranscript.has(id);
+  });
+  result.skipped += rows.length - pending.length;
+
+  const batch = pending.slice(0, SCRIBE_MAX_PER_RUN);
+  if (pending.length > batch.length) {
+    // Progress, not a problem — but say it, so a partial run is never mistaken
+    // for a finished one.
+    console.log(
+      `[transcript sync] ${orgId}: mirroring ${batch.length} of ${pending.length} outstanding meetings this run`,
+    );
+  }
+
+  for (const m of batch) {
     try {
       await syncOneMeeting(admin, orgId, m, result, existingWithTranscript);
     } catch (err) {

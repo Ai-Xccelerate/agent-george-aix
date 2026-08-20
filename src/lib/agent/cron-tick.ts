@@ -19,6 +19,8 @@ import { syncMailbox, MAILBOX_SYNC_INTERVAL_MS, type MailboxSyncResult } from ".
 import { syncTranscripts, type TranscriptSyncResult } from "./transcript-sync";
 import { runProactiveScan, type ProactiveScanResult } from "./run-proactive-scan";
 import { isScribeAvailable } from "@/lib/scribe/client";
+import { isNylasEnabled } from "@/lib/nylas/client";
+import { georgeOrgId } from "./tenancy";
 import {
   activeConnectedAccountId,
   isTriggerActiveFor,
@@ -306,17 +308,51 @@ async function runDueProactiveScans(
 }
 
 /**
- * Runs a Scribe transcript sync for each org whose last sync is older than the
- * throttle interval. Throttle keys on the newest meeting_transcripts.synced_at
- * (0 when none, so a fresh org syncs on the next tick).
+ * Which orgs a sweep should run for.
+ *
+ * `sharedCredential: true` means one deployment-wide credential serves the
+ * sweep — a single Nylas grant, a single Scribe token. Fanning such a sweep out
+ * across tenants does not give each tenant its own data; it copies one tenant's
+ * data into all of them. See lib/agent/tenancy.ts for what that cost us.
+ *
+ * Returning an empty list is a deliberate outcome, not a failure: doing nothing
+ * beats writing one org's records into another's tables.
+ */
+async function sweepOrgIds(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  opts: { sharedCredential: boolean; label: string },
+): Promise<string[]> {
+  if (opts.sharedCredential) {
+    const own = georgeOrgId();
+    if (!own) {
+      console.error(
+        `[cron tick] ${opts.label} skipped — GEORGE_ORG_ID is unset, and a shared ` +
+          `credential must not be fanned out across organisations`,
+      );
+      return [];
+    }
+    return [own];
+  }
+  const { data } = await admin.from("orgs").select("id");
+  return (data ?? []).map((o) => (o as { id: string }).id);
+}
+
+/**
+ * Runs a Scribe transcript sync, throttled on the newest
+ * meeting_transcripts.synced_at (0 when none, so a fresh org syncs next tick).
+ *
+ * Scribe is always a shared credential — there is one workspace token for the
+ * whole deployment — so this only ever runs for George's own org.
  */
 async function runDueTranscriptSyncs(
   admin: ReturnType<typeof createSupabaseAdmin>,
 ): Promise<TranscriptSyncResult[]> {
-  const { data: orgs } = await admin.from("orgs").select("id");
+  const orgIds = await sweepOrgIds(admin, {
+    sharedCredential: true,
+    label: "transcript sync",
+  });
   const out: TranscriptSyncResult[] = [];
-  for (const org of orgs ?? []) {
-    const orgId = org.id as string;
+  for (const orgId of orgIds) {
     const { data: latest } = await admin
       .from("meeting_transcripts")
       .select("synced_at")
@@ -332,17 +368,23 @@ async function runDueTranscriptSyncs(
 }
 
 /**
- * Runs a mailbox mirror sync for each org whose last sync is older than the
- * throttle interval. Orgs with no connected mailbox surface an error inside
- * the result and are skipped next tick by the same throttle.
+ * Runs a mailbox mirror sync, throttled per org. Orgs with no connected mailbox
+ * surface an error inside the result and are skipped next tick by the throttle.
+ *
+ * Scope depends on the provider, and the difference matters. Nylas is George's
+ * own single mailbox — one grant, so one org. Composio connects a separate
+ * account per org, so there the fan-out is correct and stays.
  */
 async function runDueMailboxSyncs(
   admin: ReturnType<typeof createSupabaseAdmin>,
 ): Promise<MailboxSyncResult[]> {
-  const { data: orgs } = await admin.from("orgs").select("id");
+  const nylas = isNylasEnabled();
+  const orgIds = await sweepOrgIds(admin, {
+    sharedCredential: nylas,
+    label: "mailbox sync",
+  });
   const out: MailboxSyncResult[] = [];
-  for (const org of orgs ?? []) {
-    const orgId = org.id as string;
+  for (const orgId of orgIds) {
 
     // Throttle on ATTEMPT, not last success. The throttle used to key on
     // mail_folders.synced_at — but a sync that fails before it writes any
@@ -367,7 +409,11 @@ async function runDueMailboxSyncs(
 
     // Skip orgs with no active mailbox connection: calling Composio for them
     // just throws and spams the log. Same guard the trigger-health check uses.
-    if (!(await activeConnectedAccountId(orgId, "outlook"))) continue;
+    //
+    // Composio only. On the Nylas path there is no connected account to look up
+    // — George owns the mailbox — and this gate would skip every org, silently
+    // disabling the mirror.
+    if (!nylas && !(await activeConnectedAccountId(orgId, "outlook"))) continue;
     out.push(await syncMailbox(orgId));
   }
   return out;

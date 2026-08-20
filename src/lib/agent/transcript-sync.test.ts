@@ -164,6 +164,27 @@ describe("the list_meetings contract", () => {
   });
 });
 
+describe("one run does a bounded amount of work", () => {
+  it("stops after the per-run batch instead of holding the cron lock", async () => {
+    // The first live run had ~490 meetings to fetch, each costing three Scribe
+    // calls plus a model call. Serially that ran over half an hour and starved
+    // every other cron job behind the single tick lock.
+    const many = Array.from({ length: 20 }, (_, i) => meeting({ id: `m-${i}` }));
+    meetingPages = [
+      { items: many, total: 40 },
+      { items: Array.from({ length: 20 }, (_, i) => meeting({ id: `n-${i}` })), total: 40 },
+    ];
+    const r = await syncTranscripts(ORG);
+
+    expect(r.meetings_seen).toBe(40);
+    // Listing is cheap and still complete; only the fetching is bounded.
+    expect(r.transcripts_upserted).toBeLessThanOrEqual(25);
+    expect(calls.filter((c) => c.name === "get_transcript").length).toBe(
+      r.transcripts_upserted,
+    );
+  });
+});
+
 describe("only completed meetings get mirrored", () => {
   it("skips a meeting still in the bot_sent stage", async () => {
     // A partial transcript stored now would freeze the row half-written.
