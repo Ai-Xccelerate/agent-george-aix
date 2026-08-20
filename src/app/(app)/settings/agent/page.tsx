@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
-import { CalendarClock, Lock, Mail, Mic, Plug } from "lucide-react";
+import { CalendarClock, Database, Lock, Mail, Mic, Plug } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getAgentSettings } from "@/lib/agent/agent-settings";
 import { getScribeConnection } from "@/lib/agent/scribe";
 import { getMailProviderStatus } from "@/lib/agent/mail-provider";
+import { getAgentDbStatus, clerkOrgIdFor } from "@/lib/agent/agentdb";
+import { georgeOrgId } from "@/lib/agent/tenancy";
 import { DEFAULT_TIMEZONE } from "@/lib/agent/agent-settings";
 import { AgentForm, AvatarUploadForm, type OwnerOption } from "./_agent-form";
 import {
@@ -50,6 +52,22 @@ export default async function AgentSettingsPage() {
   // straightforward lie, and someone would act on it. Read-only either way —
   // this page describes the accounts, it never edits them.
   const mail = await getMailProviderStatus(user.orgId);
+
+  // Resolved for GEORGE'S OWN org, not the viewer's — and that difference is the
+  // whole reason this row exists. The Integrations page necessarily shows the
+  // signed-in user's organisation, so an org that is enabled for you while
+  // George's own org is not looks identical to everything working. It is not:
+  // autonomous runs (inbound mail, cron) act as George's org, so that is the one
+  // whose access decides whether George can read the CRM unattended.
+  const agentOrgId = georgeOrgId() ?? user.orgId;
+  const agentdb = await getAgentDbStatus(await clerkOrgIdFor(admin, agentOrgId));
+  const agentdbValue = !agentdb.configured
+    ? `Not configured — ${agentdb.missingVars.join(" and ")} unset`
+    : agentdb.enabled
+      ? "Read-only access to the organisation's records"
+      : agentdb.reachable
+        ? "Not enabled for George's organisation yet"
+        : agentdb.detail;
   const mailbox = mail.mailbox;
   // Scribe is a direct remote MCP server (not Composio) — status from env only.
   const scribe = getScribeConnection();
@@ -173,6 +191,12 @@ export default async function AgentSettingsPage() {
             label="Note-taker (Scribe)"
             value={scribe.account ?? "Not connected"}
             connected={scribe.connected}
+          />
+          <AccountRow
+            icon={Database}
+            label="Customer database (George's own org)"
+            value={agentdbValue}
+            connected={agentdb.enabled}
           />
         </div>
       </section>
