@@ -19,11 +19,17 @@ export const SCRIBE_ACCOUNT_EMAIL = "agent.george@getonyx.ai";
 
 // Curated allowlist — only what George needs for the kickoff / health flows.
 // Deliberately excludes `get_chat` (in-meeting chat is noise for our use).
+//
+// `get_action_items` reads Scribe's live action-items table — owner email,
+// completion status, parsed due dates, filterable by meeting or owner — which is
+// materially better for chasing onboarding commitments than the frozen copy
+// inside a meeting's insights blob.
 export const SCRIBE_TOOL_NAMES = [
   "mcp__scribe__list_meetings",
   "mcp__scribe__get_meeting",
   "mcp__scribe__get_transcript",
   "mcp__scribe__get_insights",
+  "mcp__scribe__get_action_items",
 ] as const;
 
 /**
