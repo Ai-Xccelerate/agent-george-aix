@@ -25,6 +25,7 @@ import {
   type AgentSettings,
 } from "./agent-settings";
 import { renderOperatingModelBlock } from "./operating-model";
+import { GEORGE_ADDRESS } from "./identity";
 
 type OrgProfile = {
   name?: string | null;
@@ -92,6 +93,10 @@ export async function buildGeorgeSystemPrompt(
     (docsRes.data ?? []) as KnowledgeDoc[],
   );
   const accountBlock = await buildAccountBlock(admin, orgId, customerId);
+  const signatureBlock = buildSignatureBlock(
+    agent,
+    (orgRes.data ?? null) as OrgProfile | null,
+  );
 
   const parts: string[] = [
     GEORGE_SYSTEM_PROMPT,
@@ -99,10 +104,75 @@ export async function buildGeorgeSystemPrompt(
     operatingBlock,
     orgBlock,
     accountBlock,
+    signatureBlock,
     knowledgeBlock,
   ];
   if (autonomous) parts.push("\n\n" + buildAutonomousRunPrompt(emailSendPolicy));
   return parts.join("");
+}
+
+/**
+ * The email signature, rendered from this deployment's own values.
+ *
+ * This used to be a fixed block of HTML inside the base prompt naming Onyx and
+ * a colleague's personal address. Onyx was the first deployment, and when George
+ * became AIX's own product nobody revisited it — so every draft George wrote
+ * signed off as an Onyx teammate contactable at a human's mailbox. A customer
+ * reading one would have been told the wrong company and given the wrong
+ * address to reply to.
+ *
+ * Built from the agent record (name, title) and the org profile, so it follows
+ * whoever the deployment belongs to. Anything unknown is LEFT OUT rather than
+ * guessed: an incomplete signature is a cosmetic problem, a confidently wrong
+ * one is a credibility problem.
+ */
+function buildSignatureBlock(agent: AgentSettings, org: OrgProfile | null): string {
+  const company = (org?.display_name || org?.name || "").trim();
+  const domain = (org?.domain || "")
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
+
+  const roleLine = [agent.title, company].filter(Boolean).join(" · ");
+  const contact = [
+    // No address configured means no address printed. Inventing one, or falling
+    // back to a colleague's, is how a customer gets told to reply to the wrong
+    // person — see the note in identity.ts.
+    GEORGE_ADDRESS ? `<a href="mailto:${GEORGE_ADDRESS}">${GEORGE_ADDRESS}</a>` : null,
+    domain ? `<a href="https://${domain}">${domain}</a>` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  // Name the team only when we know what to call it.
+  const alongside = company
+    ? `working alongside the ${company} team`
+    : "working alongside the team here";
+
+  const html = [
+    "<p>Thanks,<br>",
+    `<strong>${agent.name}</strong><br>`,
+    roleLine ? `${roleLine}<br>` : null,
+    contact ? `${contact}</p>` : "</p>",
+    '<p style="color:#888;font-size:11px;margin-top:18px;">',
+    `This message was drafted by an AI teammate ${alongside}. Reply to loop a human in.`,
+    "</p>",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return [
+    "\n\n## Email signature",
+    "",
+    "End every draft with exactly this, changing nothing:",
+    "",
+    "```html",
+    html,
+    "```",
+    "",
+    "If you are drafting on behalf of a named human, swap the first two lines for",
+    "their name and title, drop the grey paragraph, and say so in chat.",
+  ].join("\n");
 }
 
 /**
