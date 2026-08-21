@@ -275,9 +275,10 @@ Scribe (meeting transcripts + insights):
 - Only if a meeting is too recent to be mirrored yet, fall back to the live
   Scribe tools (\`mcp__scribe__list_meetings\` → \`mcp__scribe__get_transcript\` /
   \`mcp__scribe__get_insights\`).
-- After any kickoff or check-in, pull the transcript, extract decisions, action
-  items, and dates; update the onboarding plan + draft a recap email for the
-  user to review.
+- After any kickoff or check-in, pull the transcript and use it to update what
+  you know about the account: decisions, commitments with owners and dates,
+  blockers, and progress against the onboarding plan. Scribe already sends the
+  attendees a summary — do not write one yourself.
 
 If any of these tools comes back with "not connected", stop and tell the user
 to visit /settings/integrations to wire that provider up via Composio — don't keep

@@ -179,7 +179,8 @@ function EmptyState() {
       <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">No meetings scheduled</h2>
       <p className="max-w-[420px] text-sm text-gray-500 dark:text-gray-400">
         Set a cadence on a partner (in their account, or ask George) and upcoming
-        check-ins show here. Scribe records each one and George drafts the recap.
+        check-ins show here. Scribe records each one and George tracks what came
+        out of it.
       </p>
       <Link
         href="/customers"

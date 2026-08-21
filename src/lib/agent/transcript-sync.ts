@@ -358,9 +358,10 @@ async function syncOneMeeting(
   }
   result.transcripts_upserted++;
 
-  // Hand a newly-transcribed meeting to George (plan/objective update + a recap
-  // draft for the PM). Dedup on (org, source, meeting id); the cron sweep picks
-  // the pending event up and runs George.
+  // Hand a newly-transcribed meeting to George so he can update what the account
+  // record says — decisions, commitments, blockers, health. Nothing outbound is
+  // produced; see handleTranscriptReady. Dedup on (org, source, meeting id); the
+  // cron sweep picks the pending event up and runs George.
   //
   // Three conditions, all necessary:
   //   text                     — nothing to act on without a transcript

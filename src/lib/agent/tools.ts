@@ -1663,7 +1663,7 @@ export function buildGeorgeMcpServer(
 
   const readTranscript = tool(
     "read_transcript",
-    "Read the full transcript + insights for one meeting. Pass the id from list_transcripts. Use to pull decisions, action items, and who-said-what after a kickoff or check-in — e.g. to draft a success plan or recap.",
+    "Read the full transcript + insights for one meeting. Pass the id from list_transcripts. Use it to update what you know about the account — decisions, commitments and owners, blockers, sentiment, feature requests, progress against the onboarding plan — and to record a health signal. Not for writing a summary to send anyone — Scribe already does that for the attendees.",
     {
       transcript_id: z.string().uuid(),
     },
