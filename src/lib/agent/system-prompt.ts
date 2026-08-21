@@ -145,9 +145,9 @@ function buildSignatureBlock(agent: AgentSettings, org: OrgProfile | null): stri
     .join(" · ");
 
   // Name the team only when we know what to call it.
-  const alongside = company
-    ? `working alongside the ${company} team`
-    : "working alongside the team here";
+  const whoReplies = company
+    ? `someone from the ${company} team`
+    : "a person here";
 
   const html = [
     "<p>Thanks,<br>",
@@ -155,7 +155,12 @@ function buildSignatureBlock(agent: AgentSettings, org: OrgProfile | null): stri
     roleLine ? `${roleLine}<br>` : null,
     contact ? `${contact}</p>` : "</p>",
     '<p style="color:#888;font-size:11px;margin-top:18px;">',
-    `This message was drafted by an AI teammate ${alongside}. Reply to loop a human in.`,
+    // "Drafted" was the previous wording and it was not true. This footer only
+    // appears on mail George SENDS — when drafting under a human's name the rule
+    // above is to drop this paragraph entirely. So "drafted" implied a person had
+    // reviewed and sent it, which is precisely the impression the 16 recaps of
+    // 2026-08-20 left with fourteen colleagues. Say what happened instead.
+    `Written and sent by an AI teammate, not a person. Reply and ${whoReplies} will pick it up.`,
     "</p>",
   ]
     .filter(Boolean)
