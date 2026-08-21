@@ -165,19 +165,20 @@ export const POLICY_CATALOG: Policy[] = [
     promptOff:
       "Only report churn risk when explicitly asked. Do not raise unprompted churn alerts.",
   },
-  {
-    id: "auto_draft_recap",
-    group: "behavior",
-    kind: "toggle",
-    label: "Auto-draft meeting recaps",
-    description:
-      "After a meeting with a transcript, automatically prepare a recap email draft for PM review.",
-    default: true,
-    promptOn:
-      "After any meeting that has a Scribe transcript, automatically prepare a recap email as a draft (never sent) for the PM to review, and update the onboarding plan from the decisions and action items.",
-    promptOff:
-      "Do not auto-draft meeting recaps. Only draft a recap when the user explicitly asks.",
-  },
+  // REMOVED 2026-08-21: auto_draft_recap.
+  //
+  // George produced a post-meeting recap because that was a task in the CSM role
+  // he was originally built for. At AI Xccelerate it is redundant — Scribe already
+  // sends recaps to the people who attended — so George writing another one is
+  // duplicate work aimed at the same readers.
+  //
+  // Deleted rather than defaulted off. A dormant feature is what caused the
+  // 2026-08-20 incident: it sat unused until a sync bug was fixed, then ran ~490
+  // times and mailed 16 unrequested recaps to colleagues. A toggle would have
+  // been switched back on by someone with a sensible-sounding reason.
+  //
+  // Removing the id is safe: resolvePolicies and renderOperatingModelBlock both
+  // iterate this catalog, so a stored override for a deleted policy is ignored.
   {
     id: "knowledge_capture",
     group: "behavior",

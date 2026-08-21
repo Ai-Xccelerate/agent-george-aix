@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { callAction } from "@/lib/composio/client";
 import { wrapGeorgeEmailHtml, injectReplyHtml } from "@/lib/agent/email-branding";
 import { GEORGE_ADDRESS, isInternalAddress } from "@/lib/agent/identity";
+import { checkSendRate, sendRateMessage } from "@/lib/agent/outbound-limits";
 
 type Ctx = {
   orgId: string;
@@ -295,6 +296,22 @@ export function buildComposioTools(ctx: Ctx) {
       // re-scope this behind emailSendPolicy again — the allowlist is the
       // only sanctioned way to widen it, and it's an explicit human
       // approval per domain, not a policy flag.
+      // Same volume limit as the Nylas path. This route is inactive while
+      // Nylas is configured, but it becomes George's mailbox again the moment
+      // NYLAS_API_KEY is absent — so the cap has to live on both.
+      const mode = ctx.emailSendPolicy === "internal_only" ? "autonomous" : "chat";
+      const rate = await checkSendRate(ctx.db, ctx.orgId, mode);
+      if (!rate.allowed) {
+        await audit(ctx, "email.send_blocked", {
+          draft_id,
+          reason: "rate_limited",
+          sent_last_hour: rate.sent,
+          cap: rate.cap,
+          mode: rate.mode,
+        });
+        return fail(sendRateMessage(rate));
+      }
+
       const draft = await callAction<Record<string, unknown>>(
         "OUTLOOK_GET_MESSAGE",
         ctx.orgId,

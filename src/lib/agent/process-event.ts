@@ -20,6 +20,7 @@
  */
 import { runGeorgeAutonomous } from "./run-autonomous";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+
 import { callAction } from "@/lib/composio/client";
 import { isSenderAllowed } from "./sender-allowlist";
 import { isInternalDomain } from "./identity";
@@ -77,6 +78,10 @@ export async function processAgentEvent(
     };
   }
   const event = claim.data as EventRow;
+
+  // NOTE: staleness is enforced where work is CREATED, not here. An event's own
+  // age tells you nothing — a backfill mints fresh events for years-old meetings.
+  // See the enqueue window in transcript-sync.ts and mailbox-sync.ts.
 
   // Transcript-ready events have their own flow (no Outlook fetch / allowlist).
   if (event.event_type === "TRANSCRIPT_READY") {
@@ -621,9 +626,23 @@ export async function getManagerContact(
 
 /**
  * Transcript-ready flow: a meeting George's note-taker recorded just landed in
- * the mirror. Wake George to pull decisions / action items, update the plan +
- * objectives, and draft a recap. Recipient trust boundary is the same as email
- * (internal send ok, external draft-only).
+ * the mirror. George reads it and updates what the account record says — the
+ * onboarding plan, objectives and commitments, blockers, a health signal.
+ *
+ * TRANSCRIPT EVENTS ARE SILENT BY DESIGN.
+ * This run produces nothing outbound: no email, no draft, no notification. That
+ * is the intended end state, not an unfinished one — worth saying explicitly,
+ * because "does nothing visible" reads exactly like a half-built feature and the
+ * obvious next commit is to add a notification.
+ *
+ * George used to draft a post-meeting recap here. That task came from the CSM
+ * role he was first built for; at AI Xccelerate it is redundant, because Scribe
+ * already sends recaps to the people who attended. On 2026-08-20 the dormant task
+ * woke when a sync bug was fixed, ran ~490 times and mailed 16 unrequested recaps
+ * to colleagues. The feature is deleted, not disabled.
+ *
+ * If a health signal turns red that is a SEPARATE trigger with its own recipient
+ * resolution. Do not reach for this handler to send it.
  */
 async function handleTranscriptReady(
   admin: ReturnType<typeof createSupabaseAdmin>,
@@ -661,7 +680,7 @@ async function handleTranscriptReady(
 
   const manager = await getManagerContact(admin, event.org_id);
   const framing = buildTranscriptFramingPrompt(transcript, manager);
-  const sessionTitle = `Meeting recap: ${transcript.title ?? "(untitled)"}`.slice(0, 120);
+  const sessionTitle = `Meeting: ${transcript.title ?? "(untitled)"}`.slice(0, 120);
 
   const sessionInsert = await admin
     .from("agent_sessions")
@@ -701,7 +720,12 @@ async function handleTranscriptReady(
     timeBudgetMs: PROCESS_TIME_BUDGET_MS,
     clientAppTag: "agent-george-transcript/0.1",
     sessionId,
-    emailSendPolicy: "internal_only",
+    // Nothing leaves this run. "none" makes runGeorgeAutonomous strip
+    // send_email_draft from the tool list, so the guarantee is a missing tool
+    // rather than a sentence in a prompt — which is the distinction that failed on
+    // 2026-08-20, when this ran as "internal_only" and a prompt said sending was
+    // allowed. Prose lost an argument with prose; absence cannot lose it.
+    emailSendPolicy: "none",
   });
 
   if (result.summary) {
@@ -743,20 +767,34 @@ function buildTranscriptFramingPrompt(
     ? `${manager.name ?? "your manager"} <${manager.email}>`
     : "your manager (none configured — note it in your summary)";
   const lines: string[] = [
-    "A meeting your note-taker (Scribe) recorded just landed. Read it and act — you're in autonomous mode.",
+    "A meeting your note-taker (Scribe) recorded just landed. Your job is to update",
+    "what we know about this account from it.",
+    "",
+    "Scribe already summarises each meeting for the people who attended, so do not",
+    "write a summary for anyone. Nothing you produce on this run goes to anybody —",
+    "you have no send tool here, and that is deliberate. Your output is a better",
+    "account record, not a message.",
     "",
     "## What to do",
     `1. Read the full transcript + insights: call \`read_transcript\` with transcript_id \`${transcript.id}\`.`,
-    "2. Extract decisions, action items (with owners + dates), and any risks or commitments.",
+    "2. Pull out what changes our picture of the account: decisions, commitments",
+    "   (with owner and date), blockers, feature requests, how the room sounded, and",
+    "   who actually showed up.",
     transcript.customer_id
-      ? `3. This meeting is tied to customer \`${transcript.customer_id}\`. Update their onboarding plan and objectives from what was decided (\`get_customer\`, \`create_objective\` / \`update_objective\`, onboarding step tools).`
-      : "3. Identify the customer from the attendees (`find_contact` / `find_customer`) and tie the meeting to them; update their plan/objectives from what was decided.",
-    "4. Draft a concise recap (decisions, owners, next steps).",
-    "   - If the recap goes to an INTERNAL teammate / your manager (@aixccelerate.com), you may send it.",
-    "   - If it goes to the customer (external), draft only — leave it for human review.",
-    `5. When something needs a human call, call \`raise_decision\` (it goes on the team's Needs-you queue) and send a one-line heads-up to your manager: ${managerLine}.`,
+      ? `3. This meeting is tied to customer \`${transcript.customer_id}\`. Write the changes through: \`update_onboarding_step\` for milestone progress, \`create_objective\` / \`update_objective\` for commitments either side made, \`mark_cadence_met\` if this was the scheduled check-in.`
+      : "3. Identify the customer from the attendee addresses (`find_customer`, or `list_customers` if you need to look around) and tie the meeting to them, then write the changes through: `update_onboarding_step` for milestone progress, `create_objective` / `update_objective` for commitments either side made, `mark_cadence_met` if this was the scheduled check-in.",
+    "4. Record a health signal with `record_health_check` — band, a plain-English",
+    "   reason, and the specifics in `signals` (sentiment, blockers, feature requests,",
+    "   attendance). This is how a meeting turns into something the team can see at a",
+    "   glance. Only skip it if the transcript genuinely tells you nothing new.",
+    "5. If something durable and reusable came up — a process, a product fact, a",
+    "   recurring answer — stage it with `propose_knowledge`. Not customer-record",
+    "   data; that belongs in the tools above.",
+    `6. If something needs a person to decide, use \`raise_decision\` — it lands on the team's Needs-you queue, which is how ${managerLine} hears about it. That queue is the channel; there is no email to fall back on.`,
     "",
-    "Ground anything customer-facing in the playbook (`read_knowledge_doc`).",
+    "Finish by summarising what you changed and what you would want a human to look",
+    "at. That summary is the run record the team reads — it is not an email and",
+    "nobody is waiting on it, so keep it short and concrete.",
   ];
   return lines.join("\n");
 }

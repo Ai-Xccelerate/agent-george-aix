@@ -10,7 +10,7 @@ import { getManagerContact } from "./process-event";
  *   - newly-recorded transcripts not yet acted on,
  *   - renewal clocks + health drift + accounts gone quiet,
  *   - objectives whose follow-up is due,
- * then acts (create/advance objectives, draft prep/recaps) or escalates.
+ * then acts (create/advance objectives, prep notes) or escalates.
  *
  * Trust boundary is the same as inbound email: internal sends allowed, external
  * draft-only. The run is recorded as a 'cron' session so the rollup shows in
@@ -62,7 +62,16 @@ export async function runProactiveScan(
     timeBudgetMs: opts?.timeBudgetMs ?? 240_000,
     clientAppTag: "agent-george-scan/0.1",
     sessionId,
-    emailSendPolicy: "internal_only",
+    // Draft-only, enforced by tool absence: "none" makes runGeorgeAutonomous
+    // strip send_email_draft entirely.
+    //
+    // This scan used to carry send permission, and the only thing keeping meeting
+    // recaps out of it was a sentence in its prompt. With the recap feature gone
+    // that sentence goes too — so the permission has to go with it, or the path
+    // ends up less constrained than before. Nothing this scan produces needs to
+    // leave the building unprompted: objectives and health signals are writes,
+    // and anything needing a person goes on the Needs-you queue.
+    emailSendPolicy: "none",
   });
 
   if (result.summary) {
@@ -105,9 +114,9 @@ function buildScanPrompt(manager: { name: string | null; email: string | null } 
     "## Act (don't just observe)",
     "- Create or advance objectives (`create_objective` / `update_objective`) for",
     "  anything that needs to move.",
-    "- Draft prep notes, agendas, or recap/nudge emails. Internal (@aixccelerate.com)",
-    "  recipients you may send; customer-facing email is draft-only for human review.",
-    `- When you don't know what to do or it needs a human call, use \`raise_decision\` (it lands on the team's Needs-you queue) and send a one-line heads-up to your manager: ${managerLine}.`,
+    "- Draft prep notes and agendas. You have no send tool on this run — everything",
+    "  you write stays a draft for a human to act on.",
+    `- When you don't know what to do or it needs a human call, use \`raise_decision\` — it lands on the team's Needs-you queue, which is how ${managerLine} hears about it.`,
     "- Don't invent pricing, SKUs, or commitments; ground customer-facing work in the",
     "  playbook (`read_knowledge_doc`).",
     "",
