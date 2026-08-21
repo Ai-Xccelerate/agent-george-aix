@@ -39,6 +39,7 @@ import {
 } from "@/lib/nylas/client";
 import { wrapGeorgeEmailHtml, injectReplyHtml } from "@/lib/agent/email-branding";
 import { isInternalAddress } from "@/lib/agent/identity";
+import { checkSendRate, sendRateMessage } from "@/lib/agent/outbound-limits";
 
 type Ctx = {
   orgId: string;
@@ -291,6 +292,23 @@ export function buildNylasEmailTools(ctx: Ctx) {
       // anything the model asserted earlier. Do NOT re-scope this behind
       // emailSendPolicy — the allowlist is the only sanctioned way to widen it,
       // and it is an explicit human approval per domain, not a policy flag.
+      // Volume limit, checked before any provider work. The recipient guard
+      // below answers WHO George may write to and held perfectly on 2026-08-20;
+      // it had no opinion on HOW MUCH, which is the axis that incident ran
+      // along. See lib/agent/outbound-limits.ts.
+      const mode = ctx.emailSendPolicy === "internal_only" ? "autonomous" : "chat";
+      const rate = await checkSendRate(ctx.db, ctx.orgId, mode);
+      if (!rate.allowed) {
+        await audit(ctx, "email.send_blocked", {
+          draft_id,
+          reason: "rate_limited",
+          sent_last_hour: rate.sent,
+          cap: rate.cap,
+          mode: rate.mode,
+        });
+        return fail(sendRateMessage(rate));
+      }
+
       const draft = await nylas.getDraft(draft_id);
       if (!draft.ok) return fail(draft.error);
 

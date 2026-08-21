@@ -100,6 +100,61 @@ function isEmptyReply(v: unknown): boolean {
  */
 const SCRIBE_MAX_PER_RUN = 25;
 
+/**
+ * How recent a meeting must be for George to act on it, and how many may be
+ * handed over in one run. Same shape and same numbers as the inbound-mail path
+ * (mailbox-sync.ts), which has always had this and never had the problem.
+ *
+ * MIRRORING A MEETING AND CREATING WORK ARE DIFFERENT ACTS. Until 2026-08-20
+ * this file conflated them: every mirrored meeting with a transcript enqueued a
+ * TRANSCRIPT_READY event regardless of when the meeting happened. The first sync
+ * of a real workspace therefore produced ~490 tasks, George worked through them,
+ * and colleagues received recaps of meetings from three days earlier.
+ *
+ * The mirror still takes everything — the /transcripts UI and George's
+ * list_transcripts tool want full history. Only the decision to ACT is gated.
+ */
+const ENQUEUE_WINDOW_MS = 6 * 60 * 60_000;
+const ENQUEUE_MAX_PER_RUN = 25;
+
+/**
+ * Parse a Scribe timestamp.
+ *
+ * Scribe's MCP emits naive datetimes — "2026-08-20T21:30:00", no offset — while
+ * its REST API documents them with one. JavaScript reads a naive datetime as
+ * LOCAL time, so the same string means different instants on different hosts, and
+ * a few hours of drift matters at a 6h boundary. The underlying values are UTC,
+ * so say so explicitly rather than depending on the container's timezone.
+ */
+function parseScribeTime(value: unknown): number | null {
+  if (typeof value !== "string" || !value) return null;
+  const hasZone = /([+-]\d{2}:?\d{2}|Z)$/.test(value);
+  const t = Date.parse(hasZone ? value : `${value}Z`);
+  return Number.isNaN(t) ? null : t;
+}
+
+/**
+ * Is this meeting recent enough to hand to George?
+ *
+ * Judged on the meeting's own end time, falling back to its start time.
+ *
+ * WHY FALL BACK RATHER THAN SKIP: 37 of the 500 completed-with-transcript
+ * meetings in the live workspace have no end_time at all — manual bot dispatches
+ * and ad-hoc calls that were never scheduled — and one of them was from
+ * yesterday. Skipping on a null end date would silently ignore those forever,
+ * including genuinely fresh ones. start_time is populated on 100% of records, and
+ * because a meeting starts before it ends, testing the start is STRICTER than
+ * testing the end: the fallback can never admit a meeting the end date would have
+ * rejected. If both are missing we skip, because then there is nothing to judge.
+ */
+function isRecentEnoughToAct(m: Json): boolean {
+  const ended = parseScribeTime(pick(m, ["ended_at", "end_time", "endTime", "end"]));
+  const started = parseScribeTime(pick(m, ["started_at", "start_time", "startTime", "start"]));
+  const when = ended ?? started;
+  if (when === null) return false;
+  return Date.now() - when <= ENQUEUE_WINDOW_MS;
+}
+
 /** Scribe's documented maximum; asking for more is silently clamped to it. */
 const SCRIBE_PAGE_SIZE = 20;
 /**
@@ -303,10 +358,19 @@ async function syncOneMeeting(
   }
   result.transcripts_upserted++;
 
-  // Hand a newly-transcribed meeting to George (recap + plan/objective update).
-  // Only when there's real transcript text. Dedup on (org, source, meeting id);
-  // the cron sweep picks the pending event up and runs George.
-  if (text) {
+  // Hand a newly-transcribed meeting to George (plan/objective update + a recap
+  // draft for the PM). Dedup on (org, source, meeting id); the cron sweep picks
+  // the pending event up and runs George.
+  //
+  // Three conditions, all necessary:
+  //   text                     — nothing to act on without a transcript
+  //   isRecentEnoughToAct(src) — a backfill must mirror silently, not create work
+  //   under the per-run cap    — one run must not hand over an unbounded queue
+  const actionable =
+    !!text &&
+    isRecentEnoughToAct(src) &&
+    result.transcripts_enqueued < ENQUEUE_MAX_PER_RUN;
+  if (actionable) {
     const ins = await admin
       .from("agent_events")
       .insert({

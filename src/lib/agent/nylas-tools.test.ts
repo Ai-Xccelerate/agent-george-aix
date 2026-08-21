@@ -34,11 +34,30 @@ vi.mock("@/lib/nylas/client", async (importOriginal) => {
 
 const { buildNylasEmailTools } = await import("./nylas-tools");
 
-/** Records audit rows and serves the domain allowlist. */
-function fakeDb(approved: string[] = []) {
+/**
+ * Records audit rows, serves the domain allowlist, and answers the
+ * sends-this-hour count that the volume limit checks.
+ */
+function fakeDb(approved: string[] = [], sentLastHour = 0) {
   const audits: Array<{ action: string; payload: Record<string, unknown> }> = [];
   const db = {
     from(table: string) {
+      if (table === "audit_log") {
+        // Either a count query (the volume limit) or an insert (an audit row).
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                gte: async () => ({ count: sentLastHour, error: null }),
+              }),
+            }),
+          }),
+          insert: async (row: { action: string; payload: Record<string, unknown> }) => {
+            audits.push({ action: row.action, payload: row.payload });
+            return { error: null };
+          },
+        } as never;
+      }
       if (table === "domain_allowlist") {
         const chain: Record<string, unknown> = {
           select: () => chain,
@@ -65,8 +84,8 @@ function fakeDb(approved: string[] = []) {
   return { db, audits };
 }
 
-function tools(approved: string[] = []) {
-  const { db, audits } = fakeDb(approved);
+function tools(approved: string[] = [], sentLastHour = 0) {
+  const { db, audits } = fakeDb(approved, sentLastHour);
   const list = buildNylasEmailTools({
     orgId: "org-1",
     userId: null,
@@ -181,12 +200,18 @@ describe("send_email_draft guard", () => {
     // An allowlist that can't be read must mean "allow nothing", never
     // "allow everything".
     const db = {
-      from: (t: string) =>
-        t === "domain_allowlist"
-          ? ({
-              select: () => ({ eq: () => ({ eq: async () => ({ data: null, error: { message: "boom" } }) }) }),
-            } as never)
-          : ({ insert: async () => ({ error: null }) } as never),
+      from: (t: string) => {
+        if (t === "domain_allowlist") {
+          return {
+            select: () => ({ eq: () => ({ eq: async () => ({ data: null, error: { message: "boom" } }) }) }),
+          } as never;
+        }
+        // audit_log serves both the volume-limit count and the audit insert.
+        return {
+          select: () => ({ eq: () => ({ eq: () => ({ gte: async () => ({ count: 0, error: null }) }) }) }),
+          insert: async () => ({ error: null }),
+        } as never;
+      },
     } as unknown as SupabaseClient;
 
     const list = buildNylasEmailTools({ orgId: "o", userId: null, sessionId: null, db });
@@ -289,5 +314,93 @@ describe("draft_email_reply", () => {
 
     expect(createDraft.mock.calls[0][0].replyToMessageId).toBe("m3");
     expect(createDraft.mock.calls[0][0].subject).toBe("Re: Hello");
+  });
+});
+
+/**
+ * The volume limit, exercised THROUGH the tool.
+ *
+ * outbound-limits.test.ts proves the arithmetic. This proves send_email_draft
+ * actually consults it — which is the part that failed on 2026-08-20, where
+ * every individual send was correct and the total was the problem.
+ */
+describe("send_email_draft volume limit", () => {
+  it("refuses an autonomous send once the hourly cap is reached", async () => {
+    getDraft.mockResolvedValue(draftWith(["rahul@aixccelerate.com"]));
+    // 3 already sent this hour, and this run is autonomous.
+    const { db, audits } = fakeDb([], 3);
+    const list = buildNylasEmailTools({
+      orgId: "org-1",
+      userId: null,
+      sessionId: null,
+      emailSendPolicy: "internal_only",
+      db,
+    });
+    const send = list.find((t) => t.name === "send_email_draft")!;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await (send as any).handler({ draft_id: "d1" }, {});
+
+    expect(res.isError).toBe(true);
+    expect(sendDraft).not.toHaveBeenCalled();
+    expect(res.content[0].text).toContain("limit");
+    // Refusing must not lose the work.
+    expect(res.content[0].text).toContain("draft is saved");
+    expect(audits.some((a) => a.action === "email.send_blocked")).toBe(true);
+  });
+
+  it("still sends an internal draft when under the cap", async () => {
+    getDraft.mockResolvedValue(draftWith(["rahul@aixccelerate.com"]));
+    const { db } = fakeDb([], 1);
+    const list = buildNylasEmailTools({
+      orgId: "org-1",
+      userId: null,
+      sessionId: null,
+      emailSendPolicy: "internal_only",
+      db,
+    });
+    const send = list.find((t) => t.name === "send_email_draft")!;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await (send as any).handler({ draft_id: "d1" }, {});
+
+    expect(res.isError).toBeFalsy();
+    expect(sendDraft).toHaveBeenCalled();
+  });
+
+  it("does not apply the autonomous cap to a human in chat", async () => {
+    // Same count that blocks an autonomous run must not block a person.
+    getDraft.mockResolvedValue(draftWith(["rahul@aixccelerate.com"]));
+    const { db } = fakeDb([], 3);
+    const list = buildNylasEmailTools({
+      orgId: "org-1",
+      userId: null,
+      sessionId: null,
+      db,
+    });
+    const send = list.find((t) => t.name === "send_email_draft")!;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await (send as any).handler({ draft_id: "d1" }, {});
+
+    expect(res.isError).toBeFalsy();
+    expect(sendDraft).toHaveBeenCalled();
+  });
+
+  it("checks the limit BEFORE reading the draft, so a capped run is cheap", async () => {
+    const { db } = fakeDb([], 99);
+    const list = buildNylasEmailTools({
+      orgId: "org-1",
+      userId: null,
+      sessionId: null,
+      emailSendPolicy: "internal_only",
+      db,
+    });
+    const send = list.find((t) => t.name === "send_email_draft")!;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (send as any).handler({ draft_id: "d1" }, {});
+
+    expect(getDraft).not.toHaveBeenCalled();
   });
 });

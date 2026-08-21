@@ -85,19 +85,39 @@ const { syncTranscripts } = await import("./transcript-sync");
 
 const ORG = "11111111-1111-1111-1111-111111111111";
 
-/** A list row exactly as Scribe's _tool_list_meetings builds it. */
+/** Minutes ago, as a naive UTC string — the shape Scribe's MCP actually emits. */
+function agoNaive(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString().replace(/\.\d+Z$/, "");
+}
+
+/**
+ * A list row exactly as Scribe's _tool_list_meetings builds it.
+ *
+ * Fresh by default: the enqueue gate is judged on the meeting's own date, so a
+ * fixture with a hardcoded past date would silently stop enqueueing as the
+ * calendar moved and every enqueue assertion would rot into a false pass.
+ */
 function meeting(over: Record<string, unknown> = {}) {
   return {
     id: "m-1",
     title: "Kickoff",
-    start_time: "2026-08-01T10:00:00+00:00",
-    end_time: "2026-08-01T11:00:00+00:00",
+    start_time: agoNaive(90),
+    end_time: agoNaive(30),
     status: "completed",
     calendar_source: "google",
     has_transcript: true,
     participant_count: 2,
     ...over,
   };
+}
+
+/** Same, but ended days ago — the shape a first-time backfill is made of. */
+function oldMeeting(over: Record<string, unknown> = {}) {
+  return meeting({
+    start_time: agoNaive(60 * 24 * 3 + 60),
+    end_time: agoNaive(60 * 24 * 3),
+    ...over,
+  });
 }
 
 beforeEach(() => {
@@ -248,5 +268,115 @@ describe("Scribe's prose sentinels are not content", () => {
     expect(upserts[0]?.transcript_text).toContain("Jane");
     expect(r.transcripts_enqueued).toBe(1);
     expect(events[0]?.event_type).toBe("TRANSCRIPT_READY");
+  });
+});
+
+/**
+ * THE ACCEPTANCE CRITERION for the 2026-08-20 incident.
+ *
+ * Mirroring a meeting and creating work are different acts. Before this gate,
+ * every mirrored meeting with a transcript enqueued a TRANSCRIPT_READY event
+ * regardless of when the meeting happened — so the first sync of a real
+ * workspace produced ~490 tasks and George emailed recaps of three-day-old
+ * standups.
+ */
+describe("a backfill of old meetings creates no work", () => {
+  it("mirrors 680 old meetings and enqueues ZERO tasks", async () => {
+    // The real workspace: 680 meetings, 34 pages, all historic.
+    const pages = [];
+    for (let p = 0; p < 34; p++) {
+      const size = p === 33 ? 15 : 20;
+      pages.push({
+        items: Array.from({ length: size }, (_, i) => oldMeeting({ id: `old-${p}-${i}` })),
+        total: 675,
+      });
+    }
+    meetingPages = pages;
+
+    const r = await syncTranscripts(ORG);
+
+    // The mirror still takes everything — /transcripts and list_transcripts want
+    // the history. Only the decision to ACT is gated.
+    expect(r.meetings_seen).toBe(675);
+    expect(r.transcripts_upserted).toBeGreaterThan(0);
+
+    // The whole point:
+    expect(r.transcripts_enqueued).toBe(0);
+    expect(events).toHaveLength(0);
+  });
+
+  it("still enqueues a meeting that ended half an hour ago", async () => {
+    meetingPages = [{ items: [meeting()], total: 1 }];
+    const r = await syncTranscripts(ORG);
+    expect(r.transcripts_enqueued).toBe(1);
+    expect(events[0]?.event_type).toBe("TRANSCRIPT_READY");
+  });
+
+  it("does not enqueue a meeting that ended three days ago", async () => {
+    meetingPages = [{ items: [oldMeeting()], total: 1 }];
+    const r = await syncTranscripts(ORG);
+    // Still mirrored, just not actioned.
+    expect(r.transcripts_upserted).toBe(1);
+    expect(r.transcripts_enqueued).toBe(0);
+  });
+
+  it("caps how much work one run may hand over", async () => {
+    // 40 genuinely fresh meetings must not become 40 tasks in one tick.
+    meetingPages = [
+      { items: Array.from({ length: 20 }, (_, i) => meeting({ id: `f-${i}` })), total: 40 },
+      { items: Array.from({ length: 20 }, (_, i) => meeting({ id: `g-${i}` })), total: 40 },
+    ];
+    const r = await syncTranscripts(ORG);
+    expect(r.transcripts_enqueued).toBeLessThanOrEqual(25);
+  });
+});
+
+describe("judging a meeting's date", () => {
+  it("treats Scribe's naive timestamps as UTC, not as local time", async () => {
+    // Scribe's MCP emits "2026-08-20T21:30:00" with no offset. JavaScript reads
+    // that as LOCAL time, so on a non-UTC host the same string means a different
+    // instant — hours of drift, against a 6h window.
+    const m = meeting();
+    delete (m as Record<string, unknown>).end_time;
+    (m as Record<string, unknown>).start_time = agoNaive(10); // naive, no Z
+    meetingPages = [{ items: [m], total: 1 }];
+
+    const r = await syncTranscripts(ORG);
+    expect(r.transcripts_enqueued).toBe(1);
+  });
+
+  it("falls back to start_time when end_time is absent", async () => {
+    // 37 of 500 completed-with-transcript meetings in the live workspace have no
+    // end_time — manual dispatches and ad-hoc calls. Skipping them outright would
+    // silently ignore fresh meetings forever.
+    const m = meeting();
+    delete (m as Record<string, unknown>).end_time;
+    meetingPages = [{ items: [m], total: 1 }];
+
+    expect((await syncTranscripts(ORG)).transcripts_enqueued).toBe(1);
+  });
+
+  it("does not act when the meeting has no date at all", async () => {
+    // Nothing to judge, so do not guess.
+    const m = meeting();
+    delete (m as Record<string, unknown>).end_time;
+    delete (m as Record<string, unknown>).start_time;
+    meetingPages = [{ items: [m], total: 1 }];
+
+    expect((await syncTranscripts(ORG)).transcripts_enqueued).toBe(0);
+  });
+
+  it("uses start_time as a stricter test than end_time, never a looser one", async () => {
+    // A long meeting that STARTED outside the window but ended inside it: the
+    // fallback is only reached when end_time is missing, so the fallback can never
+    // admit something the end date would have rejected.
+    const m = meeting({ start_time: agoNaive(60 * 24), end_time: agoNaive(10) });
+    meetingPages = [{ items: [m], total: 1 }];
+    expect((await syncTranscripts(ORG)).transcripts_enqueued).toBe(1);
+
+    const n = meeting({ id: "n-1", start_time: agoNaive(60 * 24) });
+    delete (n as Record<string, unknown>).end_time;
+    meetingPages = [{ items: [n], total: 1 }];
+    expect((await syncTranscripts(ORG)).transcripts_enqueued).toBe(0);
   });
 });
