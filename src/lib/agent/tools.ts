@@ -20,6 +20,7 @@ import { buildComposioTools } from "./composio-tools";
 import { buildNylasEmailTools } from "./nylas-tools";
 import { isNylasEnabled } from "@/lib/nylas/client";
 import { embedText, hasEmbeddingProvider } from "@/lib/knowledge/embeddings";
+import { resolveOrgIdentity } from "@/lib/agent/identity";
 import { toKnowledgeHits } from "@/lib/parchment/client";
 import { parchmentForOrg } from "@/lib/parchment/connection";
 import Anthropic from "@anthropic-ai/sdk";
@@ -41,7 +42,7 @@ export type GeorgeToolCtx = {
   /**
    * Controls whether `send_email_draft` may actually send. "chat" (default):
    * a human confirmed, no guard. "internal_only": autonomous run — the send
-   * tool refuses any draft with a non-@getonyx.ai recipient.
+   * tool refuses any draft whose recipients are not all internal to the org.
    */
   emailSendPolicy?: "chat" | "internal_only";
   /** Optional override (tests). Defaults to the admin client. */
@@ -1544,7 +1545,7 @@ export function buildGeorgeMcpServer(
   // ---- search_mailbox ----------------------------------------------
   const searchMailbox = tool(
     "search_mailbox",
-    "Search George's OWN mirrored M365 mailbox (manasa@aixccelerate.com) — inbox, sent, and all folders — by text, sender, direction, and date. This reads the local mirror, so it is fast and works across full history; prefer it over the live Outlook tools for 'what did we say / what came in' questions. Returns concise message rows (subject, sender, preview, dates, conversation_id). Use get_email_thread(conversation_id) to read a full exchange.",
+    "Search George's OWN mirrored mailbox — inbox, sent, and all folders — by text, sender, direction, and date. This reads the local mirror, so it is fast and works across full history; prefer it over the live Outlook tools for 'what did we say / what came in' questions. Returns concise message rows (subject, sender, preview, dates, conversation_id). Use get_email_thread(conversation_id) to read a full exchange.",
     {
       query: z
         .string()
@@ -1769,7 +1770,12 @@ export function buildGeorgeMcpServer(
     },
     async ({ domain, reason, customer_id }) => {
       const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-      if (clean === "getonyx.ai" || clean === "aixccelerate.com") {
+      // "Already internal" is a property of THIS org, not a hardcoded pair of
+      // company names. Those were two different tenants' domains sitting in live
+      // code: a third org could not have approved either of them, and one tenant's
+      // domain was being treated as internal while judging another's request.
+      const identity = await resolveOrgIdentity(db, orgId);
+      if (identity.internalDomains.has(clean)) {
         return ok({ note: "That domain is already internal — no approval needed." });
       }
       const { data, error } = await db

@@ -23,7 +23,12 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 import { callAction } from "@/lib/composio/client";
 import { isSenderAllowed } from "./sender-allowlist";
-import { isInternalDomain } from "./identity";
+import {
+  internalDescription,
+  isInternalTo,
+  resolveOrgIdentity,
+  type OrgIdentity,
+} from "./identity";
 import { createNylasClient, nylasConfig } from "@/lib/nylas/client";
 
 type EventRow = {
@@ -174,7 +179,10 @@ export async function processAgentEvent(
   }
 
   const manager = await getManagerContact(admin, event.org_id);
-  const framing = buildOutlookFramingPrompt(email, manager);
+  // Resolved for the receiving org: this is what decides whether George may
+  // reply without asking, so it must not be a deployment-wide answer.
+  const identity = await resolveOrgIdentity(admin, event.org_id);
+  const framing = buildOutlookFramingPrompt(email, manager, identity);
   const sessionTitle = `Email: ${email.subject ?? "(no subject)"}`.slice(0, 120);
   const seedContent = renderInboundForChat(email);
 
@@ -241,7 +249,7 @@ export async function processAgentEvent(
     timeBudgetMs: PROCESS_TIME_BUDGET_MS,
     clientAppTag: "agent-george-event/0.1",
     sessionId,
-    // George may send to internal (@aixccelerate.com) recipients — reply to an
+    // George may send to recipients internal to THIS org — reply to an
     // internal thread, escalate to his manager — but the send tool refuses
     // any draft with an external recipient.
     emailSendPolicy: "internal_only",
@@ -529,6 +537,8 @@ export function extractOutlookMessage(
 function buildOutlookFramingPrompt(
   email: OutlookMessageFields,
   manager: ManagerContact | null,
+  /** The receiving org's notion of who is internal. */
+  identity: OrgIdentity,
 ): string {
   const fromLabel = email.from
     ? email.from.name && email.from.address
@@ -536,8 +546,7 @@ function buildOutlookFramingPrompt(
       : email.from.address ?? email.from.name ?? "(unknown sender)"
     : "(unknown sender)";
 
-  const senderDomain = (email.from?.address?.split("@")[1] ?? "").toLowerCase();
-  const senderInternal = isInternalDomain(senderDomain);
+  const senderInternal = isInternalTo(identity, email.from?.address ?? null);
   const managerLine = manager?.email
     ? `${manager.name ?? "your manager"} <${manager.email}>`
     : "your manager (no manager email is configured — note this in your summary instead of emailing)";
@@ -555,8 +564,8 @@ function buildOutlookFramingPrompt(
     "- **Escalate** — it needs a human judgement call (pricing, commitments, contract/legal, anything you're unsure about, or any reply that must go to an EXTERNAL recipient). See Step 3.",
     "",
     "## Step 3 — How to respond (trust boundary = recipient domain)",
-    `- The sender here is **${senderInternal ? "INTERNAL (@aixccelerate.com)" : "EXTERNAL"}**.`,
-    "- **Internal recipients (@aixccelerate.com):** you MAY draft AND send (`draft_email_reply` → `send_email_draft`). Replies to an internal teammate and notes to your manager are fine to send.",
+    `- The sender here is **${senderInternal ? "INTERNAL" : "EXTERNAL"}** to this organisation. Internal here means ${internalDescription(identity)}.`,
+    "- **Internal recipients:** you MAY draft AND send (`draft_email_reply` → `send_email_draft`). Replies to an internal teammate and notes to your manager are fine to send.",
     "- **External recipients (customers/partners):** `draft_email_reply` ONLY — do NOT send. Leave the draft for human review and escalate (the send tool will refuse external recipients anyway).",
     `- **When in doubt, escalate:** call \`raise_decision\` (title, detail, your recommendation, and 1–4 concrete \`suggested_actions\` the reviewer can click to hand back to you) to put it on the team's Needs-you queue, then send a one-line internal heads-up to your manager ${managerLine}. Don't guess on anything customer-facing or commercial.`,
     "- Ground every draft in the org's playbook — use `read_knowledge_doc` for wording/process.",

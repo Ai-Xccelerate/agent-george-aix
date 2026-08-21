@@ -25,7 +25,7 @@ import {
   type AgentSettings,
 } from "./agent-settings";
 import { renderOperatingModelBlock } from "./operating-model";
-import { GEORGE_ADDRESS } from "./identity";
+import { resolveOrgIdentity } from "./identity";
 
 type OrgProfile = {
   name?: string | null;
@@ -96,6 +96,7 @@ export async function buildGeorgeSystemPrompt(
   const signatureBlock = buildSignatureBlock(
     agent,
     (orgRes.data ?? null) as OrgProfile | null,
+    (await resolveOrgIdentity(admin, orgId)).address,
   );
 
   const parts: string[] = [
@@ -126,7 +127,11 @@ export async function buildGeorgeSystemPrompt(
  * guessed: an incomplete signature is a cosmetic problem, a confidently wrong
  * one is a credibility problem.
  */
-function buildSignatureBlock(agent: AgentSettings, org: OrgProfile | null): string {
+function buildSignatureBlock(
+  agent: AgentSettings,
+  org: OrgProfile | null,
+  address: string,
+): string {
   const company = (org?.display_name || org?.name || "").trim();
   const domain = (org?.domain || "")
     .trim()
@@ -138,7 +143,7 @@ function buildSignatureBlock(agent: AgentSettings, org: OrgProfile | null): stri
     // No address configured means no address printed. Inventing one, or falling
     // back to a colleague's, is how a customer gets told to reply to the wrong
     // person — see the note in identity.ts.
-    GEORGE_ADDRESS ? `<a href="mailto:${GEORGE_ADDRESS}">${GEORGE_ADDRESS}</a>` : null,
+    address ? `<a href="mailto:${address}">${address}</a>` : null,
     domain ? `<a href="https://${domain}">${domain}</a>` : null,
   ]
     .filter(Boolean)

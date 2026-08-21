@@ -38,7 +38,7 @@ import {
   type NylasEvent,
 } from "@/lib/nylas/client";
 import { wrapGeorgeEmailHtml, injectReplyHtml } from "@/lib/agent/email-branding";
-import { isInternalAddress } from "@/lib/agent/identity";
+import { isInternalTo, resolveOrgIdentity } from "@/lib/agent/identity";
 import { checkSendRate, sendRateMessage } from "@/lib/agent/outbound-limits";
 
 type Ctx = {
@@ -205,12 +205,14 @@ export function buildNylasEmailTools(ctx: Ctx) {
       const toPool = [...fromPool, ...(orig.data.to ?? [])];
       const ccPool = orig.data.cc ?? [];
 
+      // Who counts as internal is a property of the ORG, not the deployment.
+      const identity = await resolveOrgIdentity(ctx.db, ctx.orgId);
       const seen = new Set<string>([selfAddress]);
       const internalOnly = (pool: NylasAddress[]): NylasAddress[] => {
         const out: NylasAddress[] = [];
         for (const r of pool) {
           const a = (r.email ?? "").toLowerCase();
-          if (!a || !isInternalAddress(a) || seen.has(a)) continue;
+          if (!a || !isInternalTo(identity, a) || seen.has(a)) continue;
           seen.add(a);
           out.push({ email: r.email, ...(r.name ? { name: r.name } : {}) });
         }
@@ -227,7 +229,7 @@ export function buildNylasEmailTools(ctx: Ctx) {
         ...new Set(
           [...toPool, ...ccPool]
             .map((r) => (r.email ?? "").toLowerCase())
-            .filter((a) => a && a !== selfAddress && !isInternalAddress(a)),
+            .filter((a) => a && a !== selfAddress && !isInternalTo(identity, a)),
         ),
       ];
 
@@ -280,7 +282,7 @@ export function buildNylasEmailTools(ctx: Ctx) {
   // ---- SEND DRAFT ---------------------------------------------------
   const sendDraft = tool(
     "send_email_draft",
-    "Send a previously created draft — every recipient must be internal OR on the org's approved domain allowlist (Settings → Agent George → Email domains). Anything else is always refused: those must be sent by a human from the mailbox Drafts folder, or you can call request_domain_approval to ask for that domain to be allowed. This holds in chat and in autonomous runs alike.",
+    "Send a previously created draft — every recipient must be internal to this organisation OR on its approved domain allowlist (Settings → Agent George → Email domains). Anything else is always refused: those must be sent by a human from the mailbox Drafts folder, or you can call request_domain_approval to ask for that domain to be allowed. This holds in chat and in autonomous runs alike.",
     {
       draft_id: z.string().min(1),
     },
@@ -325,7 +327,8 @@ export function buildNylasEmailTools(ctx: Ctx) {
         );
       }
 
-      const external = addresses.filter((a) => !isInternalAddress(a));
+      const identity = await resolveOrgIdentity(ctx.db, ctx.orgId);
+      const external = addresses.filter((a) => !isInternalTo(identity, a));
       if (external.length > 0) {
         const allowed = await approvedDomains(ctx);
         const notAllowed = external.filter(

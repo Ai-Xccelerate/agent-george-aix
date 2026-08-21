@@ -15,7 +15,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callAction } from "@/lib/composio/client";
 import { wrapGeorgeEmailHtml, injectReplyHtml } from "@/lib/agent/email-branding";
-import { GEORGE_ADDRESS, isInternalAddress } from "@/lib/agent/identity";
+import { isInternalTo, resolveOrgIdentity, type OrgIdentity } from "@/lib/agent/identity";
 import { checkSendRate, sendRateMessage } from "@/lib/agent/outbound-limits";
 
 type Ctx = {
@@ -65,8 +65,8 @@ function recipientAddresses(msg: Record<string, unknown>): string[] {
   return out;
 }
 
-function externalRecipients(addresses: string[]): string[] {
-  return addresses.filter((a) => !isInternalAddress(a));
+function externalRecipients(identity: OrgIdentity, addresses: string[]): string[] {
+  return addresses.filter((a) => !isInternalTo(identity, a));
 }
 
 const ok = (data: unknown) => ({
@@ -113,7 +113,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- DRAFT NEW EMAIL ---------------------------------------------
   const draftEmail = tool(
     "draft_email",
-    "Create a draft email in manasa@aixccelerate.com's Outlook. Returns the draft id + preview so you can show it to the user. The user MUST confirm before you call send_email_draft.",
+    "Create a draft email in the mailbox George operates from. Returns the draft id + preview so you can show it to the user. The user MUST confirm before you call send_email_draft.",
     {
       to: z.array(z.string().email()).min(1),
       cc: z.array(z.string().email()).optional(),
@@ -172,7 +172,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- DRAFT REPLY -------------------------------------------------
   const draftReply = tool(
     "draft_email_reply",
-    "Reply in an existing Outlook thread. Replies to ALL internal @aixccelerate.com people on the thread (sender + To + Cc) and EXCLUDES any external customer/partner. Returns the draft id, the recipients it will go to, and `excluded_external` (external addresses left off). Surface excluded_external to the user and ask before adding anyone external. User MUST confirm before send_email_draft.",
+    "Reply in an existing Outlook thread. Replies to ALL internal people on the thread (sender + To + Cc) and EXCLUDES any external customer/partner. Returns the draft id, the recipients it will go to, and `excluded_external` (external addresses left off). Surface excluded_external to the user and ask before adding anyone external. User MUST confirm before send_email_draft.",
     {
       message_id: z.string().min(1).describe("Outlook message id (from get_email / list_recent_emails)."),
       body_html: z.string().min(1),
@@ -197,12 +197,13 @@ export function buildComposioTools(ctx: Ctx) {
       const ccPool = extractRecipients(om.ccRecipients);
 
       // Internal-only, de-duped, never George himself.
-      const seen = new Set<string>([GEORGE_ADDRESS.toLowerCase()]);
+      const identity = await resolveOrgIdentity(ctx.db, ctx.orgId);
+      const seen = new Set<string>([identity.address.toLowerCase()]);
       const internalOnly = (pool: Recipient[]): Recipient[] => {
         const out: Recipient[] = [];
         for (const r of pool) {
           const a = r.address.toLowerCase();
-          if (!isInternalAddress(a) || seen.has(a)) continue;
+          if (!isInternalTo(identity, a) || seen.has(a)) continue;
           seen.add(a);
           out.push({ address: r.address, ...(r.name ? { name: r.name } : {}) });
         }
@@ -214,7 +215,7 @@ export function buildComposioTools(ctx: Ctx) {
         ...new Set(
           [...toPool, ...ccPool]
             .map((r) => r.address)
-            .filter((a) => !isInternalAddress(a)),
+            .filter((a) => !isInternalTo(identity, a)),
         ),
       ];
       // External-only thread (no internal besides George): fall back to the
@@ -283,7 +284,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- SEND DRAFT --------------------------------------------------
   const sendDraft = tool(
     "send_email_draft",
-    "Send a previously created draft — every recipient must be internal (@aixccelerate.com) OR on the org's approved domain allowlist (Settings → Agent George → Email domains). Anything else is always refused: those must be sent by a human from the mailbox Drafts folder, or you can call request_domain_approval to ask for that domain to be allowed. This holds in chat and in autonomous runs alike.",
+    "Send a previously created draft — every recipient must be internal to this organisation OR on its approved domain allowlist (Settings → Agent George → Email domains). Anything else is always refused: those must be sent by a human from the mailbox Drafts folder, or you can call request_domain_approval to ask for that domain to be allowed. This holds in chat and in autonomous runs alike.",
     {
       draft_id: z.string().min(1),
     },
@@ -329,7 +330,8 @@ export function buildComposioTools(ctx: Ctx) {
             "The draft is saved — a human can send it from the mailbox Drafts folder.",
         );
       }
-      const external = externalRecipients(addresses);
+      const identity = await resolveOrgIdentity(ctx.db, ctx.orgId);
+      const external = externalRecipients(identity, addresses);
       if (external.length > 0) {
         const allowed = await approvedDomains(ctx);
         const notAllowed = external.filter(
@@ -339,7 +341,7 @@ export function buildComposioTools(ctx: Ctx) {
           await audit(ctx, "email.send_blocked", { draft_id, external, not_allowed: notAllowed });
           return fail(
             `Refused to send: this draft has recipient(s) on a domain that isn't approved [${notAllowed.join(", ")}]. ` +
-              "You can only send to internal (@aixccelerate.com) or org-approved domains directly. The draft is saved — " +
+              "You can only send to internal or org-approved domains directly. The draft is saved — " +
               "tell the user to review it and send it from the mailbox Drafts folder, or call request_domain_approval " +
               "if that domain should be allowed going forward.",
           );
@@ -357,7 +359,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- LIST INBOX --------------------------------------------------
   const listRecentEmails = tool(
     "list_recent_emails",
-    "List recent messages from manasa@aixccelerate.com's inbox. Use to find a thread to reply in or to check who's written in. Returns most recent first.",
+    "List recent messages from the mailbox George operates from. Use to find a thread to reply in or to check who has written in. Returns most recent first.",
     {
       folder: z.enum(["inbox", "sent", "drafts"]).default("inbox").optional(),
       limit: z.number().int().min(1).max(50).default(20).optional(),
@@ -462,7 +464,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- CREATE CALENDAR EVENT --------------------------------------
   const createCalendarEvent = tool(
     "create_calendar_event",
-    "Create an event on manasa@aixccelerate.com's calendar. Use to schedule kickoffs, check-ins, etc. Returns the new event id and join URL if it's a Teams meeting.",
+    "Create an event on George's calendar. Use to schedule kickoffs, check-ins, etc. Returns the new event id and join URL if it is a Teams meeting.",
     {
       subject: z.string().min(1),
       start_iso: z.string().datetime().describe("ISO 8601 start time (with timezone)."),
@@ -506,7 +508,7 @@ export function buildComposioTools(ctx: Ctx) {
   // ---- LIST CALENDAR ----------------------------------------------
   const listCalendarEvents = tool(
     "list_calendar_events",
-    "List manasa@aixccelerate.com's upcoming calendar events. Use to check availability or find an existing meeting.",
+    "List George's upcoming calendar events. Use to check availability or find an existing meeting.",
     {
       start_iso: z.string().datetime().optional().describe("Defaults to now."),
       end_iso: z.string().datetime().optional().describe("Defaults to 14 days from now."),
