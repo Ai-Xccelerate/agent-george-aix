@@ -7,9 +7,9 @@ import { callAction } from "@/lib/composio/client";
 import { syncMailbox } from "@/lib/agent/mailbox-sync";
 import {
   createNylasClient,
-  isNylasEnabled,
   nylasConfig,
 } from "@/lib/nylas/client";
+import { usingNylas } from "@/lib/agent/mail-selection";
 
 export type SyncResult = { error?: string; info?: string };
 
@@ -51,7 +51,7 @@ export async function deleteEmailAction(formData: FormData): Promise<void> {
   // George owns its own mailbox now, so deleting has to happen wherever the mail
   // actually lives. Nylas has no 'move to deleted items' verb — DELETE on a
   // message is the trash operation.
-  if (isNylasEnabled()) {
+  if (usingNylas()) {
     const cfg = nylasConfig()!;
     const del = await createNylasClient(cfg).deleteMessage(externalId);
     if (!del.ok) {
@@ -119,7 +119,7 @@ export async function sendMailboxDraftAction(formData: FormData): Promise<void> 
 
   // This is still the only human path for sending an external email George
   // prepared — the agent's own send tool always refuses external recipients.
-  if (isNylasEnabled()) {
+  if (usingNylas()) {
     const cfg = nylasConfig()!;
     const sent = await createNylasClient(cfg).sendDraft(externalId);
     if (!sent.ok) {

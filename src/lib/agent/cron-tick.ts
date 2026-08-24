@@ -20,6 +20,7 @@ import { syncTranscripts, type TranscriptSyncResult } from "./transcript-sync";
 import { runProactiveScan, type ProactiveScanResult } from "./run-proactive-scan";
 import { isScribeAvailable } from "@/lib/scribe/client";
 import { isNylasEnabled } from "@/lib/nylas/client";
+import { usingNylas } from "./mail-selection";
 import { resolveGeorgeOrgId } from "./tenancy";
 import {
   activeConnectedAccountId,
@@ -381,7 +382,7 @@ async function runDueTranscriptSyncs(
 async function runDueMailboxSyncs(
   admin: ReturnType<typeof createSupabaseAdmin>,
 ): Promise<MailboxSyncResult[]> {
-  const nylas = isNylasEnabled();
+  const nylas = usingNylas();
   const orgIds = await sweepOrgIds(admin, {
     sharedCredential: nylas,
     label: "mailbox sync",

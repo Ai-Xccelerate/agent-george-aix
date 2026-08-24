@@ -2,6 +2,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { callAction } from "@/lib/composio/client";
 import { isSenderAllowed } from "./sender-allowlist";
 import { isNylasEnabled } from "@/lib/nylas/client";
+import { mailDisabled, usingNylas } from "./mail-selection";
 import { syncNylasMailbox } from "./nylas-mailbox-sync";
 
 /**
@@ -81,7 +82,16 @@ function asObj(v: unknown): Record<string, unknown> {
  * Composio stays available: remove the Nylas env vars and this reverts.
  */
 export async function syncMailbox(orgId: string): Promise<MailboxSyncResult> {
-  if (isNylasEnabled()) return syncNylasMailbox(orgId);
+  // A missing credential means no mirror, not the other provider's mailbox.
+  if (mailDisabled()) {
+    return {
+      folders: 0,
+      messages_upserted: 0,
+      events_enqueued: 0,
+      errors: ["No mail provider is usable — see MAIL_PROVIDER."],
+    } as MailboxSyncResult;
+  }
+  if (usingNylas()) return syncNylasMailbox(orgId);
   return syncOutlookMailbox(orgId);
 }
 

@@ -19,6 +19,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildComposioTools } from "./composio-tools";
 import { buildNylasEmailTools } from "./nylas-tools";
 import { isNylasEnabled } from "@/lib/nylas/client";
+import { mailDisabled, usingNylas } from "@/lib/agent/mail-selection";
 import { embedText, hasEmbeddingProvider } from "@/lib/knowledge/embeddings";
 import { resolveOrgIdentity } from "@/lib/agent/identity";
 import { toKnowledgeHits } from "@/lib/parchment/client";
@@ -1882,7 +1883,14 @@ export function buildGeorgeMcpServer(
   // is the fallback until the Nylas approach is proven in real use. Removing
   // one env var reverts George to it — same switch discipline as DATABASE_URL
   // and STORAGE_DRIVER.
-  const mailTools = isNylasEnabled() ? buildNylasEmailTools(mailCtx) : composioTools;
+  // Chosen, not inferred. When the selected provider has no credentials, mail is
+  // OFF — no tools at all — rather than quietly falling through to the other
+  // provider's mailbox. See lib/agent/mail-selection.ts.
+  const mailTools = mailDisabled()
+    ? []
+    : usingNylas()
+      ? buildNylasEmailTools(mailCtx)
+      : composioTools;
 
   const tools = [...supabaseTools, ...mailTools];
 

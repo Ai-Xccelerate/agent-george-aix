@@ -22,6 +22,7 @@
  *            sign in, and it can be disconnected.
  */
 import { createNylasClient, isNylasEnabled, nylasConfig } from "@/lib/nylas/client";
+import { mailSelection } from "./mail-selection";
 import {
   listOrgIntegrations,
   type IntegrationSummary,
@@ -59,7 +60,7 @@ export type MailProviderStatus = {
  * per-org mailboxes are the obvious next step and every caller already has it.
  */
 export async function getMailProviderStatus(orgId: string): Promise<MailProviderStatus> {
-  if (isNylasEnabled()) {
+  if (mailSelection().provider === "nylas" && mailSelection().configured) {
     const cfg = nylasConfig()!;
     const configured = cfg.fromEmail ?? "George's own mailbox";
 
