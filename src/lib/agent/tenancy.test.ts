@@ -104,9 +104,19 @@ describe("it survives a broken lookup", () => {
   });
 });
 
-describe("the provider key is stable", () => {
-  it("is the key per-org mailbox rows will be written under", () => {
-    // Renaming this silently detaches every existing row from the resolver.
-    expect(MAILBOX_PROVIDER).toBe("george_mailbox");
+describe("the provider key", () => {
+  it("is a value the integration_provider enum actually accepts", () => {
+    // It was "george_mailbox", which the enum does not have. Every lookup
+    // raised, the catch swallowed it, and the resolver fell back to the env
+    // var — working by accident, and guaranteed to never find a real row.
+    const enumValues = [
+      "composio", "m365", "fireflies", "onedrive", "zoho",
+      "gmail", "slack", "custom", "parchment", "nylas", "scribe",
+    ];
+    expect(enumValues).toContain(MAILBOX_PROVIDER);
+  });
+
+  it("is stable — renaming it detaches every existing row from the resolver", () => {
+    expect(MAILBOX_PROVIDER).toBe("nylas");
   });
 });
