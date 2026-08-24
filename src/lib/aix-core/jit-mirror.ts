@@ -37,12 +37,36 @@ export async function ensureTenantRows(
   //
   //    A human-set display_name still wins: the signature and the UI prefer it,
   //    and nothing here touches it.
-  const name = input.clerkOrgName || input.orgSlug || input.clerkOrgId;
+  //    Two statements, deliberately. Dropping ignoreDuplicates so the name could
+  //    refresh introduced the opposite bug: every login rewrites the name, so one
+  //    failed Clerk lookup falls back to the slug and DOWNGRADES a good name to
+  //    "amit-s-organization-1777976704412504541". A rename should propagate; a
+  //    network hiccup should not rename anything.
+  //
+  //    So: ensure the row exists with the best name we have, then overwrite the
+  //    name only when Clerk actually told us one.
+  const fallbackName = input.orgSlug || input.clerkOrgId;
   const upsertedOrg = await admin
     .from("orgs")
-      .upsert({ clerk_org_id: input.clerkOrgId, name }, { onConflict: "clerk_org_id" });
+    .upsert(
+      { clerk_org_id: input.clerkOrgId, name: input.clerkOrgName || fallbackName },
+      { onConflict: "clerk_org_id", ignoreDuplicates: true },
+    );
   if (upsertedOrg.error) {
     throw new Error(`jit-mirror: could not upsert org — ${upsertedOrg.error.message}`);
+  }
+
+  // Refresh the name only on a real answer from Clerk. Best-effort: a failure
+  // here must not block sign-in over a display string.
+  if (input.clerkOrgName) {
+    const renamed = await admin
+      .from("orgs")
+      .update({ name: input.clerkOrgName })
+      .eq("clerk_org_id", input.clerkOrgId)
+      .neq("name", input.clerkOrgName);
+    if (renamed.error) {
+      console.warn("[jit-mirror] could not refresh org name", renamed.error.message);
+    }
   }
   const org = await admin
     .from("orgs")
