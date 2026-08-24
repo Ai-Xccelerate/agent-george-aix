@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { buildGeorgeMcpServer } from "@/lib/agent/tools";
 import { buildScribeMcpServer } from "@/lib/agent/scribe";
+import { isActive } from "@/lib/agent/integration-toggle";
+import { isScribeConfigured } from "@/lib/agent/scribe";
+import { isNylasEnabled } from "@/lib/nylas/client";
 import { buildAgentDbMcpServer, clerkOrgIdFor } from "@/lib/agent/agentdb";
 import { georgeCanUseTool } from "@/lib/agent/permissions";
 import { buildGeorgeSystemPrompt } from "@/lib/agent/system-prompt";
@@ -135,12 +138,20 @@ export async function POST(req: NextRequest) {
       let assistantText = "";
       let sdkSessionId: string | undefined;
 
+      // Per-org on/off. Same rule as the autonomous path: not switched on for
+      // this org means the tools are absent, not present and refusing.
+      const [nylasOn, scribeOn] = await Promise.all([
+        isActive(admin, user.orgId, "nylas", isNylasEnabled()),
+        isActive(admin, user.orgId, "scribe", isScribeConfigured()),
+      ]);
+
       const { server: georgeServer, toolNames } = buildGeorgeMcpServer({
         orgId: user.orgId,
         userId: user.id,
         sessionId: dbSession!.id,
+        enabled: { nylas: nylasOn },
       });
-      const scribe = buildScribeMcpServer();
+      const scribe = scribeOn ? buildScribeMcpServer() : null;
       // AgentDB is the org's operational database (CRM). Tenanted by the org's
       // Clerk id, and READ-ONLY by allowlist — see lib/agent/agentdb.ts before
       // widening it. Null when unconfigured or the org has no Clerk id, in which

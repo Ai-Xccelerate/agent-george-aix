@@ -29,6 +29,14 @@ import Anthropic from "@anthropic-ai/sdk";
 export type GeorgeToolCtx = {
   orgId: string;
   /**
+   * Per-org integration on/off, resolved by the caller.
+   *
+   * The builder is synchronous and the toggle lookup is not, so the two async
+   * call sites resolve it and pass the answer in. Absent means no opinion —
+   * used by tests and by paths that do not register mail tools anyway.
+   */
+  enabled?: { nylas?: boolean };
+  /**
    * The human running the agent, when there is one. Null on autonomous
    * standing-job runs — DB writes that reference a user (e.g.
    * `customers.owner_user_id`) become null in that case.
@@ -1883,10 +1891,12 @@ export function buildGeorgeMcpServer(
   // is the fallback until the Nylas approach is proven in real use. Removing
   // one env var reverts George to it — same switch discipline as DATABASE_URL
   // and STORAGE_DRIVER.
-  // Chosen, not inferred. When the selected provider has no credentials, mail is
-  // OFF — no tools at all — rather than quietly falling through to the other
-  // provider's mailbox. See lib/agent/mail-selection.ts.
-  const mailTools = mailDisabled()
+  // Three gates, all of which must pass before George can touch mail:
+  //   1. a provider is chosen and its credentials exist  (mail-selection.ts)
+  //   2. a human enabled it FOR THIS ORG                 (integration-toggle.ts)
+  //   3. the tools then register — absent otherwise, never present-and-refusing
+  const mailOff = mailDisabled() || ctx.enabled?.nylas === false;
+  const mailTools = mailOff
     ? []
     : usingNylas()
       ? buildNylasEmailTools(mailCtx)
