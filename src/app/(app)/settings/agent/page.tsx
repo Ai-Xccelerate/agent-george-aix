@@ -192,7 +192,11 @@ export default async function AgentSettingsPage() {
           <AccountRow
             icon={Mic}
             label="Note-taker (Scribe)"
-            value={scribe.account ?? "Not connected"}
+            value={
+              scribe.connected
+                ? (scribe.account ?? "Connected")
+                : "Not connected"
+            }
             connected={scribe.connected}
           />
           <AccountRow
