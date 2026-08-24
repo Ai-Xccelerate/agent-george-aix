@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Circle,
+  BookOpen,
   Cloud,
   Database,
   FileText,
@@ -40,6 +41,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { connectToolkitAction, disconnectToolkitAction } from "./actions";
 import { enableAgentDbAction } from "./agentdb-actions";
+import { disableIntegrationAction, enableIntegrationAction } from "./toggle-actions";
+import { toggleState, type ToggleState } from "@/lib/agent/integration-toggle";
+import { isScribeConfigured } from "@/lib/agent/scribe";
+import { isNylasEnabled } from "@/lib/nylas/client";
+import { getParchmentStatus } from "@/lib/parchment/connection";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +100,9 @@ export default async function IntegrationsPage({
     error?: string;
     agentdb?: string;
     detail?: string;
+    toggled?: string;
+    state?: string;
+    toggle_error?: string;
   }>;
 }) {
   const user = await getCurrentUser();
@@ -112,6 +121,16 @@ export default async function IntegrationsPage({
   const agentdb = await getAgentDbStatus(
     await clerkOrgIdFor(createSupabaseAdmin(), user.orgId),
   );
+
+  // Per-org on/off for the three whose state we own. Each needs its own idea
+  // of "configured", because a credential looks different for each of them.
+  const admin = createSupabaseAdmin();
+  const parchment = await getParchmentStatus(admin, user.orgId).catch(() => null);
+  const [nylasToggle, scribeToggle, parchmentToggle] = await Promise.all([
+    toggleState(admin, user.orgId, "nylas", isNylasEnabled()),
+    toggleState(admin, user.orgId, "scribe", isScribeConfigured()),
+    toggleState(admin, user.orgId, "parchment", parchment?.reachable === true),
+  ]);
   const sp = await searchParams;
 
   return (
@@ -140,6 +159,16 @@ export default async function IntegrationsPage({
           <AlertTriangle size={14} /> {errorMessage(sp.error)}
         </Banner>
       )}
+      {sp.toggled && (
+        <Banner tone={sp.state === "on" ? "success" : "error"}>
+          <CheckCircle2 size={14} /> {sp.toggled.toUpperCase()} turned {sp.state === "on" ? "on" : "off"} for this organisation.
+        </Banner>
+      )}
+      {sp.toggle_error && (
+        <Banner tone="error">
+          <AlertTriangle size={14} /> Could not change that integration: {sp.toggle_error}
+        </Banner>
+      )}
       {sp.agentdb === "enabled" && (
         <Banner tone="success">
           <CheckCircle2 size={14} /> Customer database enabled. George can query it now,
@@ -153,8 +182,11 @@ export default async function IntegrationsPage({
       )}
 
       <div className="space-y-3">
-        {mail.provider === "nylas" ? <GeorgeMailboxRow mail={mail} /> : null}
-        <ScribeRow scribe={scribe} />
+        {mail.provider === "nylas" ? (
+          <GeorgeMailboxRow mail={mail} toggle={nylasToggle} />
+        ) : null}
+        <ScribeRow scribe={scribe} toggle={scribeToggle} />
+        <KnowledgeRow toggle={parchmentToggle} documents={parchment?.documents ?? null} />
         <AgentDbRow agentdb={agentdb} />
 
         {!result.ok ? (
@@ -205,7 +237,13 @@ function IntegrationRow({ c }: { c: IntegrationSummary }) {
  * an employee. The card exists so that someone looking for George's email on
  * this page finds it, instead of finding a stale Outlook row and believing it.
  */
-function GeorgeMailboxRow({ mail }: { mail: MailProviderStatus }) {
+function GeorgeMailboxRow({
+  mail,
+  toggle,
+}: {
+  mail: MailProviderStatus;
+  toggle: ToggleState;
+}) {
   return (
     <div className="flex min-h-[84px] items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
       <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -220,19 +258,16 @@ function GeorgeMailboxRow({ mail }: { mail: MailProviderStatus }) {
             <StatusPill status={mail.connected ? "connected" : "error"} />
           </div>
           <p className="mt-0.5 truncate text-theme-sm text-gray-500 dark:text-gray-400">
-            {mail.connected
-              ? `${mail.mailbox} · George's own mailbox and calendar`
-              : (mail.detail ?? "George's mailbox is unreachable")}
+            {toggleDetail(
+              toggle,
+              mail.connected
+                ? `${mail.mailbox} · George's own mailbox and calendar`
+                : (mail.detail ?? "George's mailbox is unreachable"),
+            )}
           </p>
         </div>
-      </div>
-
-      <span
-        className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500"
-        title="George owns this mailbox. It is provisioned through Nylas from the server environment, so there is nothing to connect or disconnect here."
-      >
-        No connection needed
-      </span>
+      </div>
+      <ToggleControl toggle={toggle} />
     </div>
   );
 }
@@ -321,7 +356,9 @@ function agentDbMessage(code: string, detail?: string) {
 
 function ScribeRow({
   scribe,
+  toggle,
 }: {
+  toggle: ToggleState;
   scribe: { connected: boolean; account: string | null; description: string };
 }) {
   return (
@@ -344,13 +381,7 @@ function ScribeRow({
           </p>
         </div>
       </div>
-
-      <span
-        className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500"
-        title="Scribe is configured via SCRIBE_MCP_URL / SCRIBE_MCP_TOKEN in the server environment, not through Composio."
-      >
-        Managed in environment
-      </span>
+      <ToggleControl toggle={toggle} />
     </div>
   );
 }
@@ -388,6 +419,105 @@ function ConnectOrDisconnect({ c }: { c: IntegrationSummary }) {
   );
 }
 
+/**
+ * Enable / Disable for one integration.
+ *
+ * Off is not cosmetic here: when this is off the integration's tools are never
+ * registered for the run, so George cannot use it even if a prompt tells him to.
+ * That is the difference this control is making, and it is worth saying on the
+ * row rather than leaving someone to assume it merely discourages use.
+ *
+ * Disabled when there is no credential: enabling something that cannot work
+ * would produce a green state and no behaviour.
+ */
+function ToggleControl({ toggle }: { toggle: ToggleState }) {
+  if (!toggle.configured) {
+    return (
+      <span
+        className="shrink-0 text-theme-xs text-gray-400 dark:text-gray-500"
+        title="There is no credential for this integration on this deployment yet, so there is nothing to switch on."
+      >
+        Not configured
+      </span>
+    );
+  }
+
+  const action = toggle.enabled ? disableIntegrationAction : enableIntegrationAction;
+  return (
+    <form action={action} className="shrink-0">
+      <input type="hidden" name="integration" value={toggle.integration} />
+      {toggle.enabled ? (
+        <button
+          type="submit"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-sm font-medium text-gray-800 dark:text-white/90 hover:border-error-500 hover:text-error-500"
+          title="Turn this off for this organisation. George stops being given these tools at all; the credential is kept, so turning it back on needs nothing re-entered."
+        >
+          <Unplug size={14} />
+          Disable
+        </button>
+      ) : (
+        <button
+          type="submit"
+          className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900"
+          title="Give George these tools for this organisation."
+        >
+          <PlugZap size={14} />
+          Enable
+        </button>
+      )}
+    </form>
+  );
+}
+
+/** One line under the title explaining the current state in plain terms. */
+function toggleDetail(toggle: ToggleState, whenActive: string): string {
+  if (toggle.active) return whenActive;
+  return toggle.reason ?? "Not available.";
+}
+
+/**
+ * The organisation's knowledge hub (Parchment).
+ *
+ * Moved here from Settings → Knowledge, where a connection sat among the
+ * documents. A connection to another product belongs with the other
+ * connections; the knowledge base itself stays where it is, because that is
+ * content rather than an integration.
+ */
+function KnowledgeRow({
+  toggle,
+  documents,
+}: {
+  toggle: ToggleState;
+  documents: number | null;
+}) {
+  const status = toggle.active ? "connected" : toggle.configured ? "disconnected" : "error";
+  return (
+    <div className="flex min-h-[84px] items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15">
+          <BookOpen size={18} className="text-brand-500 dark:text-brand-400" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold text-gray-800 dark:text-white/90">
+              Knowledge hub
+            </span>
+            <StatusPill status={status} />
+          </div>
+          <p className="mt-0.5 truncate text-theme-sm text-gray-500 dark:text-gray-400">
+            {toggleDetail(
+              toggle,
+              documents === null
+                ? "Parchment — George can search the hub, read-only."
+                : `Parchment — ${documents} document${documents === 1 ? "" : "s"}, read-only.`,
+            )}
+          </p>
+        </div>
+      </div>
+      <ToggleControl toggle={toggle} />
+    </div>
+  );
+}
 function Banner({
   tone,
   children,
