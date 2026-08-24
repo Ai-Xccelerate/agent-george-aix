@@ -36,9 +36,15 @@ function fakeAdmin() {
   } as any;
 }
 
+// George's address is resolved per organisation now, not read from a
+// module-level env constant — so the resolver is what has to be mocked.
 vi.mock("./identity", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./identity")>()),
-  GEORGE_ADDRESS: ADDRESS,
+  resolveOrgIdentity: async () => ({
+    internalDomains: new Set(["aixccelerate.com"]),
+    address: ADDRESS,
+    domain: "aixccelerate.com",
+  }),
 }));
 
 const { buildGeorgeSystemPrompt } = await import("./system-prompt");
@@ -107,7 +113,11 @@ describe("with no mailbox configured", () => {
     vi.resetModules();
     vi.doMock("./identity", async (importOriginal) => ({
       ...(await importOriginal<typeof import("./identity")>()),
-      GEORGE_ADDRESS: "",
+      resolveOrgIdentity: async () => ({
+        internalDomains: new Set<string>(),
+        address: "",
+        domain: null,
+      }),
     }));
     const { buildGeorgeSystemPrompt: build } = await import("./system-prompt");
     const prompt = await build(fakeAdmin(), { orgId: ORG });

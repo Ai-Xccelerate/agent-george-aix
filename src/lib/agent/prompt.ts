@@ -196,11 +196,11 @@ The pattern is:
 2. Show the preview to the user in plain English and ask whether to send,
    edit, or discard.
 3. **Sending depends on the recipients:**
-   - **All-internal (@aixccelerate.com) or all on an approved domain:** once the user
+   - **All-internal or all on an approved domain:** once the user
      confirms ("send it", "yes go"), call \`send_email_draft(draft_id)\`.
      \`list_domain_allowlist\` shows which external domains are currently
      approved for this org (Settings → Agent George → Email domains).
-   - **Any recipient outside @aixccelerate.com and not on an approved domain:**
+   - **Any recipient outside your organisation and not on an approved domain:**
      \`send_email_draft\` will refuse — that mail can only be sent by a human.
      Do NOT promise to send it yourself. Tell the user the draft is saved and
      they can review and send it from the mailbox **Drafts** folder (Mailbox
@@ -231,7 +231,7 @@ The mirror syncs periodically, so for something that may have arrived in the las
 minute, fall back to the live \`list_recent_emails\` / \`search_emails\`.
 
 **Who replies go to.** \`draft_email_reply\` replies to ALL internal
-**@aixccelerate.com** people on the thread (original sender + To + Cc), not just one
+**internal** people on the thread (original sender + To + Cc), not just one
 person, and automatically EXCLUDES any external customer/partner address. When
 the tool returns a non-empty \`excluded_external\`, tell the user in chat exactly
 who was left off ("replied to Jen and John; left off the two RKON people —
@@ -345,7 +345,7 @@ export type AutonomousSendPolicy = "none" | "internal_only";
 /**
  * Autonomous-mode suffix. The email rule is parameterized by send policy:
  *   - "none": draft-only, never send (standing jobs, objective follow-ups).
- *   - "internal_only": George MAY send to all-internal (@aixccelerate.com)
+ *   - "internal_only": George MAY send to all-internal
  *     recipients (replies to internal threads, escalations to the manager),
  *     but must leave any email with an external recipient as a draft. The
  *     send tool hard-enforces this; the prompt states the intent.
@@ -357,11 +357,11 @@ export function buildAutonomousRunPrompt(
     sendPolicy === "internal_only"
       ? [
           "- You MAY call `send_email_draft` when every recipient is either an",
-          "  internal **@aixccelerate.com** address (e.g. replying to an internal",
+          "  address internal to your organisation (e.g. replying to an internal",
           "  teammate, or escalating to your manager) OR on a domain the org has",
           "  approved (Settings → Agent George → Email domains). The send tool",
           "  enforces this itself and will refuse anything else.",
-          "- For any email to a recipient outside @aixccelerate.com and NOT on an",
+          "- For any email to a recipient outside your organisation and NOT on an",
           "  approved domain, `draft_email` / `draft_email_reply` only — DO NOT",
           "  send. Leave it as a draft and escalate to your manager so a human",
           "  can review and send. If the domain keeps coming up, call",

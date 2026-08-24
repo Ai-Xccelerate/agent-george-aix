@@ -99,7 +99,7 @@ export default async function MailboxPage({
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Mailbox</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            George&apos;s Microsoft 365 mailbox (agent.george@getonyx.ai), mirrored locally.
+            George&apos;s own mailbox, mirrored locally.
           </p>
         </div>
         <SyncStatus lastSyncedAt={lastSyncedAt} intervalMs={MAILBOX_SYNC_INTERVAL_MS} />

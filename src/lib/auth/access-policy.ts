@@ -1,31 +1,15 @@
 /**
- * Access policy for Agent George — domain allowlist only.
+ * DELETED 2026-08-21 — this module is gone, and this note is a signpost.
  *
- * Under AIX Core auth, identity, org membership, and per-agent entitlement are
- * owned by Clerk → Core (see `src/lib/aix-core/*`). George no longer admits
- * users itself; the old `admitUser` / invite-accept flow was removed with the
- * Supabase-auth migration. What remains here is the email-domain guard the
- * admin invite UI still uses to reject out-of-org addresses before they reach
- * Core.
+ * It held a hardcoded ALLOWED_DOMAINS pair, an isAllowedEmail gate, and an
+ * AIX_ORG_ID constant. Under AIX Core auth none of it decided anything: Core
+ * owns identity, membership and per-agent entitlement, and George stopped
+ * admitting users itself when Supabase auth was retired. The only remaining
+ * consumer was display copy on the users screen, telling admins that invites
+ * were limited to two specific companies' domains — one of which belonged to a
+ * different tenant entirely.
+ *
+ * Who counts as internal is now resolved per organisation from its own row.
+ * See lib/agent/identity.ts.
  */
-
-export const ALLOWED_DOMAINS = ["aixccelerate.com"] as const;
-export const AIX_ORG_ID = "00000000-0000-0000-0000-000000000001";
-
-/** Local dev / staging only — set NEXT_PUBLIC_OPEN_SIGNUP=true in .env.local */
-export function isOpenSignup(): boolean {
-  return process.env.NEXT_PUBLIC_OPEN_SIGNUP === "true";
-}
-
-export function emailDomain(email: string | null | undefined): string | null {
-  if (!email) return null;
-  const at = email.lastIndexOf("@");
-  if (at < 0) return null;
-  return email.slice(at + 1).toLowerCase().trim();
-}
-
-export function isAllowedEmail(email: string | null | undefined): boolean {
-  if (isOpenSignup() && email?.includes("@")) return true;
-  const d = emailDomain(email);
-  return !!d && (ALLOWED_DOMAINS as readonly string[]).includes(d);
-}
+export {};

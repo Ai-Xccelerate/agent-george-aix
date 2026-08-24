@@ -6,7 +6,7 @@ import { getAgentSettings } from "@/lib/agent/agent-settings";
 import { getScribeConnection } from "@/lib/agent/scribe";
 import { getMailProviderStatus } from "@/lib/agent/mail-provider";
 import { getAgentDbStatus, clerkOrgIdFor } from "@/lib/agent/agentdb";
-import { georgeOrgId } from "@/lib/agent/tenancy";
+import { georgeOrgIdFromEnv } from "@/lib/agent/tenancy";
 import { DEFAULT_TIMEZONE } from "@/lib/agent/agent-settings";
 import { AgentForm, AvatarUploadForm, type OwnerOption } from "./_agent-form";
 import {
@@ -17,7 +17,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_MAILBOX = "agent.george@getonyx.ai";
+// No default address. It used to be a hardcoded mailbox at another company,
+// which the Identity screen then presented as George's own whenever the real
+// one was unavailable. An empty row is a smaller lie than a confident wrong one.
+const NO_MAILBOX = "No mailbox configured";
 
 export default async function AgentSettingsPage() {
   const user = await getCurrentUser();
@@ -59,7 +62,7 @@ export default async function AgentSettingsPage() {
   // George's own org is not looks identical to everything working. It is not:
   // autonomous runs (inbound mail, cron) act as George's org, so that is the one
   // whose access decides whether George can read the CRM unattended.
-  const agentOrgId = georgeOrgId() ?? user.orgId;
+  const agentOrgId = georgeOrgIdFromEnv() ?? user.orgId;
   const agentdb = await getAgentDbStatus(await clerkOrgIdFor(admin, agentOrgId));
   const agentdbValue = !agentdb.configured
     ? `Not configured — ${agentdb.missingVars.join(" and ")} unset`
@@ -175,8 +178,8 @@ export default async function AgentSettingsPage() {
             }
             value={
               mail.connected
-                ? [mailbox ?? DEFAULT_MAILBOX, mail.detail].filter(Boolean).join(" · ")
-                : (mail.detail ?? mailbox ?? DEFAULT_MAILBOX)
+                ? [mailbox, mail.detail].filter(Boolean).join(" · ")
+                : (mail.detail ?? mailbox ?? NO_MAILBOX)
             }
             connected={mail.connected}
           />
@@ -189,7 +192,11 @@ export default async function AgentSettingsPage() {
           <AccountRow
             icon={Mic}
             label="Note-taker (Scribe)"
-            value={scribe.account ?? "Not connected"}
+            value={
+              scribe.connected
+                ? (scribe.account ?? "Connected")
+                : "Not connected"
+            }
             connected={scribe.connected}
           />
           <AccountRow

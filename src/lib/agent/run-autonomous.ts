@@ -42,7 +42,7 @@ export type RunAutonomousInput = {
    * Whether George may send email in this run.
    *   - "none" (default): draft-only; send_email_draft is stripped.
    *   - "internal_only": send_email_draft is available but the tool refuses
-   *     any draft with a non-@getonyx.ai recipient. Used for inbound email so
+   *     any draft whose recipients are not all internal. Used for inbound mail so
    *     George can reply to internal threads / escalate to his manager.
    */
   emailSendPolicy?: AutonomousSendPolicy;

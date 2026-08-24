@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { Badge } from "@/components/ui/badge";
 import { initials } from "@/lib/utils";
-import { ALLOWED_DOMAINS } from "@/lib/auth/access-policy";
+import { resolveOrgIdentity } from "@/lib/agent/identity";
 import {
   changeRoleAction,
   removeMemberAction,
@@ -47,6 +47,10 @@ export default async function UsersSettingsPage() {
   if (!isAdmin) redirect("/settings/profile");
 
   const admin = createSupabaseAdmin();
+
+  // Which domains count as this org's own — resolved from the org row rather
+  // than a hardcoded list, which previously named another company's domain.
+  const internalDomains = [...(await resolveOrgIdentity(admin, user.orgId)).internalDomains];
   const [membersRes, invitesRes] = await Promise.all([
     admin
       .from("org_members")
@@ -68,15 +72,25 @@ export default async function UsersSettingsPage() {
       <header>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">Users</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {user.orgName} is invite-only. Access is limited to emails at{" "}
-          {ALLOWED_DOMAINS.map((d, i) => (
-            <span key={d}>
-              {i > 0 && (i === ALLOWED_DOMAINS.length - 1 ? " and " : ", ")}
-              <code className="rounded bg-gray-50 dark:bg-white/[0.03] px-1 py-0.5 text-theme-xs">
-                {d}
-              </code>
-            </span>
-          ))}
+          {user.orgName} is invite-only.{" "}
+          {internalDomains.length > 0 ? (
+            <>
+              Access is limited to emails at{" "}
+              {internalDomains.map((d, i) => (
+                <span key={d}>
+                  {i > 0 && (i === internalDomains.length - 1 ? " and " : ", ")}
+                  <code className="rounded bg-gray-50 dark:bg-white/[0.03] px-1 py-0.5 text-theme-xs">
+                    {d}
+                  </code>
+                </span>
+              ))}
+            </>
+          ) : (
+            <>
+              No email domain is configured for this organisation yet, so George
+              treats every address as external.
+            </>
+          )}
           .
         </p>
       </header>

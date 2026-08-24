@@ -12,10 +12,53 @@
  */
 import type { McpHttpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 
-// The Scribe account George's note-taker runs under. Scribe's MCP exposes no
-// whoami, so the bound account isn't discoverable at runtime — it's the mailbox
-// the workspace token (SCRIBE_MCP_TOKEN) was minted for. Single-tenant (Onyx).
-export const SCRIBE_ACCOUNT_EMAIL = "agent.george@getonyx.ai";
+/**
+ * What George's Scribe token can actually see.
+ *
+ * Scribe's MCP exposes no whoami, so the bound account is not discoverable —
+ * this used to be a hardcoded address at a company the deployment no longer
+ * belongs to. Making it configurable then left it blank, which was worse: the
+ * Identity row renders `account ?? "Not connected"`, so an unset value made a
+ * working integration report itself as disconnected next to a green pill.
+ *
+ * The token itself is the honest source. Scribe mints two kinds, and the
+ * difference is operationally significant rather than cosmetic:
+ *
+ *   sk_scribe_org_…   the whole workspace's meetings
+ *   sk_scribe_…       only the meetings one person owns or attended
+ *
+ * A user-scoped key silently limits George to whoever minted it — the sort of
+ * gap that shows up as "some meetings are missing" months later. Saying which
+ * kind is in use puts that on screen instead.
+ */
+export type ScribeTokenScope = "org" | "user" | "unknown";
+
+export function scribeTokenScope(): ScribeTokenScope {
+  const token = process.env.SCRIBE_MCP_TOKEN?.trim() ?? "";
+  if (!token) return "unknown";
+  if (token.startsWith("sk_scribe_org_")) return "org";
+  if (token.startsWith("sk_scribe_")) return "user";
+  return "unknown";
+}
+
+/**
+ * The label shown as George's note-taker account.
+ *
+ * SCRIBE_ACCOUNT_EMAIL wins when set, for deployments that do know the mailbox.
+ * Otherwise describe the reach, which is the fact people actually need.
+ */
+export function scribeAccountLabel(): string {
+  const configured = process.env.SCRIBE_ACCOUNT_EMAIL?.trim();
+  if (configured) return configured;
+  switch (scribeTokenScope()) {
+    case "org":
+      return "Every meeting in the workspace";
+    case "user":
+      return "One member's meetings only — an org-scoped key sees the whole workspace";
+    default:
+      return "Connected";
+  }
+}
 
 // Curated allowlist — only what George needs for the kickoff / health flows.
 // Deliberately excludes `get_chat` (in-meeting chat is noise for our use).
@@ -77,7 +120,7 @@ export function getScribeConnection(): ScribeConnection {
   const connected = isScribeConfigured();
   return {
     connected,
-    account: connected ? SCRIBE_ACCOUNT_EMAIL : null,
+    account: connected ? scribeAccountLabel() : null,
     description:
       "Meeting note-taker — joins calls and produces transcripts + insights. Wired as a direct MCP server, not through Composio.",
   };

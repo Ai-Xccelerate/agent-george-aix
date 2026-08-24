@@ -1,4 +1,4 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { createSupabaseAdmin } from "./admin";
 import { checkCoreAccess, CoreAccessError } from "@/lib/aix-core/access";
 import { ensureTenantRows, normalizeClerkRole } from "@/lib/aix-core/jit-mirror";
@@ -43,12 +43,27 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const fullName =
     [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || null;
 
+  // Clerk's auth() gives the slug but not the display name, and the slug is a
+  // machine string — "amit-s-organization-1777976704412504541". Shown in George's
+  // UI it looks like a different organisation from the one Core displays, and it
+  // feeds the email signature, so a slug would go out in customer mail.
+  // Best-effort: a Clerk hiccup must not block sign-in.
+  let clerkOrgName: string | null = null;
+  try {
+    const client = await clerkClient();
+    const org = await client.organizations.getOrganization({ organizationId: clerkOrgId });
+    clerkOrgName = org?.name?.trim() || null;
+  } catch {
+    // Fall back to the slug, as before.
+  }
+
   const admin = createSupabaseAdmin();
   const { orgId, orgName, role } = await ensureTenantRows(admin, {
     clerkUserId,
     clerkOrgId,
     orgRole: normalizeClerkRole(orgRole),
     orgSlug,
+    clerkOrgName,
     email,
     fullName,
   });
