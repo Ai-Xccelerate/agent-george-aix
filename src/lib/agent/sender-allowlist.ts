@@ -1,4 +1,5 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { resolveOrgIdentity } from "./identity";
 
 /**
  * Domain allowlist gate for inbound email. The Composio M365 webhook passes
@@ -9,13 +10,29 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
  * The audit_log row is still written by the caller, so rejected deliveries
  * are inspectable for later widening of the allowlist.
  *
- * v1 rule (locked-in until customers table is populated):
- *   - getonyx.ai and aixccelerate.com are always allowed (the team).
+ * The rule:
+ *   - Anyone at the ORGANISATION'S OWN DOMAIN is allowed (the team).
  *   - Anything in contacts.email for this org is allowed (known customer
  *     people we've manually added).
  *   - Everything else is rejected.
+ *
+ * WHOSE TEAM, THOUGH
+ * This used to be a hardcoded pair:
+ *
+ *     const ORG_DOMAINS = new Set(["getonyx.ai", "aixccelerate.com"]);
+ *
+ * Two different companies' domains, in the function that decides who may wake
+ * George. For a third organisation nobody could ever reach him, and for either
+ * of those two, the OTHER company's staff could — across a tenant boundary, on
+ * the path that starts an autonomous agent run.
+ *
+ * It is resolved per org now, from that org's own row, the same source the send
+ * guard uses. One definition of "internal", not two that can disagree.
+ *
+ * FAILS CLOSED, and that is a real trade: an org with no domain configured
+ * accepts inbound only from its known contacts. Silence is recoverable — a
+ * stranger waking the agent is not.
  */
-const ORG_DOMAINS = new Set(["getonyx.ai", "aixccelerate.com"]);
 
 export type AllowlistDecision =
   | { allowed: true; reason: "org-domain" | "known-contact" }
@@ -42,7 +59,16 @@ export async function isSenderAllowed(
   if (!domain) {
     return { allowed: false, reason: "no-from" };
   }
-  if (ORG_DOMAINS.has(domain)) {
+  const admin = createSupabaseAdmin();
+
+  // The org's own people, per org — not a hardcoded pair of companies.
+  //
+  // Match on the EXTRACTED domain, not the raw header value: a normal client
+  // sends "Name <addr@example.com>", and splitting that on "@" yields
+  // "example.com>" — so passing the raw string here rejected every colleague
+  // who has a display name set, which is nearly all of them.
+  const identity = await resolveOrgIdentity(admin, orgId);
+  if (identity.internalDomains.has(domain)) {
     return { allowed: true, reason: "org-domain" };
   }
 
@@ -50,7 +76,6 @@ export async function isSenderAllowed(
   const m = fromAddress.match(/<([^>]+)>/);
   const clean = (m ? m[1] : fromAddress).trim().toLowerCase();
 
-  const admin = createSupabaseAdmin();
   const contact = await admin
     .from("contacts")
     .select("id")
