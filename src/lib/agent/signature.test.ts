@@ -128,3 +128,30 @@ describe("with no mailbox configured", () => {
     vi.doUnmock("./identity");
   });
 });
+
+describe("the prompt states which domains are internal", () => {
+  it("names them, so George knows the answer and not just the rule", async () => {
+    // De-hardcoding the domain left George knowing internal recipients were fine
+    // without knowing which addresses those were. In chat it then offered to
+    // request approval for an address that was already internal.
+    const prompt = await buildGeorgeSystemPrompt(fakeAdmin(), { orgId: ORG });
+    expect(prompt).toContain("Internal addresses for this organisation");
+    expect(prompt).toContain("@aixccelerate.com");
+  });
+
+  it("says so plainly when the org has no domain, rather than asserting one", async () => {
+    vi.resetModules();
+    vi.doMock("./identity", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("./identity")>()),
+      resolveOrgIdentity: async () => ({
+        internalDomains: new Set<string>(),
+        address: "",
+        domain: null,
+      }),
+    }));
+    const { buildGeorgeSystemPrompt: build } = await import("./system-prompt");
+    const prompt = await build(fakeAdmin(), { orgId: ORG });
+    expect(prompt).toContain("none configured");
+    vi.doUnmock("./identity");
+  });
+});
