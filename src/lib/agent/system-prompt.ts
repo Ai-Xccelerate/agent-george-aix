@@ -25,7 +25,7 @@ import {
   type AgentSettings,
 } from "./agent-settings";
 import { renderOperatingModelBlock } from "./operating-model";
-import { resolveOrgIdentity } from "./identity";
+import { internalDescription, resolveOrgIdentity } from "./identity";
 
 type OrgProfile = {
   name?: string | null;
@@ -209,10 +209,23 @@ async function buildIdentityBlock(
     owner = (data as Owner | null) ?? null;
   }
 
+  // WHICH DOMAINS ARE INTERNAL, STATED.
+  //
+  // De-hardcoding @aixccelerate.com out of the prompts left George knowing the
+  // RULE ("internal recipients are fine") without the ANSWER (which domains
+  // those are). In chat it then did the safe thing — assumed approval was
+  // needed and offered to request it — for an address that was already
+  // internal and would have sent fine. Correct caution, missing information.
+  const identity = await resolveOrgIdentity(admin, orgId);
+
   const lines: string[] = [
     `- Name: ${agent.name}`,
     `- Title: ${agent.title}`,
+    `- Internal addresses for this organisation: ${internalDescription(identity)}. Anyone else is external.`,
   ];
+  if (identity.address) {
+    lines.push(`- Your own address: ${identity.address}`);
+  }
   if (agent.bio) lines.push(`- Bio: ${agent.bio}`);
   if (owner) {
     const who = [owner.full_name, owner.email].filter(Boolean).join(" · ");

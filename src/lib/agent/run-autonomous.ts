@@ -16,6 +16,9 @@ import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { resolveClaudeCodeExecutable } from "./sdk-binary";
 import { buildGeorgeMcpServer } from "./tools";
 import { buildScribeMcpServer } from "./scribe";
+import { isActive } from "./integration-toggle";
+import { isScribeConfigured } from "./scribe";
+import { isNylasEnabled } from "@/lib/nylas/client";
 import { buildAgentDbMcpServer, clerkOrgIdFor } from "./agentdb";
 import { georgeCanUseTool } from "./permissions";
 import { buildGeorgeSystemPrompt } from "./system-prompt";
@@ -70,13 +73,21 @@ export async function runGeorgeAutonomous(
     emailSendPolicy,
   });
 
+  // Per-org on/off, resolved before the tools are assembled. An integration a
+  // human has not switched on for THIS org contributes no tools at all.
+  const [nylasOn, scribeOn] = await Promise.all([
+    isActive(admin, input.orgId, "nylas", isNylasEnabled()),
+    isActive(admin, input.orgId, "scribe", isScribeConfigured()),
+  ]);
+
   const { server: georgeServer, toolNames } = buildGeorgeMcpServer({
     orgId: input.orgId,
     userId: input.userId ?? null,
     sessionId: input.sessionId ?? null,
     emailSendPolicy: emailSendPolicy === "internal_only" ? "internal_only" : "chat",
+    enabled: { nylas: nylasOn },
   });
-  const scribe = buildScribeMcpServer();
+  const scribe = scribeOn ? buildScribeMcpServer() : null;
   // Same read-only AgentDB access as the chat path — an autonomous run must
   // not get a wider grant than a supervised one.
   const agentdb = buildAgentDbMcpServer({

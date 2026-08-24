@@ -37,8 +37,16 @@ export function georgeOrgIdFromEnv(): string | null {
   return process.env.GEORGE_ORG_ID?.trim() || null;
 }
 
-/** Provider key for the row that says which org George's mailbox belongs to. */
-export const MAILBOX_PROVIDER = "george_mailbox";
+/**
+ * Provider key for the row that says which org George's mailbox belongs to.
+ *
+ * MUST be a value the integration_provider enum accepts. This was
+ * "george_mailbox", which is not one — so every lookup raised, the catch
+ * swallowed it, and the resolver silently fell back to GEORGE_ORG_ID. It worked
+ * by accident, and would have kept working right up until per-org rows existed
+ * and were never found.
+ */
+export const MAILBOX_PROVIDER = "nylas";
 
 /**
  * Which organisation George operates as.
