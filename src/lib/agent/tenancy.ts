@@ -23,6 +23,8 @@
  * because there the fan-out is the correct behaviour.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 /**
  * The organisation George itself operates as — whose mailbox is George's
  * mailbox, and whose meetings the Scribe token can see.
@@ -31,6 +33,47 @@
  * do nothing: picking an arbitrary org is how one tenant's data ends up in
  * another's tables.
  */
-export function georgeOrgId(): string | null {
+export function georgeOrgIdFromEnv(): string | null {
   return process.env.GEORGE_ORG_ID?.trim() || null;
+}
+
+/** Provider key for the row that says which org George's mailbox belongs to. */
+export const MAILBOX_PROVIDER = "george_mailbox";
+
+/**
+ * Which organisation George operates as.
+ *
+ * Prefers DATA over configuration: an `integrations` row for the mailbox says
+ * which org it belongs to, exactly as Parchment records its per-org config. The
+ * env var is the single-tenant fallback, still correct while there is one
+ * deployment-wide grant.
+ *
+ * This is the seam per-org mailboxes slot into. When each tenant has its own
+ * grant there will be a row per org, this function is replaced by a lookup
+ * keyed on the grant, and GEORGE_ORG_ID stops being consulted — without any
+ * caller changing.
+ *
+ * Ambiguity is refused, not guessed. More than one connected mailbox row means
+ * the deployment is already multi-mailbox and a single answer would be wrong;
+ * doing nothing beats acting for the wrong tenant, which is the whole lesson of
+ * 2026-08-20.
+ */
+export async function resolveGeorgeOrgId(
+  admin: SupabaseClient,
+): Promise<{ orgId: string | null; source: "integration" | "env" | "ambiguous" | "none" }> {
+  try {
+    const { data } = await admin
+      .from("integrations")
+      .select("org_id")
+      .eq("provider", MAILBOX_PROVIDER)
+      .eq("status", "connected");
+    const rows = (data ?? []) as Array<{ org_id: string }>;
+    if (rows.length === 1) return { orgId: rows[0].org_id, source: "integration" };
+    if (rows.length > 1) return { orgId: null, source: "ambiguous" };
+  } catch {
+    // Table unreadable: fall through to the env fallback rather than throwing
+    // inside a cron tick.
+  }
+  const fromEnv = georgeOrgIdFromEnv();
+  return fromEnv ? { orgId: fromEnv, source: "env" } : { orgId: null, source: "none" };
 }

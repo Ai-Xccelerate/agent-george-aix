@@ -12,10 +12,20 @@
  */
 import type { McpHttpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 
-// The Scribe account George's note-taker runs under. Scribe's MCP exposes no
-// whoami, so the bound account isn't discoverable at runtime — it's the mailbox
-// the workspace token (SCRIBE_MCP_TOKEN) was minted for. Single-tenant (Onyx).
-export const SCRIBE_ACCOUNT_EMAIL = "agent.george@getonyx.ai";
+/**
+ * The Scribe account George's note-taker runs under.
+ *
+ * Scribe's MCP exposes no whoami, so the bound account cannot be discovered at
+ * runtime — it is whichever mailbox the workspace token was minted for. That
+ * used to be hardcoded to a specific address at a company this deployment no
+ * longer belongs to, which the UI then showed as George's note-taker account.
+ *
+ * Configurable now, and empty rather than wrong when nobody has said. A blank
+ * account label is a smaller lie than a confident one naming the wrong company.
+ */
+export function scribeAccountEmail(): string | null {
+  return process.env.SCRIBE_ACCOUNT_EMAIL?.trim() || null;
+}
 
 // Curated allowlist — only what George needs for the kickoff / health flows.
 // Deliberately excludes `get_chat` (in-meeting chat is noise for our use).
@@ -77,7 +87,7 @@ export function getScribeConnection(): ScribeConnection {
   const connected = isScribeConfigured();
   return {
     connected,
-    account: connected ? SCRIBE_ACCOUNT_EMAIL : null,
+    account: connected ? scribeAccountEmail() : null,
     description:
       "Meeting note-taker — joins calls and produces transcripts + insights. Wired as a direct MCP server, not through Composio.",
   };

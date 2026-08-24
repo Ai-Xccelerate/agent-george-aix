@@ -20,7 +20,7 @@ import { syncTranscripts, type TranscriptSyncResult } from "./transcript-sync";
 import { runProactiveScan, type ProactiveScanResult } from "./run-proactive-scan";
 import { isScribeAvailable } from "@/lib/scribe/client";
 import { isNylasEnabled } from "@/lib/nylas/client";
-import { georgeOrgId } from "./tenancy";
+import { resolveGeorgeOrgId } from "./tenancy";
 import {
   activeConnectedAccountId,
   isTriggerActiveFor,
@@ -323,15 +323,18 @@ async function sweepOrgIds(
   opts: { sharedCredential: boolean; label: string },
 ): Promise<string[]> {
   if (opts.sharedCredential) {
-    const own = georgeOrgId();
-    if (!own) {
+    const { orgId, source } = await resolveGeorgeOrgId(admin);
+    if (!orgId) {
       console.error(
-        `[cron tick] ${opts.label} skipped — GEORGE_ORG_ID is unset, and a shared ` +
-          `credential must not be fanned out across organisations`,
+        `[cron tick] ${opts.label} skipped — ` +
+          (source === "ambiguous"
+            ? "more than one connected mailbox, so a single owning org cannot be chosen"
+            : "no mailbox integration row and GEORGE_ORG_ID is unset") +
+          ", and a shared credential must not be fanned out across organisations",
       );
       return [];
     }
-    return [own];
+    return [orgId];
   }
   const { data } = await admin.from("orgs").select("id");
   return (data ?? []).map((o) => (o as { id: string }).id);

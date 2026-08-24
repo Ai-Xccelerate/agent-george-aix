@@ -13,6 +13,8 @@ export type MirrorInput = {
   clerkOrgId: string;
   orgRole: string; // already normalized to a valid George role
   orgSlug?: string | null;
+  /** The organisation's display name in Clerk, when it could be read. */
+  clerkOrgName?: string | null;
   email: string | null;
   fullName: string | null;
 };
@@ -25,12 +27,20 @@ export async function ensureTenantRows(
 ): Promise<MirroredTenant> {
   // 1. Local org row, keyed by clerk_org_id. Upsert-then-read is race-safe:
   //    concurrent getCurrentUser calls (layout + page render in parallel) won't
-  //    collide on the unique constraint. ignoreDuplicates keeps the existing
-  //    name if the row is already there.
-  const name = input.orgSlug || input.clerkOrgId;
+  //    collide on the unique constraint.
+  //
+  //    THE NAME IS REFRESHED, NOT PINNED. This used to write the Clerk slug once
+  //    with ignoreDuplicates and never look again, so an organisation renamed in
+  //    Core kept its birth name in George forever — two of four orgs were still
+  //    displaying machine slugs like "amit-s-organization-1777976704412504541",
+  //    which is also what the email signature would have printed.
+  //
+  //    A human-set display_name still wins: the signature and the UI prefer it,
+  //    and nothing here touches it.
+  const name = input.clerkOrgName || input.orgSlug || input.clerkOrgId;
   const upsertedOrg = await admin
     .from("orgs")
-    .upsert({ clerk_org_id: input.clerkOrgId, name }, { onConflict: "clerk_org_id", ignoreDuplicates: true });
+      .upsert({ clerk_org_id: input.clerkOrgId, name }, { onConflict: "clerk_org_id" });
   if (upsertedOrg.error) {
     throw new Error(`jit-mirror: could not upsert org — ${upsertedOrg.error.message}`);
   }
