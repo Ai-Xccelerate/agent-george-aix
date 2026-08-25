@@ -22,6 +22,7 @@ import { isScribeAvailable } from "@/lib/scribe/client";
 import { isNylasEnabled } from "@/lib/nylas/client";
 import { usingNylas } from "./mail-selection";
 import { resolveGeorgeOrgId } from "./tenancy";
+import { reclaimStalled, type ReclaimResult } from "./reclaim";
 import {
   activeConnectedAccountId,
   isTriggerActiveFor,
@@ -64,6 +65,8 @@ type DueJob = {
 
 export type CronTickResult = {
   started_at: string;
+  /** Work released from a dead process this tick. Surfaced, never silent. */
+  reclaimed: ReclaimResult;
   elapsed_ms: number;
   ran: number;
   deferred: number;
@@ -99,6 +102,17 @@ export type TriggerHealthResult = {
 export async function runCronTick(): Promise<CronTickResult> {
   const startedAt = Date.now();
   const admin = createSupabaseAdmin();
+
+  // FIRST, before anything claims new work: release what a dead process left
+  // holding. Two of the three locks used to be cleared only by a restart, and
+  // the worker restarts rarely — so without this a single crash removes a job
+  // from the schedule permanently. See lib/agent/reclaim.ts.
+  //
+  // Inside the clock deliberately: reclaim touches the database, so its cost
+  // belongs in elapsed_ms and must count against the tick budget the loops
+  // below check. Stamping startedAt afterwards would hide it and let a slow
+  // reclaim push the tick past its budget unnoticed.
+  const reclaimed = await reclaimStalled(admin);
 
   const results: CronTickResult["results"] = [];
   let deferred = 0;
@@ -258,6 +272,7 @@ export async function runCronTick(): Promise<CronTickResult> {
   }
 
   return {
+    reclaimed,
     started_at: new Date(startedAt).toISOString(),
     elapsed_ms: Date.now() - startedAt,
     ran: results.length,

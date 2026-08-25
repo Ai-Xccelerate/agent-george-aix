@@ -12,10 +12,16 @@
  * exclusive. The in-process `ticking` guard below is just to avoid stacking
  * sweeps within a single process.
  *
- * Enablement: ON by default in production; OFF in dev unless SCHEDULER_ENABLED
- * is set (so local dev doesn't fire real jobs against real data by surprise).
- * Set SCHEDULER_ENABLED=false to disable in prod (e.g. when moving the tick to
- * a dedicated Railway cron service at scale).
+ * ENABLEMENT CHANGED: the tick now lives in a dedicated worker service
+ * (scripts/worker.ts, `pnpm worker`). This in-process scheduler is OFF unless
+ * RUN_CRON_IN_PROCESS=true.
+ *
+ * Explicit rather than implied by which process happened to boot. Two tickers
+ * against one database is a duplicate-work bug, and the failure is quiet: both
+ * processes look healthy, and only the audit trail shows the same work done
+ * twice. A deployment should not be able to fall into that by accident.
+ *
+ * Kept rather than deleted because local development still wants one process.
  */
 export async function register() {
   // Node.js server runtime only — never the edge runtime or the build phase.
@@ -30,17 +36,21 @@ export async function register() {
   const { assertStorageConfig } = await import("./lib/storage/r2");
   assertStorageConfig();
 
-  const flag = process.env.SCHEDULER_ENABLED;
-  const enabled = flag
-    ? flag.toLowerCase() === "true"
-    : process.env.NODE_ENV === "production";
-  if (!enabled) {
+  // Default OFF. The worker service owns the tick in every deployed
+  // environment; this path exists for a single-process local dev loop.
+  const inProcess = process.env.RUN_CRON_IN_PROCESS?.toLowerCase() === "true";
+  if (!inProcess) {
     console.log(
-      "[scheduler] disabled — set SCHEDULER_ENABLED=true to run the in-process cron locally",
+      "[scheduler] in-process cron OFF — the worker service owns the tick " +
+        "(set RUN_CRON_IN_PROCESS=true to run it here instead)",
     );
     return;
   }
 
+  console.warn(
+    "[scheduler] in-process cron ON via RUN_CRON_IN_PROCESS — make sure the " +
+      "worker service is NOT also running, or every sweep happens twice",
+  );
   // Dynamic imports so node-cron and the DB-touching tick logic never load in
   // the edge runtime or during build.
   const { schedule } = await import("node-cron");

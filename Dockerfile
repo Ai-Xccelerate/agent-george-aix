@@ -22,6 +22,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
+# The background worker ships as a single bundled file rather than as source.
+# The runner stage installs --prod (no tsx) and copies no src/ or scripts/, so
+# `tsx scripts/worker.ts` cannot run there. Bundling our own modules and leaving
+# node_modules external keeps the image the same shape it is today.
+RUN pnpm build:worker
 
 # ---- Production deps ----------------------------------------------------
 FROM base AS prod-deps
@@ -50,6 +55,9 @@ COPY --from=build --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=build --chown=nextjs:nodejs /app/public ./public
 COPY --from=build --chown=nextjs:nodejs /app/package.json ./package.json
 COPY --from=build --chown=nextjs:nodejs /app/next.config.ts ./next.config.ts
+# Bundled background worker. Unused by the web service; the worker service
+# overrides the start command to `node dist/worker.mjs`.
+COPY --from=build --chown=nextjs:nodejs /app/dist ./dist
 
 USER nextjs
 EXPOSE 3000
