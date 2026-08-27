@@ -21,6 +21,11 @@
  * processes look healthy, and only the audit trail shows the same work done
  * twice. A deployment should not be able to fall into that by accident.
  *
+ * Both states log a `[scheduler] mode=` line on every boot. An unset variable
+ * protects nothing you can see — "correctly off" and "never considered" leave
+ * identical logs — so the mode is asserted out loud either way, and the ON
+ * state is announced in terms of what it will cause.
+ *
  * Kept rather than deleted because local development still wants one process.
  */
 export async function register() {
@@ -38,19 +43,51 @@ export async function register() {
 
   // Default OFF. The worker service owns the tick in every deployed
   // environment; this path exists for a single-process local dev loop.
+  //
+  // The mode line is emitted on EVERY boot, in both states, and is the
+  // supported way to answer "is this container ticking?". Reading it beats
+  // inferring the answer from an absence of tick activity: a quiet log is also
+  // what a ticking-but-idle container looks like, and the two are only
+  // distinguishable if the process says which one it is.
   const inProcess = process.env.RUN_CRON_IN_PROCESS?.toLowerCase() === "true";
+  const deployed = process.env.NODE_ENV === "production";
+
   if (!inProcess) {
     console.log(
-      "[scheduler] in-process cron OFF — the worker service owns the tick " +
-        "(set RUN_CRON_IN_PROCESS=true to run it here instead)",
+      "[scheduler] mode=off — in-process cron disabled; the worker service owns " +
+        "the tick (set RUN_CRON_IN_PROCESS=true to tick in this container instead)",
     );
     return;
   }
 
+  // Loud by design, and an assertion rather than a silence.
+  //
+  // Double-ticking was previously prevented only by this variable being
+  // unset — protection by absence, the same shape as a placeholder API key
+  // that looks configured and is not. Absence is invisible: nothing in any log
+  // distinguishes "correctly off" from "nobody thought about it". So the ON
+  // state announces itself in terms of its consequence, not its flag value.
+  //
+  // The failure this guards is specifically quiet. Two tickers against one
+  // database both look healthy, neither errors, and the only evidence is the
+  // same work appearing twice in the audit trail — which, when the work is
+  // "email a customer", is discovered by the customer.
+  const rule = "=".repeat(76);
+  console.warn(rule);
+  console.warn("[scheduler] mode=in-process — THIS CONTAINER IS TICKING");
+  console.warn("[scheduler] RUN_CRON_IN_PROCESS=true was set explicitly.");
   console.warn(
-    "[scheduler] in-process cron ON via RUN_CRON_IN_PROCESS — make sure the " +
-      "worker service is NOT also running, or every sweep happens twice",
+    "[scheduler] If the dedicated worker service is ALSO running, every sweep, " +
+      "job and queued event is now processed twice — including anything that sends mail.",
   );
+  if (deployed) {
+    console.warn(
+      "[scheduler] NODE_ENV=production. In a deployed environment the worker " +
+        "service owns the tick, so this is almost certainly a misconfiguration. " +
+        "Unset RUN_CRON_IN_PROCESS unless you are deliberately running without a worker.",
+    );
+  }
+  console.warn(rule);
   // Dynamic imports so node-cron and the DB-touching tick logic never load in
   // the edge runtime or during build.
   const { schedule } = await import("node-cron");
