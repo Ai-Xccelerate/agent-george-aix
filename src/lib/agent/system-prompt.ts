@@ -15,8 +15,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildAutonomousRunPrompt,
-  GEORGE_SYSTEM_PROMPT,
+  buildGeorgeSystemPromptBase,
   type AutonomousSendPolicy,
+  type CompanyIdentity,
 } from "./prompt";
 import {
   getAgentSettings,
@@ -26,6 +27,52 @@ import {
 } from "./agent-settings";
 import { renderOperatingModelBlock } from "./operating-model";
 import { internalDescription, resolveOrgIdentity } from "./identity";
+
+/**
+ * Thrown when an org has not said who it is. Distinct from a generic error so
+ * callers can render "this organisation needs a name and domain" rather than
+ * a stack trace, and so it is greppable in logs.
+ */
+export class CompanyIdentityMissingError extends Error {
+  constructor(readonly orgId: string, readonly missing: string[]) {
+    super(
+      `Organisation ${orgId} is missing ${missing.join(" and ")}. George cannot ` +
+        `compose as a company he cannot name — set these on the organisation profile.`,
+    );
+    this.name = "CompanyIdentityMissingError";
+  }
+}
+
+/**
+ * Resolve the company George works for, or refuse.
+ *
+ * Fails closed on purpose, and it is worth being explicit about why, because
+ * the tempting alternative is a fallback string.
+ *
+ * The base prompt's first sentence is "You are George, an AI teammate working
+ * at X". Whatever X is, George will introduce himself that way to customers and
+ * sign mail as that company. A default would make a misconfigured org silently
+ * inherit someone else's identity — which is precisely the bug this replaces:
+ * the name used to be hardcoded to Onyx while GEORGE_ORG_ID pointed at AIX.
+ *
+ * Refusing is loud, recoverable, and happens before anything is sent. Guessing
+ * is quiet and reaches a customer.
+ */
+export function requireCompanyIdentity(
+  orgId: string,
+  org: OrgProfile | null,
+): CompanyIdentity {
+  // display_name is the customer-facing name; `name` is often a slug ("aix").
+  const name = org?.display_name?.trim() || org?.name?.trim() || "";
+  const domain = org?.domain?.trim().toLowerCase() || "";
+
+  const missing: string[] = [];
+  if (!name) missing.push("a name");
+  if (!domain) missing.push("a domain");
+  if (missing.length) throw new CompanyIdentityMissingError(orgId, missing);
+
+  return { name, domain };
+}
 
 type OrgProfile = {
   name?: string | null;
@@ -99,8 +146,15 @@ export async function buildGeorgeSystemPrompt(
     (await resolveOrgIdentity(admin, orgId)).address,
   );
 
+  // Before anything else: George must know which company he works for. This
+  // throws rather than defaulting — see requireCompanyIdentity.
+  const company = requireCompanyIdentity(
+    orgId,
+    (orgRes.data ?? null) as OrgProfile | null,
+  );
+
   const parts: string[] = [
-    GEORGE_SYSTEM_PROMPT,
+    buildGeorgeSystemPromptBase(company),
     identityBlock,
     operatingBlock,
     orgBlock,
