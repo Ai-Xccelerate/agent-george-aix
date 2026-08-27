@@ -631,6 +631,19 @@ Surfaced by the post-Seattle KB refresh (`core/02-agent-george-role.md`, `core/0
 
 **Status:** Idea. Pairs naturally with #56 (partner-health scoring).
 
+### 68. `agent_events` has no run id — a double-claim leaves no trace
+**What:** Give `agent_events` a claiming-run column the way `agent_jobs` has `running_run_id`, so it is provable which process took an event and provable that exactly one did. Today the claim is only `status` + `claimed_at`, with nothing recording *who* claimed it.
+
+**Why it matters:** With the cron split into its own service (2026-08-27) the duplicate-processing risk is real rather than theoretical — two tickers against one database both look healthy and neither errors. For jobs that is detectable: two `agent_job_runs` rows for one `job_id` whose intervals overlap. For events there is no equivalent query, so the events side of that check can only be **inferred** (via duplicate `source_event_id`, or duplicated outbound sends after the fact) rather than proven.
+
+Harmless while George cannot send. Once Feature 1 turns sending on, a double-claimed event is two emails to a customer from one trigger, with nothing in the database showing it happened — exactly the shape of the 2026-08-20 incident, minus the evidence trail.
+
+**Where:** New Alembic revision adding the column (nullable, plus an index for the reclaim sweep); `src/lib/agent/process-event.ts` stamps it at claim time; `src/lib/agent/reclaim.ts` clears it on release and can then count attempts from it directly instead of from the payload `_reclaims` tally; the duplicate check becomes a real query rather than an inference.
+
+**Why deferred:** Not needed to verify the worker split — the reclaim paths are observable without it, and the job side of the duplicate check is already provable. Deliberately not bundled into the worker-split PR, which was already load-bearing.
+
+**Status:** Agreed 2026-08-27 (Vidhi). **Blocking Feature 1** — must land before George sends anything autonomously, not after.
+
 ---
 
 ## How to use this file
