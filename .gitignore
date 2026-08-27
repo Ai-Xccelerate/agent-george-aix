@@ -51,3 +51,6 @@ next-env.d.ts
 /db/.venv/
 __pycache__/
 *.pyc
+
+# bundled background worker (pnpm build:worker) — build output, built in CI/Docker
+/dist/
