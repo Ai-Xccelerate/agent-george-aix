@@ -21,11 +21,20 @@
  * schedule forever. Moving the cron without time-bounding these claims would
  * trade a loud bug for a quiet one.
  *
- * NO MIGRATION NEEDED
- * Both timestamps already exist. `agent_events.claimed_at` has been stamped
+ * THE TIMING NEEDED NO MIGRATION
+ * Both timestamps already existed. `agent_events.claimed_at` had been stamped
  * since the claim was written and never once read. A job's claim points at an
- * `agent_job_runs` row, which carries `started_at`. The data to do this
- * correctly was already being recorded.
+ * `agent_job_runs` row, which carries `started_at`. The data to decide WHEN to
+ * reclaim was already being recorded.
+ *
+ * WHAT DID NEED ONE: KNOWING WHO HELD IT
+ * Releasing an event is a guess that its owner is dead. Usually right, and
+ * when it is wrong the old owner wakes up and finishes work a second process
+ * has already redone. Migration 0003 added `agent_events.claim_id` so the
+ * release can be made real rather than advisory: clearing it here means the
+ * abandoned process can no longer write its result over the new run's. The
+ * release logs the id it abandoned, so a later "LOST CLAIM" line in
+ * process-event.ts can be matched to the reclaim that caused it.
  *
  * RECLAIMS ARE LOUD
  * Every reclaim is logged and counted, and the count rides back in the tick
@@ -108,7 +117,7 @@ export async function reclaimStalled(admin: SupabaseClient): Promise<ReclaimResu
   try {
     const { data } = await admin
       .from("agent_events")
-      .select("id, org_id, event_type, payload, claimed_at")
+      .select("id, org_id, event_type, payload, claimed_at, claim_id")
       .eq("status", "processing")
       .lt("claimed_at", cutoff)
       .limit(50);
@@ -119,6 +128,7 @@ export async function reclaimStalled(admin: SupabaseClient): Promise<ReclaimResu
       event_type: string;
       payload: Record<string, unknown> | null;
       claimed_at: string;
+      claim_id: string | null;
     }>) {
       const attempts = reclaimCount(row.payload) + 1;
       const heldFor = Math.round((Date.now() - Date.parse(row.claimed_at)) / 60_000);
@@ -130,6 +140,7 @@ export async function reclaimStalled(admin: SupabaseClient): Promise<ReclaimResu
             status: "failed",
             error: `abandoned after ${MAX_RECLAIMS} reclaims — the process handling this keeps dying`,
             processed_at: new Date().toISOString(),
+            claim_id: null,
           })
           .eq("id", row.id);
 
@@ -156,6 +167,11 @@ export async function reclaimStalled(admin: SupabaseClient): Promise<ReclaimResu
         .update({
           status: "pending",
           claimed_at: null,
+          // Clearing this is what makes the release real. The next
+          // claimant mints a fresh id, so if the process we just gave up
+          // on is still alive and finishes later, its terminal write no
+          // longer matches and cannot overwrite the new run's result.
+          claim_id: null,
           payload: { ...(row.payload ?? {}), _reclaims: attempts },
         })
         .eq("id", row.id);
@@ -165,6 +181,9 @@ export async function reclaimStalled(admin: SupabaseClient): Promise<ReclaimResu
         event_type: row.event_type,
         held_for_minutes: heldFor,
         attempt: attempts,
+        // The claim being abandoned. If it turns up later in a
+        // "LOST CLAIM" line, these two logs are the same incident.
+        abandoned_claim: row.claim_id,
       });
       result.events += 1;
     }

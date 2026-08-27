@@ -18,6 +18,7 @@
  *      onto agent_sessions so chat resumes work.
  *   6. Update agent_events: status, session_id, error, processed_at.
  */
+import { randomUUID } from "node:crypto";
 import { runGeorgeAutonomous } from "./run-autonomous";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -40,6 +41,8 @@ type EventRow = {
   payload: Record<string, unknown>;
   status: string;
   session_id: string | null;
+  /** Identifies THIS claim. Null on rows claimed before migration 0003. */
+  claim_id: string | null;
 };
 
 export type ProcessEventResult =
@@ -53,18 +56,83 @@ export type ProcessEventResult =
 
 const PROCESS_TIME_BUDGET_MS = 240_000;
 
+/**
+ * Write a terminal status to an event, but only while we still hold its claim.
+ *
+ * WHY THIS IS NOT JUST AN UPDATE
+ * The claim that starts this work is safe: it is conditional on
+ * status='pending', so two processes cannot both win a pending row. The unsafe
+ * moment is later. If this process hangs past the reclaim window, reclaim.ts
+ * releases the event back to 'pending' — correctly, it has every reason to
+ * think we are dead — and another worker picks it up. If we then wake and
+ * finish, an unguarded write would stamp our result over theirs, and the row
+ * would look like it was processed exactly once.
+ *
+ * Matching on claim_id makes that impossible to do silently: a reclaim clears
+ * the column and the next claimant mints a fresh id, so our update matches no
+ * row and we say so loudly instead of overwriting a result we did not produce.
+ *
+ * Returns false when the claim was lost. Rows claimed before migration 0003
+ * carry a null claim_id and are updated unguarded, which is the old behaviour.
+ */
+async function settleEvent(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  event: { id: string; claim_id: string | null; event_type?: string },
+  patch: Record<string, unknown>,
+): Promise<boolean> {
+  // Releasing the claim is part of settling: a terminal row holds nothing.
+  let q = admin
+    .from("agent_events")
+    .update({ ...patch, claim_id: null })
+    .eq("id", event.id);
+  if (event.claim_id) q = q.eq("claim_id", event.claim_id);
+
+  const res = await q.select("id");
+  if (res.error) {
+    console.error("[process-event] could not settle event", {
+      id: event.id,
+      error: res.error.message,
+    });
+    return false;
+  }
+  if (event.claim_id && (res.data ?? []).length === 0) {
+    // Someone else owns this event now. Whatever we just did was duplicate
+    // work, and if it sent anything the customer has it twice — so this is an
+    // error, not a warning, and it names the claim so the two runs can be
+    // told apart in the log.
+    console.error(
+      "[process-event] LOST CLAIM — this event was reclaimed and processed by " +
+        "another process while we were still working on it. Our result was " +
+        "discarded rather than written over theirs.",
+      { id: event.id, event_type: event.event_type, our_claim: event.claim_id },
+    );
+    return false;
+  }
+  return true;
+}
+
 export async function processAgentEvent(
   eventId: string,
 ): Promise<ProcessEventResult> {
   const admin = createSupabaseAdmin();
 
   // 1) Atomic claim. Flip status pending → processing only once.
+  // The claim id is minted here, inside the same atomic update that wins the
+  // row, so it identifies THIS claim rather than this process. Everything
+  // below writes back only while it still holds it — see settleEvent().
+  const claimId = randomUUID();
   const claim = await admin
     .from("agent_events")
-    .update({ status: "processing", claimed_at: new Date().toISOString() })
+    .update({
+      status: "processing",
+      claimed_at: new Date().toISOString(),
+      claim_id: claimId,
+    })
     .eq("id", eventId)
     .eq("status", "pending")
-    .select("id, org_id, source, source_event_id, event_type, payload, status, session_id")
+    .select(
+      "id, org_id, source, source_event_id, event_type, payload, status, session_id, claim_id",
+    )
     .maybeSingle();
 
   if (claim.error) {
@@ -107,14 +175,11 @@ export async function processAgentEvent(
     "NYLAS_NEW_MESSAGE",
   ]);
   if (!NEW_MAIL_SLUGS.has(event.event_type)) {
-    await admin
-      .from("agent_events")
-      .update({
-        status: "skipped",
-        error: `unsupported event_type: ${event.event_type}`,
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", event.id);
+    await settleEvent(admin, event, {
+      status: "skipped",
+      error: `unsupported event_type: ${event.event_type}`,
+      processed_at: new Date().toISOString(),
+    });
     return { skipped: true, reason: "unsupported_type" };
   }
 
@@ -167,14 +232,11 @@ export async function processAgentEvent(
   // Sender allowlist gate. Drop firehose/spam without creating a session.
   const senderDecision = await isSenderAllowed(event.org_id, email.from?.address ?? null);
   if (!senderDecision.allowed) {
-    await admin
-      .from("agent_events")
-      .update({
-        status: "skipped",
-        error: `allowlist: ${senderDecision.reason}`,
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", event.id);
+    await settleEvent(admin, event, {
+      status: "skipped",
+      error: `allowlist: ${senderDecision.reason}`,
+      processed_at: new Date().toISOString(),
+    });
     return { skipped: true, reason: "unsupported_type" };
   }
 
@@ -212,14 +274,11 @@ export async function processAgentEvent(
   if (sessionInsert.error || !sessionInsert.data) {
     const errMsg =
       sessionInsert.error?.message ?? "could not create agent_sessions row";
-    await admin
-      .from("agent_events")
-      .update({
-        status: "failed",
-        error: errMsg,
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", event.id);
+    await settleEvent(admin, event, {
+      status: "failed",
+      error: errMsg,
+      processed_at: new Date().toISOString(),
+    });
     return {
       skipped: false,
       sessionId: null,
@@ -280,15 +339,18 @@ export async function processAgentEvent(
 
   // 6) Mark the event done.
   const finalStatus = result.status === "succeeded" ? "processed" : "failed";
-  await admin
-    .from("agent_events")
-    .update({
-      status: finalStatus,
-      session_id: sessionId,
-      error: result.error,
-      processed_at: new Date().toISOString(),
-    })
-    .eq("id", event.id);
+  const settled = await settleEvent(admin, event, {
+    status: finalStatus,
+    session_id: sessionId,
+    error: result.error,
+    processed_at: new Date().toISOString(),
+  });
+  // Losing the claim here means another process already handled this event.
+  // Do not go on to stamp the mirrored email as reviewed — that badge would
+  // point at our discarded session rather than the one that counted.
+  if (!settled) {
+    return { skipped: true, reason: "already_claimed" };
+  }
 
   // Stamp the mirrored email so the mailbox shows a "George reviewed" badge
   // linking to his write-up.
@@ -669,14 +731,11 @@ async function handleTranscriptReady(
     .maybeSingle();
 
   if (!t) {
-    await admin
-      .from("agent_events")
-      .update({
-        status: "skipped",
-        error: "transcript row not found",
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", event.id);
+    await settleEvent(admin, event, {
+      status: "skipped",
+      error: "transcript row not found",
+      processed_at: new Date().toISOString(),
+    });
     return { skipped: true, reason: "not_found" };
   }
   const transcript = t as {
@@ -704,10 +763,11 @@ async function handleTranscriptReady(
     .single();
   if (sessionInsert.error || !sessionInsert.data) {
     const errMsg = sessionInsert.error?.message ?? "could not create session";
-    await admin
-      .from("agent_events")
-      .update({ status: "failed", error: errMsg, processed_at: new Date().toISOString() })
-      .eq("id", event.id);
+    await settleEvent(admin, event, {
+      status: "failed",
+      error: errMsg,
+      processed_at: new Date().toISOString(),
+    });
     return { skipped: false, sessionId: null, status: "failed", error: errMsg };
   }
   const sessionId = sessionInsert.data.id as string;
@@ -755,15 +815,15 @@ async function handleTranscriptReady(
   }
 
   const finalStatus = result.status === "succeeded" ? "processed" : "failed";
-  await admin
-    .from("agent_events")
-    .update({
-      status: finalStatus,
-      session_id: sessionId,
-      error: result.error,
-      processed_at: new Date().toISOString(),
-    })
-    .eq("id", event.id);
+  const settled = await settleEvent(admin, event, {
+    status: finalStatus,
+    session_id: sessionId,
+    error: result.error,
+    processed_at: new Date().toISOString(),
+  });
+  if (!settled) {
+    return { skipped: true, reason: "already_claimed" };
+  }
 
   return { skipped: false, sessionId, status: finalStatus, error: result.error };
 }
