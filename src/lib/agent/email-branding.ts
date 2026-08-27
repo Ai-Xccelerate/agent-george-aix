@@ -5,9 +5,19 @@
  * reliably set font-family from prose. Wrapping (not appending) also means we
  * never double up on the signature the prompt already mandates.
  *
- * Font: Open Sans / Calibri per Onyx house style. Open Sans is a webfont most
- * mail clients won't load, so the stack falls back to Calibri (renders on
- * Outlook / Windows, where getonyx.ai reads mail) then system sans elsewhere.
+ * Font: a deliberately neutral stack, not a tenant's brand face. This used to
+ * be documented as "Open Sans / Calibri per Onyx house style", which was one
+ * tenant's typography applied to every tenant's outbound mail — the same class
+ * of leak as the hardcoded company name in prompt.ts, quieter because nobody
+ * reads a font and notices it is the wrong company's.
+ *
+ * Left as a stack rather than resolved per org because there is nowhere to
+ * resolve it from: `orgs` carries brand_color and logos but no typography, and
+ * inventing a column to hold a font nobody has asked to change would be
+ * speculative. The stack below is chosen to be unobjectionable anywhere: system
+ * UI faces first so mail renders natively on the reader's platform, with a
+ * webfont-free fallback chain. When a tenant does want their own face, this is
+ * the single place it plugs in.
  *
  * Replies can't carry HTML via the reply action's plain-text `comment`, so the
  * reply path creates the draft, then patches its body to HTML via
@@ -15,7 +25,7 @@
  * George's message above the quoted thread, preserving threading + history.
  */
 
-const EMAIL_FONT_STACK = `'Open Sans', Calibri, 'Segoe UI', Arial, sans-serif`;
+const EMAIL_FONT_STACK = `-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`;
 
 /** Wrap George's HTML body so the whole message renders in the house font. */
 export function wrapGeorgeEmailHtml(bodyHtml: string): string {

@@ -55,7 +55,11 @@ async function signature(): Promise<string> {
 }
 
 beforeEach(() => {
-  orgRow = { name: "aix", display_name: null, domain: null };
+  // Carries a domain because the prompt now refuses to build without one — see
+  // requireCompanyIdentity. The internal-domain tests below still exercise the
+  // "no domain known" path, but through resolveOrgIdentity, which is a separate
+  // question from "which company does George work for".
+  orgRow = { name: "aix", display_name: null, domain: "aixccelerate.com" };
 });
 
 describe("the email signature", () => {
@@ -89,13 +93,47 @@ describe("the email signature", () => {
     expect(sig).not.toContain('href="https://"');
   });
 
-  it("still signs off when the org profile is missing entirely", async () => {
+  it("refuses to build a prompt at all when the org profile is missing entirely", async () => {
+    // THIS EXPECTATION IS THE REVERSE OF WHAT IT WAS, DELIBERATELY.
+    //
+    // It used to assert that George still signed off when the org profile was
+    // missing — degrade gracefully, omit what you don't know. That is right for
+    // the *contents* of a signature and wrong for the question "which company
+    // does George work for", because the base prompt's first sentence answers
+    // that whether or not anyone configured it.
+    //
+    // With no org row there is no company name, and a fallback would be a name
+    // George introduces himself with to a customer. Refusing is loud and
+    // happens before anything is sent; guessing is quiet and arrives in an
+    // inbox. See requireCompanyIdentity in system-prompt.ts.
     orgRow = null;
-    const sig = await signature();
-    expect(sig).toContain("<strong>George</strong>");
-    // No dangling separators or empty team name.
-    expect(sig).not.toContain(" · <br>");
-    expect(sig).not.toContain("the  team");
+    await expect(signature()).rejects.toThrow(/missing a name and a domain/);
+  });
+
+  it("names the organisation, not the deployment it was first written for", async () => {
+    orgRow = { name: "aix", display_name: "AI Xccelerate", domain: "aixccelerate.com" };
+    const prompt = await buildGeorgeSystemPrompt(fakeAdmin(), { orgId: ORG });
+    expect(prompt).toContain("working at AI Xccelerate");
+    expect(prompt).not.toContain("working at Onyx");
+  });
+
+  it("prefers the customer-facing display name over the slug", async () => {
+    // `orgs.name` is often a slug ("aix"); display_name is what a human reads.
+    orgRow = { name: "aix", display_name: "AI Xccelerate", domain: "aixccelerate.com" };
+    const prompt = await buildGeorgeSystemPrompt(fakeAdmin(), { orgId: ORG });
+    expect(prompt).toContain("working at AI Xccelerate");
+    expect(prompt).not.toContain("working at aix.");
+  });
+
+  it("falls back to the legal name when there is no display name", async () => {
+    orgRow = { name: "Contoso Ltd", display_name: null, domain: "contoso.example" };
+    const prompt = await buildGeorgeSystemPrompt(fakeAdmin(), { orgId: ORG });
+    expect(prompt).toContain("working at Contoso Ltd");
+  });
+
+  it("refuses when the org has a name but no domain", async () => {
+    orgRow = { name: "Contoso Ltd", display_name: null, domain: null };
+    await expect(signature()).rejects.toThrow(/missing a domain/);
   });
 
   it("tells the model not to retype it from memory", async () => {
