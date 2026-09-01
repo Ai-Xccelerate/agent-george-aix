@@ -1,5 +1,15 @@
 import { redirect } from "next/navigation";
-import { CalendarClock, Database, Lock, Mail, Mic, Plug } from "lucide-react";
+import {
+  CalendarClock,
+  Database,
+  ListChecks,
+  Lock,
+  Mail,
+  Mic,
+  Plug,
+  ShieldAlert,
+  Target,
+} from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getAgentSettings } from "@/lib/agent/agent-settings";
@@ -7,6 +17,11 @@ import { getScribeConnection } from "@/lib/agent/scribe";
 import { getMailProviderStatus } from "@/lib/agent/mail-provider";
 import { getAgentDbStatus, clerkOrgIdFor } from "@/lib/agent/agentdb";
 import { georgeOrgIdFromEnv } from "@/lib/agent/tenancy";
+import {
+  isFirstValueConfigured,
+  resolveTenantProcess,
+  type TenantProcessMissingError,
+} from "@/lib/agent/tenant-process";
 import { DEFAULT_TIMEZONE } from "@/lib/agent/agent-settings";
 import { AgentForm, AvatarUploadForm, type OwnerOption } from "./_agent-form";
 import {
@@ -75,6 +90,17 @@ export default async function AgentSettingsPage() {
   // Scribe is a direct remote MCP server (not Composio) — status from env only.
   const scribe = getScribeConnection();
 
+  // The onboarding process, and specifically whether this tenant has said what
+  // first value means. Caught rather than thrown: resolveTenantProcess refuses
+  // when there is no usable process, which is right when George is about to act
+  // and wrong on a settings page — the page exists to tell you the thing is not
+  // configured, so it must survive that being true.
+  const process = await resolveTenantProcess(admin, user.orgId).catch(
+    (e: unknown) => e as TenantProcessMissingError,
+  );
+  const processMissing = process instanceof Error;
+  const firstValueTuned = !processMissing && isFirstValueConfigured(process);
+
   return (
     <div className="space-y-6">
       <header>
@@ -128,6 +154,85 @@ export default async function AgentSettingsPage() {
             timezone,
           }}
         />
+      </section>
+
+      {/*
+        Onboarding process.
+
+        Deliberately a state, not a warning. An untuned default is a legitimate
+        place to be on day one — George works, and the process he follows is a
+        reasonable generic one. What it is not is *this company's* process, and
+        "George is working" and "George is working on your actual process" are
+        different claims. Only one of them is worth demoing, so the difference
+        is stated plainly rather than either hidden or alarmed about.
+      */}
+      <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+          Onboarding process
+        </h2>
+        <p className="mt-1 mb-4 text-theme-xs text-gray-400 dark:text-gray-500">
+          The stages, touchpoints and escalation rules George follows when
+          onboarding a customer for this organisation.
+        </p>
+
+        {processMissing ? (
+          <div className="flex items-start gap-3 rounded-lg border border-error-200 dark:border-error-500/30 bg-error-50 dark:bg-error-500/10 p-3">
+            <ShieldAlert size={16} className="mt-0.5 shrink-0 text-error-500" />
+            <div>
+              <div className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                No usable onboarding process
+              </div>
+              <div className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                George will refuse to onboard rather than invent one.{" "}
+                {(process as TenantProcessMissingError).why}.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <dl className="space-y-3">
+            <div className="flex items-start gap-3">
+              <ListChecks size={16} className="mt-0.5 shrink-0 text-gray-400 dark:text-gray-500" />
+              <div>
+                <dt className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                  {process.stages.length} stages · {process.touchpoints.length} touchpoints
+                </dt>
+                <dd className="text-theme-xs text-gray-500 dark:text-gray-400">
+                  {process.objective}
+                </dd>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Target size={16} className={`mt-0.5 shrink-0 ${firstValueTuned ? "text-success-500" : "text-warning-500"}`} />
+              <div>
+                <dt className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                  {firstValueTuned
+                    ? "First value defined for this organisation"
+                    : "Using the default onboarding process"}
+                </dt>
+                <dd className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                  {firstValueTuned ? (
+                    <>
+                      <span className="text-gray-800 dark:text-white/90">
+                        {process.firstValue.label}
+                      </span>{" "}
+                      — {process.firstValue.definition} Target: day{" "}
+                      {process.firstValue.target_days}.
+                    </>
+                  ) : (
+                    <>
+                      First value has not been defined, so George can report what has
+                      happened on an account but cannot say whether onboarding
+                      succeeded — there is nothing to measure that against. Everything
+                      else has a sensible generic default; this one is specific to what
+                      you sell.
+                    </>
+                  )}
+                </dd>
+              </div>
+            </div>
+          </dl>
+        )}
       </section>
 
       {/* Avatar */}

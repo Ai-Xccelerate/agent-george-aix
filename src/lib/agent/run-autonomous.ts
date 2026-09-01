@@ -12,7 +12,11 @@
  *     George to finish with a structured Actions / Awaiting review / Notes
  *     summary that callers can persist as a run record.
  */
-import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import {
+  query,
+  type AgentDefinition,
+  type SDKMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import { resolveClaudeCodeExecutable } from "./sdk-binary";
 import { buildGeorgeMcpServer } from "./tools";
 import { buildScribeMcpServer } from "./scribe";
@@ -49,6 +53,19 @@ export type RunAutonomousInput = {
    *     George can reply to internal threads / escalate to his manager.
    */
   emailSendPolicy?: AutonomousSendPolicy;
+  /**
+   * Sub-agents this run may delegate to.
+   *
+   * This is how a capability gets scoped to one agent instead of to a code
+   * path. An AgentDefinition carries its own tool grant, so the onboarding
+   * agent can hold `send_email_draft` while this run's own allowlist does not —
+   * and every other autonomous path keeps tool-absence without having to
+   * remember to filter for it.
+   *
+   * Note the interaction with emailSendPolicy below: the policy governs what
+   * THIS run may do directly. A sub-agent's grant is its own.
+   */
+  agents?: Record<string, AgentDefinition>;
 };
 
 export type RunAutonomousResult = {
@@ -99,6 +116,11 @@ export async function runGeorgeAutonomous(
   //   - AskUserQuestion excluded from builtinAllow: no UI to answer.
   //   - send_email_draft: stripped under "none"; kept under "internal_only"
   //     (the tool itself refuses external recipients).
+  //
+  // This governs what THIS run may call directly. A sub-agent passed in
+  // via `agents` carries its own grant and is not filtered here — that is
+  // the point of it: the onboarding agent holds send_email_draft while the
+  // run that delegates to it does not.
   const builtinAllow = ["WebFetch", "WebSearch"];
   const allowedMcpTools =
     emailSendPolicy === "internal_only"
@@ -135,6 +157,7 @@ export async function runGeorgeAutonomous(
           ...(scribe ? scribe.toolNames : []),
           ...(agentdb ? agentdb.toolNames : []),
         ],
+        ...(input.agents ? { agents: input.agents } : {}),
         canUseTool: georgeCanUseTool,
         pathToClaudeCodeExecutable: resolveClaudeCodeExecutable(),
         resume: input.resumeSdkSessionId ?? undefined,
