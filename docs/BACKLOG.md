@@ -631,6 +631,23 @@ Surfaced by the post-Seattle KB refresh (`core/02-agent-george-role.md`, `core/0
 
 **Status:** Idea. Pairs naturally with #56 (partner-health scoring).
 
+---
+
+### 69. Duplicate owner row in `org_members`
+**What:** Org `00000000-0000-0000-0000-000000000001` (AIX) lists `manasa@aixccelerate.com` twice, both as `owner`. Decide whether `(org_id, email)` or `(org_id, user_id)` is the uniqueness key, de-duplicate, and add the constraint.
+
+**Why it matters:** Harmless to read, but it double-counts. Anything that iterates members — seat counting, "notify the owner", digest recipients, a future per-member rate limit — does it twice for this person. The failure is quiet: it surfaces as somebody getting two of something.
+
+Worth deciding the key deliberately rather than just deleting a row. The two entries may be one human with two Clerk user_ids (a personal login and an org login), in which case the duplicate is a symptom of identity mirroring and deleting one row lets it come back on the next JIT mirror.
+
+**Where:** `org_members`. The JIT mirror in `src/lib/supabase/current-user.ts` writes these rows. Needs a migration for the constraint.
+
+**Why deferred:** Found while auditing the two malformed org rows on 2026-08-27 (both since fixed — one was a live send-authority bug). Not blocking Feature 1: nothing in the onboarding path fans out over members. Cleaning it properly means understanding the mirror, not just deleting a row.
+
+**Status:** Logged 2026-08-27 (Vidhi).
+
+---
+
 ## How to use this file
 
 - Add new items when we defer something. Always say *why deferred* — that's the most decay-resistant detail.
