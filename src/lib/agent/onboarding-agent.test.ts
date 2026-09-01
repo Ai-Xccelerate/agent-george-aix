@@ -66,8 +66,19 @@ function input(over: Partial<OnboardingAgentInput> = {}): OnboardingAgentInput {
 }
 
 describe("the tool grant is the safety property", () => {
-  it("holds send_email_draft", () => {
-    expect(buildOnboardingAgent(input()).tools).toContain("mcp__george__send_email_draft");
+  it("cannot send, because in F1 it is not the thing that sends", () => {
+    // Every F1 send goes through human approval: this agent drafts and raises a
+    // decision, and the approval action performs the send. Granting the tool
+    // and instructing it not to use it would put the restraint in a prompt
+    // rather than in what the agent can reach — the 2026-08-20 shape. Prompts
+    // are advisory; absent tools are not.
+    expect(buildOnboardingAgent(input()).tools).not.toContain("mcp__george__send_email_draft");
+  });
+
+  it("can draft and can escalate, which is the whole job", () => {
+    const tools = buildOnboardingAgent(input()).tools!;
+    expect(tools).toContain("mcp__george__draft_email");
+    expect(tools).toContain("mcp__george__raise_decision");
   });
 
   it("names its tools explicitly rather than inheriting the parent's", () => {

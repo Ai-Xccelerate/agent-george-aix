@@ -2,15 +2,16 @@
  * The onboarding sub-agent.
  *
  * WHY A SUB-AGENT AND NOT A PROMPT FLAG
- * `send_email_draft` is the one tool that can reach a customer. Until now it was
- * withheld by filtering the allowlist at the call site (run-autonomous.ts), which
- * works but scales badly: every new autonomous path has to remember to filter,
- * and forgetting is silent. An AgentDefinition carries its own tool grant, so
- * the capability belongs to this agent rather than to whoever remembered.
+ * Tool grants used to be withheld by filtering the allowlist at the call site
+ * (run-autonomous.ts), which works but scales badly: every new autonomous path
+ * has to remember to filter, and forgetting is silent. An AgentDefinition
+ * carries its own grant, so a capability belongs to an agent rather than to
+ * whoever remembered.
  *
- * The blast radius is the point. One agent can compose customer mail; every
+ * The blast radius is the point. This agent gets a small, named list; every
  * other autonomous path keeps tool-absence, which is a guarantee rather than an
- * instruction.
+ * instruction. That principle is also why the send tool is NOT in the list —
+ * see the note above ONBOARDING_AGENT_TOOLS.
  *
  * WHAT IT IS NOT ALLOWED TO DECIDE
  * It does not decide what happened — onboarding-state.ts does that in code and
@@ -52,9 +53,25 @@ export const ONBOARDING_AGENT_TOOLS = [
   "mcp__george__draft_email",
   "mcp__george__draft_email_reply",
   "mcp__george__raise_decision",
-  // The one grant no other autonomous path has.
-  "mcp__george__send_email_draft",
 ];
+
+/**
+ * DELIBERATELY ABSENT: mcp__george__send_email_draft.
+ *
+ * An earlier version of this list held it, on the reasoning that the capability
+ * should be scoped to one agent rather than to a code path. That reasoning is
+ * right about where the grant belongs and wrong about when to make it.
+ *
+ * In F1 every send goes through human approval: this agent drafts, raises a
+ * decision carrying the draft, and a person approves it — the send happens in
+ * the approval action, not in an agent turn. So granting the tool here would
+ * mean holding a capability the agent is instructed not to use, which is
+ * precisely the 2026-08-20 shape: a restraint that lives in a prompt rather
+ * than in what the agent can reach. Prompts are advisory. Absent tools are not.
+ *
+ * Add it here — and only here — when the approval gate relaxes and this agent
+ * is genuinely the thing doing the sending.
+ */
 
 /**
  * Which tone instruction wins, and why.
@@ -237,7 +254,8 @@ export function buildOnboardingAgent(input: OnboardingAgentInput): AgentDefiniti
   return {
     description:
       "Writes one onboarding email for one customer, from the tenant's onboarding process " +
-      "and the current state of the account. The only agent permitted to send customer email.",
+      "and the current state of the account. Drafts and escalates; it does not send — a " +
+      "human approves the draft and the approval performs the send.",
     prompt,
     tools: ONBOARDING_AGENT_TOOLS,
     // Reuses the parent's registered George server rather than standing up its
