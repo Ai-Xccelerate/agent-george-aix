@@ -30,6 +30,10 @@ export default async function CustomersPage() {
       "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, updated_at",
     )
     .eq("org_id", user.orgId)
+    // Archived customers are off the book. The row and everything under it is
+    // untouched — this is the one screen that answers "who are our customers",
+    // and it has to answer it with the live ones.
+    .is("archived_at", null)
     .order("updated_at", { ascending: false })
     .limit(300);
 

@@ -554,3 +554,88 @@ export async function getCustomerDocumentDownloadUrl(
   }
   return { ok: true, url: signed.data.signedUrl };
 }
+
+/**
+ * Take a customer off the book.
+ *
+ * ARCHIVE, NOT DELETE — AND WHY THE DIFFERENCE MATTERS HERE
+ * A customer row is the parent of contracts, plans, steps, health checks,
+ * objectives, touchpoints, escalations, email threads and transcripts. Deleting
+ * it would either cascade — destroying the record of work that genuinely
+ * happened, including email that genuinely went out — or fail on a foreign key
+ * and leave the user with an error and no way forward.
+ *
+ * "Remove this from my list" does not mean either of those. It means stop
+ * showing it to me, and that is a timestamp. It is also reversible, which is
+ * the right property for a control that sits on a list next to the real ones.
+ *
+ * WHAT ARCHIVING ACTUALLY STOPS
+ * The list, the agent's name lookup, the objectives scan and the silence sweep
+ * all filter on `archived_at IS NULL`, so George stops chasing, stops
+ * escalating, and stops resolving the name. Nothing already sent is retracted
+ * and nothing already recorded is lost.
+ */
+export async function archiveCustomerAction(
+  formData: FormData,
+): Promise<ActionResult<{ archived: boolean }>> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  const id = trimmedOrNull(formData.get("id"));
+  if (!id) return { ok: false, error: "Missing customer id." };
+
+  // Un-archiving is the same control, so the caller says which way it goes
+  // rather than the server toggling — a toggle that races with a stale page
+  // does the opposite of what the person clicked.
+  const archive = formData.get("archive") !== "false";
+
+  const admin = createSupabaseAdmin();
+
+  // An archived partner would hide its end customers from the list while
+  // leaving them live everywhere else — the account keeps being worked on and
+  // nobody can see it. Refuse, and say which ones are in the way.
+  if (archive) {
+    const children = await admin
+      .from("customers")
+      .select("id, name")
+      .eq("parent_customer_id", id)
+      .eq("org_id", user.orgId)
+      .is("archived_at", null)
+      .limit(5);
+    const blocking = (children.data ?? []) as Array<{ name: string }>;
+    if (blocking.length) {
+      const names = blocking.map((c) => c.name).join(", ");
+      return {
+        ok: false,
+        error:
+          `Archive this partner's end customers first: ${names}` +
+          (blocking.length === 5 ? ", and others." : "."),
+      };
+    }
+  }
+
+  const update = await admin
+    .from("customers")
+    .update({ archived_at: archive ? new Date().toISOString() : null })
+    .eq("id", id)
+    .eq("org_id", user.orgId)
+    .select("id")
+    .maybeSingle();
+  if (update.error || !update.data) {
+    return {
+      ok: false,
+      error: update.error?.message ?? "Could not archive customer.",
+    };
+  }
+
+  await admin.from("audit_log").insert({
+    org_id: user.orgId,
+    actor: user.id,
+    action: archive ? "customer.archived" : "customer.unarchived",
+    payload: { customer_id: id },
+  });
+
+  revalidatePath("/customers");
+  revalidatePath(`/customers/${id}`);
+  return { ok: true, archived: archive };
+}

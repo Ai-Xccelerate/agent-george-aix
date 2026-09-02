@@ -72,6 +72,10 @@ export async function runObjectivesScan(opts?: {
       "id, org_id, customer_id, title, description, responsible_side, responsible_contact_id, owner_side_user_id, cc_emails, due_date, followup_interval_hours, followup_count, max_followups, thread_conversation_id, customers!inner(id, name, owner_user_id)",
     )
     .eq("status", "awaiting")
+    // Archived customers do not get chased. The embed is `!inner`, so this
+    // drops the parent objective rather than just blanking the join — true of
+    // both PostgREST and the Postgres shim.
+    .is("customers.archived_at", null)
     .not("next_followup_at", "is", null)
     .lte("next_followup_at", new Date().toISOString())
     .order("next_followup_at", { ascending: true })

@@ -118,16 +118,20 @@ export function FloatingChatBubble() {
     }
   }, []);
 
-  // External deep-link: other surfaces (AI actions, inbox row) can ask the
-  // bubble to load a specific session by dispatching:
+  // External open: other surfaces (AI actions, inbox row, the command palette)
+  // can ask the bubble to open, either on a specific conversation:
   //   window.dispatchEvent(new CustomEvent("george:open-session", { detail: { sessionId } }))
+  // or on a fresh one, which is what the palette's "start a new chat" does now
+  // that there is no chat page to navigate to:
+  //   window.dispatchEvent(new CustomEvent("george:open-session"))
   useEffect(() => {
     if (typeof window === "undefined") return;
     function onOpenSession(e: Event) {
-      const ce = e as CustomEvent<{ sessionId?: string }>;
+      const ce = e as CustomEvent<{ sessionId?: string } | undefined>;
       const id = ce.detail?.sessionId;
-      if (!id) return;
-      setSessionId(id);
+      // No id is a deliberate "just open" — the panel creates its session
+      // lazily, so opening empty is the same thing as starting a new chat.
+      if (id) setSessionId(id);
       setOpen(true);
     }
     window.addEventListener("george:open-session", onOpenSession);

@@ -12,6 +12,18 @@ name: checks
 # column the query asked for. A mock more permissive than the database does not
 # test the query, it agrees with it. Checking the queries against the schema is
 # the only thing that finds this shape.
+#
+# THE RULE THIS FILE IS HELD TO
+# A verification that cannot report failure is not a verification.
+#
+# Three checks have failed that test. A mock more permissive than the database
+# agreed with the query instead of testing it. A schema snapshot nobody
+# refreshed could not disagree with the code. A typecheck step carried
+# `continue-on-error: true`, reporting a green tick while exiting 2.
+#
+# All three read as coverage on the dashboard and none could ever have said no.
+# So: no `continue-on-error` in this file, and any step that cannot reach a
+# real verdict fails rather than passes.
 
 on:
   pull_request:
@@ -37,6 +49,11 @@ jobs:
   schema-snapshot-fresh:
     name: schema snapshot matches the migrations
     runs-on: ubuntu-latest
+    # Only on pull requests. The check compares a PR against its base, so on a
+    # push there is nothing to compare and it used to exit 0 with "not a PR —
+    # skipping" — a green tick for a check that never ran. A skipped job reads
+    # as skipped; a passing job should mean it passed.
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +68,13 @@ jobs:
       - name: Require a snapshot update alongside a new migration
         run: |
           BASE="${{ github.event.pull_request.base.sha }}"
-          if [ -z "$BASE" ]; then echo "not a PR — skipping"; exit 0; fi
+          # The job is gated to pull_request events, so an empty base means the
+          # event payload or the checkout is wrong — not a reason to pass.
+          if [ -z "$BASE" ]; then
+            echo "No base SHA on a pull_request event — this check cannot reach"
+            echo "a real verdict, so it fails rather than passes."
+            exit 1
+          fi
           CHANGED=$(git diff --name-only "$BASE" HEAD)
           if echo "$CHANGED" | grep -q '^db/alembic/versions/'; then
             if ! echo "$CHANGED" | grep -q '^db/schema-columns.json$'; then
@@ -84,9 +107,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec vitest run
+      # Blocking. It was briefly non-blocking to carry 23 pre-existing errors in
+      # permissions.test.ts; those are fixed, and a step that reports a green
+      # tick while exiting 2 is worse than no step at all — the job goes green,
+      # nobody opens the log, and the next real type error rides in behind it.
       - run: pnpm exec tsc --noEmit
-        # 23 pre-existing errors in permissions.test.ts predate this workflow.
-        # Left non-blocking rather than silently excluded, so the count is
-        # visible and someone has to decide about it.
-        continue-on-error: true
       - run: pnpm build

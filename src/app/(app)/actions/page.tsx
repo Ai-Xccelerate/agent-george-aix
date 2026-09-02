@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bell, Mail, Inbox, Sparkles } from "lucide-react";
+import { Bell, Mail, Inbox, Sparkles, Wrench } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { resolveEscalationAction, discardEscalationAction } from "../dashboard/actions";
@@ -23,6 +23,18 @@ export const dynamic = "force-dynamic";
 type Item = {
   key: string;
   kind: "decision" | "draft";
+  /**
+   * For a decision, which kind of thing it is.
+   *
+   * "account" is a judgement about a customer — who owns the relationship
+   * decides it. "system" is something broken with a fix rather than a choice:
+   * a disconnected mailbox, a failing sync, an integration returning 401.
+   *
+   * They were one list, and mixing them made it worse in both directions —
+   * 34 copies of "the mailbox is returning 401" buried the account decisions,
+   * and the account decisions delayed somebody noticing the mailbox.
+   */
+  decisionKind?: "account" | "system";
   title: string;
   sub: string | null;
   customerId: string | null;
@@ -59,7 +71,7 @@ export default async function ActionsPage({
     admin
       .from("escalations")
       .select(
-        "id, title, detail, recommendation, suggested_actions, urgency, customer_id, session_id, created_at, draft_id, customers(name)",
+        "id, title, detail, recommendation, suggested_actions, urgency, kind, customer_id, session_id, created_at, draft_id, customers(name)",
       )
       .eq("org_id", user.orgId)
       .eq("status", "open")
@@ -150,6 +162,10 @@ export default async function ActionsPage({
     detail: e.detail,
     recommendation: e.recommendation,
     urgency: e.urgency,
+    // Rows written before migration 0007 have no kind. They were all raised by
+    // George about a customer, which is what "account" means — so the fallback
+    // is the truth about them, not a guess.
+    decisionKind: e.kind ?? "account",
     escalationId: e.id,
     suggestedActions: Array.isArray(e.suggested_actions) ? e.suggested_actions : [],
     draftId: e.draft_id ?? null,
@@ -196,6 +212,8 @@ export default async function ActionsPage({
     }));
 
   const items = [...decisions, ...drafts];
+  const accountDecisions = decisions.filter((d) => d.decisionKind !== "system");
+  const systemFaults = decisions.filter((d) => d.decisionKind === "system");
   const selected = items.find((i) => i.key === selectedKey) ?? items[0] ?? null;
 
   // Resolving/discarding is a decision the approver makes — the org owner today,
@@ -232,11 +250,25 @@ export default async function ActionsPage({
         <div className="grid grid-cols-1 items-start gap-4 xl:flex">
           {/* Column 1 — the queue */}
           <div className="space-y-4 xl:w-[300px] xl:shrink-0 xl:sticky xl:top-5">
-            <ListGroup label="Decisions" count={decisions.length} icon={<Bell size={13} />}>
-              {decisions.map((d) => (
+            <ListGroup label="Decisions" count={accountDecisions.length} icon={<Bell size={13} />}>
+              {accountDecisions.map((d) => (
                 <ListRow key={d.key} item={d} active={selected?.key === d.key} />
               ))}
             </ListGroup>
+            {/* Only rendered when there is something wrong. An empty
+                "Needs fixing" group every day teaches people to ignore it,
+                and then it is furniture by the time it matters. */}
+            {systemFaults.length > 0 ? (
+              <ListGroup
+                label="Needs fixing"
+                count={systemFaults.length}
+                icon={<Wrench size={13} />}
+              >
+                {systemFaults.map((d) => (
+                  <ListRow key={d.key} item={d} active={selected?.key === d.key} />
+                ))}
+              </ListGroup>
+            ) : null}
             <ListGroup label="Drafts to review" count={drafts.length} icon={<Mail size={13} />}>
               {drafts.map((d) => (
                 <ListRow key={d.key} item={d} active={selected?.key === d.key} />
@@ -562,6 +594,8 @@ type RawEsc = {
   recommendation: string | null;
   suggested_actions: SuggestedAction[] | null;
   urgency: string;
+  /** account | system (migration 0007). Null on rows written before it. */
+  kind: "account" | "system" | null;
   customer_id: string | null;
   session_id: string | null;
   created_at: string;

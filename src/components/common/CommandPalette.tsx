@@ -81,7 +81,6 @@ export default function CommandPalette() {
     return [
       ...nav(<GridIcon />, "Workspace", [
         { label: "Go to Dashboard", path: "/dashboard", keywords: "home overview health" },
-        { label: "Go to Chat", path: "/chat", keywords: "george ask messages conversation" },
         { label: "Go to AI Actions", path: "/actions", keywords: "drafts approvals queue" },
         { label: "Go to Customers", path: "/customers", keywords: "accounts partners" },
       ]),
@@ -107,8 +106,12 @@ export default function CommandPalette() {
         group: "Actions",
         keywords: "ask question new conversation",
         icon: <BoltIcon />,
+        // Opens the bubble rather than navigating. There is no chat page to
+        // navigate to any more, and the bubble creates the session lazily on
+        // open — so this is the same "start talking to George" the label
+        // promises, without a redirect in the middle of it.
         run: () => {
-          router.push("/chat");
+          window.dispatchEvent(new CustomEvent("george:open-session"));
           setOpen(false);
         },
       },

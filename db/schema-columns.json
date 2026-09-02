@@ -1,5 +1,5 @@
 {
- "_alembic_revision": "0005",
+ "_alembic_revision": "0007",
  "_generated_from": "staging information_schema, 2026-09-02",
  "tables": {
   "agent_events": [
@@ -222,7 +222,8 @@
    "created_at",
    "updated_at",
    "customer_kind",
-   "parent_customer_id"
+   "parent_customer_id",
+   "archived_at"
   ],
   "documents": [
    "id",
@@ -315,7 +316,9 @@
    "created_at",
    "updated_at",
    "suggested_actions",
-   "draft_id"
+   "draft_id",
+   "kind",
+   "dedupe_key"
   ],
   "integrations": [
    "id",
@@ -563,5 +566,6 @@
    "created_at",
    "updated_at"
   ]
- }
+ },
+ "_ahead_of_staging": "0006 and 0007 are in this PR and NOT yet applied to staging. Their columns are hand-added below so the query audit checks the code against the schema this PR targets. Regenerate from information_schema once the migrations are applied, and drop this key."
 }

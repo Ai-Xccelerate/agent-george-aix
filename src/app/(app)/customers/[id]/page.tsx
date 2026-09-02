@@ -5,6 +5,7 @@ import { resolvePolicies } from "@/lib/agent/operating-model";
 import { OnboardButton } from "./_onboard-button";
 import { notFound, redirect } from "next/navigation";
 import {
+  Archive,
   ArrowLeft,
   Bell,
   Building2,
@@ -42,6 +43,7 @@ import {
   DocumentList,
   type DocumentListItem,
   EditContactButton,
+  ArchiveCustomerButton,
   EditCustomerButton,
   UploadDocumentButton,
 } from "./_forms";
@@ -68,6 +70,8 @@ type Customer = {
   owner_user_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Set means off the book. The detail page still loads it, so it can be restored. */
+  archived_at: string | null;
 };
 
 type RelatedCustomer = {
@@ -185,12 +189,30 @@ export default async function CustomerPage(
   // customer fetch is org-scoped so an out-of-org id 404s instead of leaking.
   const supabase = createSupabaseAdmin();
 
-  const [{ data: customer }, contactsRes, contractsRes, planRes, healthRes] =
-    await Promise.all([
+  // Everything that depends only on (orgId, id) goes in this batch, including
+  // the agent settings and the onboarding preconditions.
+  //
+  // Those two were sequential `await`s at the bottom of the page, which is what
+  // made this render slow: preconditions is itself three round-trips deep, so
+  // the page finished its own work and then waited on a fresh chain before it
+  // could render anything. Neither reads a value from this batch — they only
+  // need the org and the customer id, and both are known before it starts.
+  //
+  // Round-trip depth before: 9. After: 6. On a hosted database that is the
+  // number that decides how the page feels; the query count barely moved.
+  const [
+    { data: customer },
+    contactsRes,
+    contractsRes,
+    planRes,
+    healthRes,
+    agentSettings,
+    onboarding,
+  ] = await Promise.all([
       supabase
         .from("customers")
         .select(
-          "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, size, notes, owner_user_id, created_at, updated_at",
+          "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, size, notes, owner_user_id, created_at, updated_at, archived_at",
         )
         .eq("id", id)
         .eq("org_id", user.orgId)
@@ -222,6 +244,8 @@ export default async function CustomerPage(
         .eq("customer_id", id)
         .order("measured_at", { ascending: false })
         .limit(10),
+      getAgentSettings(supabase, user.orgId),
+      checkOnboardingPreconditions(supabase, user.orgId, id),
     ]);
 
   if (!customer) notFound();
@@ -303,7 +327,6 @@ export default async function CustomerPage(
   // it is meaningless — and a card reading "No end customers yet for this
   // partner" invites a question with no useful answer. Off unless the tenant
   // says they have a partner motion; some genuinely do.
-  const agentSettings = await getAgentSettings(supabase, user.orgId);
   const partnerMotion =
     resolvePolicies(agentSettings.operating_policy).partner_motion === true;
   const cadence = cadenceRes.data ?? null;
@@ -365,7 +388,6 @@ export default async function CustomerPage(
   }));
 
   const contacts = (contactsRes.data ?? []) as Contact[];
-  const onboarding = await checkOnboardingPreconditions(supabase, user.orgId, id);
   // `?? contacts[0]` used to end this line. Harmless for showing a name and
   // exactly the wrong instinct next to a feature that picks who receives mail,
   // so it is gone: no primary contact now reads as no primary contact.
@@ -605,6 +627,18 @@ function StatStripHeader({
 }) {
   return (
     <div className="rounded-3xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
+      {/* An archived account looks exactly like a live one from here, and the
+          difference is that George has stopped working it. Say so, or somebody
+          waits on follow-ups that are never coming. */}
+      {customer.archived_at ? (
+        <div className="flex items-center gap-2 rounded-t-3xl border-b border-warning-500/30 bg-warning-50 dark:bg-warning-500/10 px-6 py-3 text-theme-sm text-warning-600 dark:text-warning-400">
+          <Archive size={14} />
+          <span>
+            Archived on {new Date(customer.archived_at).toLocaleDateString()}. George is not
+            working this account — no follow-ups, no health checks, no decisions.
+          </span>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-4 p-6 pb-5">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/15 text-brand-500 dark:text-brand-400">
@@ -647,6 +681,11 @@ function StatStripHeader({
               size: customer.size,
               notes: customer.notes,
             }}
+          />
+          <ArchiveCustomerButton
+            customerId={customer.id}
+            customerName={customer.name}
+            archived={Boolean(customer.archived_at)}
           />
         </div>
       </div>
@@ -1114,25 +1153,49 @@ function ContactCard({ contact }: { contact: Contact }) {
             <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
               {contact.full_name}
             </span>
+            {/* shrink-0: without it a long name compresses the star to nothing,
+                and "who is the primary contact" silently stops being answerable.
+                "Gustavo Ernesto Gilio Alatorre" is 30 characters and real. */}
             {contact.is_primary && (
-              <Star size={11} className="text-brand-500 dark:text-brand-400" aria-label="primary" />
+              <Star
+                size={11}
+                className="shrink-0 text-brand-500 dark:text-brand-400"
+                aria-label="primary"
+              />
             )}
           </div>
-          <div className="text-theme-xs text-gray-400 dark:text-gray-500">{contact.title ?? "—"}</div>
+          <div className="truncate text-theme-xs text-gray-400 dark:text-gray-500">
+            {contact.title ?? "—"}
+          </div>
           <div className="mt-1 space-y-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+            {/*
+              `flex` with the text in its own `truncate` span, not `inline-flex
+              truncate` on the link.
+
+              `text-overflow: ellipsis` needs a block box with a constrained
+              width. On an inline-flex element it does nothing at all — the
+              address simply runs past the edge of the card. It looked like a
+              truncation rule was in place, which is why this survived a layout
+              pass: the class was there and had never once applied.
+
+              `mondellopromotional.com` addresses are 36-39 characters against a
+              text column around 200px wide, so this is the common case here,
+              not an edge case.
+            */}
             {contact.email && (
               <a
                 href={`mailto:${contact.email}`}
-                className="inline-flex items-center gap-1 truncate hover:text-brand-500 dark:hover:text-brand-400"
+                title={contact.email}
+                className="flex min-w-0 items-center gap-1 hover:text-brand-500 dark:hover:text-brand-400"
               >
-                <Mail size={10} />
-                {contact.email}
+                <Mail size={10} className="shrink-0" />
+                <span className="truncate">{contact.email}</span>
               </a>
             )}
             {contact.phone && (
-              <div className="inline-flex items-center gap-1">
-                <Phone size={10} />
-                {contact.phone}
+              <div className="flex min-w-0 items-center gap-1">
+                <Phone size={10} className="shrink-0" />
+                <span className="truncate">{contact.phone}</span>
               </div>
             )}
           </div>

@@ -23,6 +23,15 @@ let updates: Array<{ table: string; payload: Row }> = [];
 let inserts: Array<{ table: string; payload: Row }> = [];
 let silenceDays = 5;
 let escalateAfter = 2;
+/**
+ * Which columns each query filtered on, per table.
+ *
+ * The doubles below answer every `.eq()` the same way, which means a test that
+ * only checks the RESULT passes whether the dedupe matched on `dedupe_key`, on
+ * `title`, or on nothing at all. Recording the filters is what lets a test
+ * disagree with the query instead of agreeing with it.
+ */
+let filters: Array<{ table: string; col: string; value: unknown }> = [];
 
 function db() {
   const admin = {
@@ -34,7 +43,10 @@ function db() {
           }
           return chain;
         },
-        eq: () => chain,
+        eq: (col: string, value: unknown) => {
+          filters.push({ table, col, value });
+          return chain;
+        },
         is: () => chain,
         not: () => chain,
         ilike: () => chain,
@@ -110,6 +122,7 @@ beforeEach(() => {
   silentCount = 0;
   silenceDays = 5;
   escalateAfter = 2;
+  filters = [];
 });
 
 const health = () => inserts.filter((i) => i.table === "customer_health");
@@ -220,6 +233,36 @@ describe("escalation is once, past the tenant's threshold", () => {
     const r = await sweepSilence(db());
 
     expect(r.escalated).toBe(0);
+  });
+
+  it("finds the existing decision by dedupe key, not by matching the title", async () => {
+    // The title is copy. The previous version matched `ilike '%has gone
+    // quiet%'`, which stops working the moment somebody rewrites the sentence —
+    // and then the queue fills up with what looks like a new problem.
+    //
+    // This asserts the FILTER, not the result: the double answers every query
+    // the same way, so a test on the outcome alone would pass either way.
+    touchpoints = [sent()];
+    silentCount = 2;
+    await sweepSilence(db());
+
+    const escFilters = filters.filter((f) => f.table === "escalations");
+    expect(escFilters.map((f) => f.col)).toContain("dedupe_key");
+    expect(escFilters.map((f) => f.col)).not.toContain("title");
+    expect(escFilters.find((f) => f.col === "dedupe_key")?.value).toBe(
+      "onboarding_silence:plan-1",
+    );
+  });
+
+  it("stamps the decision as an account judgement, keyed to the plan", async () => {
+    touchpoints = [sent()];
+    silentCount = 2;
+    await sweepSilence(db());
+
+    // "Chase, change who we write to, or stop" is a judgement about a
+    // relationship — not a fault with a fix, which is what kind 'system' means.
+    expect(escalations()[0].payload.kind).toBe("account");
+    expect(escalations()[0].payload.dedupe_key).toBe("onboarding_silence:plan-1");
   });
 
   it("says why it is worth looking at now rather than at renewal", async () => {

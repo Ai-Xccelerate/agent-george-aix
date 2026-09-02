@@ -6,7 +6,6 @@ import { useSidebar } from "@/context/SidebarContext";
 import {
   BoltIcon,
   CalenderIcon,
-  ChatIcon,
   ChevronDownIcon,
   DocsIcon,
   GridIcon,
@@ -36,9 +35,13 @@ type NavItem = {
  * UI element galleries) is deliberately not carried over — only the surfaces
  * George actually serves.
  */
+// No Chat entry. The standalone chat page was retired when George moved into
+// the floating bubble that is on every screen — /chat now forwards to AI
+// actions. A nav item pointing at a redirect is worse than no nav item: it
+// promises a destination, and lands the user somewhere they did not ask for.
+// (Deep links to a specific conversation still work at /chat/[id].)
 const navItems: NavItem[] = [
   { icon: <GridIcon />, name: "Dashboard", path: "/dashboard" },
-  { icon: <ChatIcon />, name: "Chat", path: "/chat" },
   { icon: <BoltIcon />, name: "AI Actions", path: "/actions" },
   { icon: <GroupIcon />, name: "Customers", path: "/customers" },
 ];
