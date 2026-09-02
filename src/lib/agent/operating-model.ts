@@ -140,6 +140,24 @@ export type Policy = TogglePolicy | SelectPolicy | NumberPolicy | TextPolicy;
 export const POLICY_CATALOG: Policy[] = [
   // ── Tier 2 toggles ──
   {
+    id: "partner_motion",
+    group: "house_rules",
+    kind: "toggle",
+    label: "This organisation sells through partners",
+    description:
+      "On when your customers resell to their own end customers. Off for direct sales. " +
+      "Controls whether accounts show an End customers section, and tells George whether " +
+      "a customer-facing artifact should carry the partner's brand or yours.",
+    default: false,
+    promptOn:
+      "This organisation sells through partners: a customer may resell to their own end " +
+      "customers. Customer-facing artifacts carry the partner's brand and voice by default, " +
+      "not this organisation's.",
+    promptOff:
+      "This organisation sells direct. There is no reseller layer beneath a customer, so do " +
+      "not refer to a customer's \"end customers\" or write as though one exists.",
+  },
+  {
     id: "email_disclaimer_footer",
     group: "behavior",
     kind: "toggle",
