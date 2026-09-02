@@ -71,9 +71,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # No `version:` here on purpose. package.json already pins
+      # packageManager: pnpm@10.28.0, and action-setup treats two sources as
+      # an error rather than picking one — "Multiple versions of pnpm
+      # specified". packageManager is the better source: it is what every
+      # developer already resolves through corepack, so CI and local cannot
+      # drift apart.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 24
