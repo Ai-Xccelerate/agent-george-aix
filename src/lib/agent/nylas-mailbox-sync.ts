@@ -30,6 +30,7 @@ import {
   type NylasMessage,
 } from "@/lib/nylas/client";
 import { isSenderAllowed } from "./sender-allowlist";
+import { resolveInboundOrg } from "./inbound-org";
 
 type Admin = SupabaseClient;
 
@@ -348,7 +349,7 @@ async function enqueueFreshInbound(admin: Admin, orgId: string): Promise<number>
   const cutoff = new Date(Date.now() - ENQUEUE_WINDOW_MS).toISOString();
   const { data: candidates } = await admin
     .from("email_messages")
-    .select("external_id, from_address, received_at")
+    .select("external_id, from_address, received_at, conversation_id")
     .eq("org_id", orgId)
     .eq("direction", "inbound")
     .gte("received_at", cutoff)
@@ -358,6 +359,7 @@ async function enqueueFreshInbound(admin: Admin, orgId: string): Promise<number>
   const allCandidates = (candidates ?? []) as Array<{
     external_id: string;
     from_address: string | null;
+    conversation_id: string | null;
   }>;
 
   // George does not wake himself.
@@ -409,13 +411,39 @@ async function enqueueFreshInbound(admin: Admin, orgId: string): Promise<number>
   let enqueued = 0;
   for (const m of rows) {
     if (seen.has(m.external_id)) continue;
-    const decision = await isSenderAllowed(orgId, m.from_address);
+
+    // Which tenant this message BELONGS to, which is not the same question as
+    // whose mailbox it was mirrored from.
+    //
+    // The event used to be stamped with the sweep's org — the single org the
+    // shared credential resolves to. That makes the answer depend on which org
+    // happens to have the integration row connected, so a reply to a touchpoint
+    // in another tenant lands in the wrong one and matches nothing. The webhook
+    // was fixed to resolve from the message; the sync is the same path by
+    // another route and needs the same answer.
+    const attribution = await resolveInboundOrg(admin, {
+      threadId: m.conversation_id,
+      fromAddress: m.from_address,
+    });
+    const targetOrg = attribution.orgId;
+    if (!targetOrg) {
+      console.warn("[nylas sync] cannot attribute mirrored message to an org", {
+        id: m.external_id,
+        from: m.from_address,
+        detail: attribution.detail,
+      });
+      continue;
+    }
+
+    // The allowlist is asked about the org that will own the work, not about
+    // whoever's mailbox mirrored it.
+    const decision = await isSenderAllowed(targetOrg, m.from_address);
     if (!decision.allowed) continue;
 
     const ins = await admin
       .from("agent_events")
       .insert({
-        org_id: orgId,
+        org_id: targetOrg,
         source: "mailbox_sync",
         source_event_id: m.external_id,
         event_type: "NYLAS_NEW_MESSAGE",
