@@ -673,7 +673,8 @@ export function UploadDocumentButton({ customerId }: { customerId: string }) {
         type="button"
         onClick={onClick}
         disabled={pending}
-        className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white shadow-theme-xs transition-colors duration-150 ease-out hover:bg-brand-600 active:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:bg-brand-300 disabled:shadow-none dark:focus-visible:ring-offset-gray-900 disabled:opacity-60"
+        // Secondary: a section-level utility, not the page's main action.
+        className="h-9 px-3 inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-white/[0.03] text-theme-sm font-medium text-gray-700 dark:text-gray-200 transition hover:border-brand-500/40 hover:text-brand-500 dark:hover:text-brand-400 disabled:opacity-60"
       >
         {pending ? (
           <Loader2 size={14} className="animate-spin" />

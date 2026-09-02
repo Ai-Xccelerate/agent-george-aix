@@ -56,7 +56,7 @@ export function OnboardButton({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
+    <div className="rounded-2xl border border-brand-500/30 bg-brand-50/40 dark:border-brand-500/25 dark:bg-brand-500/[0.07] p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
@@ -67,11 +67,25 @@ export function OnboardButton({
             Nothing is sent — it goes to AI actions for review.
           </p>
         </div>
+        {/*
+          Bigger and louder than the section buttons around it, because it is
+          the page's primary action and they are not.
+
+          The disabled state is outlined with readable text rather than grey on
+          grey. The first version used disabled:bg-white/[0.06] on a dark
+          surface, which rendered it near-invisible — the button was on screen
+          and still could not be found. A disabled control has to stay legible:
+          it is carrying the reason it is disabled.
+        */}
         <button
           type="button"
           onClick={start}
           disabled={blocked || state === "starting" || state === "started"}
-          className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-brand-500 px-3.5 py-2 text-theme-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-white/[0.06] dark:disabled:text-gray-500"
+          className={`shrink-0 inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-theme-sm font-semibold transition ${
+            blocked || state === "starting" || state === "started"
+              ? "cursor-not-allowed border border-gray-300 bg-white text-gray-500 dark:border-gray-600 dark:bg-white/[0.04] dark:text-gray-300"
+              : "bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 active:bg-brand-700"
+          }`}
         >
           <Send size={14} />
           {state === "starting"

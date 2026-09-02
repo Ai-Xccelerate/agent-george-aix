@@ -48,7 +48,10 @@ export function AccountConversations({
         type="button"
         onClick={ask}
         disabled={starting}
-        className="flex w-full items-center justify-center gap-2 rounded-md brand-gradient px-3 py-2.5 text-theme-sm font-semibold text-white shadow-sm hover:opacity-95 disabled:opacity-70"
+        // Secondary. This was a filled brand gradient, which made asking a question
+        // louder than the page's primary action (Onboard). Outlined keeps it
+        // obviously clickable without competing.
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-white/[0.03] px-3 py-2.5 text-theme-sm font-medium text-gray-700 dark:text-gray-200 transition hover:border-brand-500/40 hover:text-brand-500 dark:hover:text-brand-400 disabled:opacity-60"
       >
         {starting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
         Ask George about {customerName}

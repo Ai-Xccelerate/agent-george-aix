@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { checkOnboardingPreconditions } from "@/lib/agent/onboarding-preconditions";
+import { getAgentSettings } from "@/lib/agent/agent-settings";
+import { resolvePolicies } from "@/lib/agent/operating-model";
 import { OnboardButton } from "./_onboard-button";
 import { notFound, redirect } from "next/navigation";
 import {
@@ -296,6 +298,14 @@ export default async function CustomerPage(
 
   const parent = parentRes.data ?? null;
   const endCustomers = (endCustomersRes.data ?? []) as RelatedCustomer[];
+  // "End customers" is the reseller model: the buyer sells on to their own
+  // customers. AIX sells direct, so the section is not merely empty for them,
+  // it is meaningless — and a card reading "No end customers yet for this
+  // partner" invites a question with no useful answer. Off unless the tenant
+  // says they have a partner motion; some genuinely do.
+  const agentSettings = await getAgentSettings(supabase, user.orgId);
+  const partnerMotion =
+    resolvePolicies(agentSettings.operating_policy).partner_motion === true;
   const cadence = cadenceRes.data ?? null;
   const objectives = (objectivesRes.data ?? []) as Objective[];
   const owner = ownerRes.data ?? null;
@@ -419,10 +429,18 @@ export default async function CustomerPage(
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,400px)]">
-        {/* ── Left: the account. Masonry on wide screens so a 4K display
-              isn't a tall single column of scrolling; collapses to one
-              column on laptops and stacks on mobile. ─────────────────── */}
-        <div className="gap-6 [column-fill:balance] columns-1 xl:columns-2 [&>*]:mb-6 [&>*]:break-inside-avoid">
+        {/* ── Left: the account.
+
+              This was CSS multi-column masonry (`columns-2`), which balances
+              height beautifully and has no way to express a minimum width. In
+              a 1fr grid cell beside a 400px rail it produced ~200px columns,
+              and cards wrapped to one or two words per line.
+
+              auto-fit + minmax gives the thing masonry cannot: a floor. Cards
+              are never narrower than 320px, and the track count drops to one
+              when the cell cannot hold two. Rows are no longer height-balanced
+              — a fair trade for text that can be read. ─────────────────── */}
+        <div className="grid items-start gap-6 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
           {openDecisions.length > 0 && (
             <Section
               title="Needs you"
@@ -532,6 +550,7 @@ export default async function CustomerPage(
             customer={customer}
             parent={parent}
             endCustomers={endCustomers}
+            partnerMotion={partnerMotion}
           />
 
           {customer.notes && (
@@ -817,10 +836,12 @@ function HierarchySection({
   customer,
   parent,
   endCustomers,
+  partnerMotion,
 }: {
   customer: Customer;
   parent: RelatedCustomer | null;
   endCustomers: RelatedCustomer[];
+  partnerMotion: boolean;
 }) {
   if (customer.customer_kind === "end_customer") {
     return (
@@ -855,6 +876,11 @@ function HierarchySection({
       </Section>
     );
   }
+
+  // Nothing to say to a direct-sales tenant. Returning null rather than an
+  // empty card: an empty card still asks the reader to work out whether it
+  // matters to them.
+  if (!partnerMotion && endCustomers.length === 0) return null;
 
   return (
     <Section
@@ -1133,10 +1159,13 @@ function EmptyRow({
   cta?: { label: string; href: string };
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-4 py-5 text-theme-sm text-gray-400 dark:text-gray-500">
-      <span>{text}</span>
+    // Stacked, not justify-between. Side by side, the CTA was shrink-0 and the
+    // text had no floor, so in a narrow card the sentence collapsed to one or
+    // two words per line while the link kept its full width.
+    <div className="flex flex-col items-start gap-2 rounded-md border border-dashed border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-4 py-5 text-theme-sm text-gray-400 dark:text-gray-500">
+      <span className="text-pretty">{text}</span>
       {cta && (
-        <Link href={cta.href} className="shrink-0 text-brand-500 dark:text-brand-400 hover:underline">
+        <Link href={cta.href} className="font-medium text-brand-500 dark:text-brand-400 hover:underline">
           {cta.label} →
         </Link>
       )}
