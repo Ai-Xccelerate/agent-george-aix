@@ -31,7 +31,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createNylasClient,
   nylasConfig,
-  recipientEmails,
   type NylasAddress,
   type NylasClient,
   type NylasMessage,
@@ -39,7 +38,7 @@ import {
 } from "@/lib/nylas/client";
 import { wrapGeorgeEmailHtml, injectReplyHtml } from "@/lib/agent/email-branding";
 import { isInternalTo, resolveOrgIdentity } from "@/lib/agent/identity";
-import { checkSendRate, sendRateMessage } from "@/lib/agent/outbound-limits";
+import { sendDraftGuarded } from "@/lib/agent/send-guarded";
 
 type Ctx = {
   orgId: string;
@@ -84,21 +83,6 @@ async function audit(
     session_id: ctx.sessionId ?? null,
     payload,
   });
-}
-
-/**
- * The org's approved external domains. Fails CLOSED — a query error yields an
- * empty set, not "allow everything" — because send_email_draft treats this as an
- * allowlist, not a denylist.
- */
-async function approvedDomains(ctx: Ctx): Promise<Set<string>> {
-  const { data, error } = await ctx.db
-    .from("domain_allowlist")
-    .select("domain")
-    .eq("org_id", ctx.orgId)
-    .eq("status", "approved");
-  if (error || !data) return new Set();
-  return new Set(data.map((r: { domain: string }) => r.domain.toLowerCase()));
 }
 
 /** Compact shape for the model — full Nylas payloads are far too verbose. */
@@ -298,62 +282,25 @@ export function buildNylasEmailTools(ctx: Ctx) {
       // below answers WHO George may write to and held perfectly on 2026-08-20;
       // it had no opinion on HOW MUCH, which is the axis that incident ran
       // along. See lib/agent/outbound-limits.ts.
-      const mode = ctx.emailSendPolicy === "internal_only" ? "autonomous" : "chat";
-      const rate = await checkSendRate(ctx.db, ctx.orgId, mode);
-      if (!rate.allowed) {
-        await audit(ctx, "email.send_blocked", {
-          draft_id,
-          reason: "rate_limited",
-          sent_last_hour: rate.sent,
-          cap: rate.cap,
-          mode: rate.mode,
-        });
-        return fail(sendRateMessage(rate));
-      }
-
-      const draft = await nylas.getDraft(draft_id);
-      if (!draft.ok) return fail(draft.error);
-
-      // Includes bcc, unlike the old Graph path.
-      const addresses = recipientEmails(draft.data);
-
-      // Fail CLOSED: if recipients can't be read we cannot prove they are all
-      // internal/approved, so refuse rather than risk it.
-      if (addresses.length === 0) {
-        await audit(ctx, "email.send_blocked", { draft_id, reason: "recipients_unparsed" });
-        return fail(
-          "Refused to send: couldn't confirm this draft's recipients are all internal or approved. " +
-            "The draft is saved — a human can send it from the mailbox Drafts folder.",
-        );
-      }
-
-      const identity = await resolveOrgIdentity(ctx.db, ctx.orgId);
-      const external = addresses.filter((a) => !isInternalTo(identity, a));
-      if (external.length > 0) {
-        const allowed = await approvedDomains(ctx);
-        const notAllowed = external.filter(
-          (a) => !allowed.has((a.split("@")[1] ?? "").toLowerCase()),
-        );
-        if (notAllowed.length > 0) {
-          await audit(ctx, "email.send_blocked", { draft_id, external, not_allowed: notAllowed });
-          return fail(
-            `Refused to send: this draft has recipient(s) on a domain that isn't approved [${notAllowed.join(", ")}]. ` +
-              "You can only send to internal or org-approved domains directly. The draft is saved — " +
-              "tell the user to review it and send it from the mailbox Drafts folder, or call request_domain_approval " +
-              "if that domain should be allowed going forward.",
-          );
-        }
-      }
-
-      const res = await nylas.sendDraft(draft_id);
-      if (!res.ok) return fail(res.error);
-
-      await audit(ctx, "email.sent", {
-        draft_id,
-        message_id: res.data.id ?? null,
-        external_approved: external,
+      //
+      // Both guards live in sendDraftGuarded, shared with the approval path in
+      // the AI-actions queue. They used to be inline here, which was fine while
+      // this was the only way to send; it stopped being fine the moment a second
+      // path existed, because two copies drift and the drifted one is the one
+      // nobody is watching.
+      //
+      // The mode mapping is unchanged: an autonomous run is on the 3/hr ceiling,
+      // chat is on 15/hr because a human is driving each one.
+      const result = await sendDraftGuarded({
+        db: ctx.db,
+        orgId: ctx.orgId,
+        draftId: draft_id,
+        mode: ctx.emailSendPolicy === "internal_only" ? "autonomous" : "chat",
+        actor: "george",
+        sessionId: ctx.sessionId,
       });
-      return ok({ sent: true, draft_id, message_id: res.data.id ?? null });
+      if (!result.ok) return fail(result.reason);
+      return ok({ sent: true, draft_id, message_id: result.messageId });
     },
   );
 
