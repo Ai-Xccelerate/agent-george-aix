@@ -76,10 +76,22 @@ export async function isSenderAllowed(
   const m = fromAddress.match(/<([^>]+)>/);
   const clean = (m ? m[1] : fromAddress).trim().toLowerCase();
 
+  // Scoped through the customer, because `contacts` has no org_id.
+  //
+  // This filtered on contacts.org_id, which does not exist. Postgres rejects
+  // the query, the error is swallowed into a null, and the branch answers "not
+  // a known contact" — every time, for everyone. So the known-contact route has
+  // never once matched, and the only senders who could ever wake George were
+  // people on the org's own domain.
+  //
+  // That is the wrong half. Colleagues emailing George is the incidental case;
+  // a CUSTOMER replying is the entire point of the feature, and it was the one
+  // thing this could not admit. It failed silently and looked exactly like an
+  // unknown sender being correctly turned away.
   const contact = await admin
     .from("contacts")
-    .select("id")
-    .eq("org_id", orgId)
+    .select("id, customers!inner(org_id)")
+    .eq("customers.org_id", orgId)
     .eq("email", clean)
     .maybeSingle();
   if (contact.data) {

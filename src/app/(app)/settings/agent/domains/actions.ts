@@ -117,3 +117,46 @@ export async function revokeDomainAction(formData: FormData) {
 
   revalidatePath("/settings/agent/domains");
 }
+
+/**
+ * Put a revoked domain back on the allowlist.
+ *
+ * WHY THIS HAS TO EXIST
+ * Revoking wrote `rejected`, and `decideDomainAction` only moves rows out of
+ * `pending` — so there was no transition back. Revoke was a one-way door, and
+ * the page did not even list rejected rows, so the domain vanished.
+ *
+ * That is worse than a missing feature. A guard people cannot reverse is a
+ * guard people stop using: faced with "revoke and possibly never get it back",
+ * the rational move is to leave the domain approved. The control that is
+ * hardest to undo is the one that quietly stops being touched, and an allowlist
+ * nobody prunes is an allowlist that only grows.
+ *
+ * Re-approving is deliberately the same privilege as approving — approver only,
+ * audited the same way, and the note records that it came back rather than
+ * pretending it was never gone.
+ */
+export async function reapproveDomainAction(formData: FormData) {
+  const auth = await requireApprover();
+  if ("error" in auth) return;
+  const { user } = auth;
+  const id = String(formData.get("domain_id") ?? "");
+  if (!id) return;
+
+  const admin = createSupabaseAdmin();
+  await admin
+    .from("domain_allowlist")
+    .update({
+      status: "approved",
+      decided_by: user.id,
+      decided_at: new Date().toISOString(),
+      decision_note: "Re-approved after revocation.",
+    })
+    .eq("id", id)
+    .eq("org_id", user.orgId)
+    // Only from rejected. A pending row still goes through the normal decision,
+    // so this cannot be used to skip that.
+    .eq("status", "rejected");
+
+  revalidatePath("/settings/agent/domains");
+}

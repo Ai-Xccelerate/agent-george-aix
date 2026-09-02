@@ -355,10 +355,32 @@ async function enqueueFreshInbound(admin: Admin, orgId: string): Promise<number>
     .order("received_at", { ascending: false })
     .limit(ENQUEUE_MAX_PER_RUN);
 
-  const rows = (candidates ?? []) as Array<{
+  const allCandidates = (candidates ?? []) as Array<{
     external_id: string;
     from_address: string | null;
   }>;
+
+  // George does not wake himself.
+  //
+  // His own address is internal, so the allowlist admits it, and anything
+  // he sends to the mailbox he reads comes back as inbound. That is a loop
+  // with no natural end: a run that mails the mailbox schedules the next
+  // run. It has not fired only because inbound has been off.
+  //
+  // It nearly fired here: three test sends from the outbound-guard proof sat
+  // in the inbox waiting for the sync to be restored. Releasing a backlog
+  // the moment a block lifts is exactly the 2026-08-20 sequence.
+  const self = (process.env.GEORGE_EMAIL || process.env.NYLAS_FROM_EMAIL || "")
+    .trim()
+    .toLowerCase();
+  const rows = allCandidates.filter((r) => {
+    const from = (r.from_address ?? "").trim().toLowerCase();
+    if (self && from === self) {
+      console.log("[nylas sync] skipping self-sent message", { id: r.external_id });
+      return false;
+    }
+    return true;
+  });
   if (rows.length === 0) return 0;
 
   // The webhook keys its event on the Nylas delivery id, not the message id, so
