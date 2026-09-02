@@ -242,6 +242,30 @@ export async function updateCustomerAction(
 }
 
 // ---------------------------------------------------------------------------
+/**
+ * Contact roles George will accept, matching the `contact_role` enum.
+ *
+ * Validated rather than passed through: an unrecognised value would fail at
+ * the database with a type error the form has no way to explain, and an empty
+ * string must become NULL (no role) rather than an invalid enum member.
+ */
+const CONTACT_ROLES = new Set([
+  "champion",
+  "economic_buyer",
+  "executive_sponsor",
+  "project_manager",
+  "technical_lead",
+  "billing",
+  "end_user",
+  "other",
+]);
+
+function contactRole(v: FormDataEntryValue | null): string | null {
+  const s = typeof v === "string" ? v.trim() : "";
+  return CONTACT_ROLES.has(s) ? s : null;
+}
+
+// ---------------------------------------------------------------------------
 // addContactAction — new contact under a customer.
 // ---------------------------------------------------------------------------
 export async function addContactAction(
@@ -261,6 +285,7 @@ export async function addContactAction(
   const phone = trimmedOrNull(formData.get("phone"));
   const timezone = trimmedOrNull(formData.get("timezone"));
   const isPrimary = formData.get("is_primary") === "on";
+  const role = contactRole(formData.get("role"));
 
   const admin = createSupabaseAdmin();
 
@@ -288,6 +313,7 @@ export async function addContactAction(
     .insert({
       customer_id: customerId,
       full_name: fullName,
+      role,
       email,
       title,
       phone,
@@ -335,6 +361,7 @@ export async function updateContactAction(
   const phone = trimmedOrNull(formData.get("phone"));
   const timezone = trimmedOrNull(formData.get("timezone"));
   const isPrimary = formData.get("is_primary") === "on";
+  const role = contactRole(formData.get("role"));
 
   const admin = createSupabaseAdmin();
 
@@ -370,6 +397,7 @@ export async function updateContactAction(
     .from("contacts")
     .update({
       full_name: fullName,
+      role,
       email,
       title,
       phone,

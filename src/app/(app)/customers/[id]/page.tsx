@@ -1071,6 +1071,7 @@ function ContactCard({ contact }: { contact: Contact }) {
             id: contact.id,
             full_name: contact.full_name,
             title: contact.title,
+            role: contact.role,
             email: contact.email,
             phone: contact.phone,
             timezone: contact.timezone,
