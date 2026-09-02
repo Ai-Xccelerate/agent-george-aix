@@ -648,6 +648,37 @@ Worth deciding the key deliberately rather than just deleting a row. The two ent
 
 ---
 
+---
+
+### 70. The AIX template port was a recolour, not a rebuild
+**What:** Commit `e32006b` ("UI: rebuild George's front end on the AIX UI template") added the template's components wholesale and then, for most existing screens, swapped colour tokens line-for-line and left the layout alone. Those pages look like the template and are not built on it. Audit them and rebuild the layouts that need it — starting with the ones a customer or an exec actually sees.
+
+**How to tell which:** the port's own diff. A file with **equal insertions and deletions** was a 1:1 line swap — `var(--color-*)` to scale classes, `text-[13px]` to `text-theme-sm` — with no structural change:
+
+```
+git show --numstat e32006b -- 'src/app/**' | awk '$1==$2 {print}'
+```
+
+**55 files** come back equal. Eight were genuinely reworked (`_shell.tsx`, `dashboard/page.tsx` at 234/39, `_partners-view.tsx`, `_activity-stats.tsx`, `mailbox/[id]`, `settings/knowledge`, both `transcripts` pages); everything else is inherited layout under new colours.
+
+**Why it matters:** the layouts predate the design system, so they were never held to its constraints. `/customers/[id]` (82/82, the largest recolour) shipped a left region built with CSS multi-column masonry — which balances height beautifully and **cannot express a minimum width**. Beside a 400px rail it produced ~200px tracks, and cards wrapped to one or two words per line. Nobody saw it until an account page was opened with real content in it, because the fault only appears at certain widths with certain amounts of text.
+
+That is the shape of the whole category: not broken, just never designed against the grid it now wears, and failing at sizes nobody happened to open.
+
+**Where to look first.** Signals across the recoloured set today:
+
+- `justify-between` next to `shrink-0` — **17 files**. This is the exact bug in `EmptyRow`: an unshrinkable action beside text with no floor, so the text collapses and the button keeps its width.
+- Hardcoded pixel widths in layout (`w-[NNNpx]`, `min-w-[NNNpx]`) — **31 occurrences**. Fine in a fixed rail, wrong inside a flexible track.
+- Grid tracks of `minmax(0,1fr)` with no floor — now **1** (the remaining one is deliberate).
+
+The masonry idiom (`columns-*`, `break-inside-avoid`) is gone: `/customers/[id]` was the only user and it was fixed on 2026-09-02.
+
+**Why deferred:** found while fixing `/customers/[id]` for the Feature 1 demo. Fixing 55 screens speculatively is worse than fixing the ones that are actually wrong — most will be fine, since most are simple stacks. This is an audit with a cheap detector, not a rewrite.
+
+**Status:** Logged 2026-09-02 (Vidhi). Do it per-screen as each is next touched, or in one pass before anything customer-facing ships.
+
+---
+
 ## How to use this file
 
 - Add new items when we defer something. Always say *why deferred* — that's the most decay-resistant detail.
