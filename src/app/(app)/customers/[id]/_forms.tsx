@@ -281,6 +281,25 @@ export function AddContactButton({
               />
             </DialogField>
           </div>
+          {/*
+            Role, not title. `title` is free text ("VP Ops", "Head of IT") and
+            George will not choose a recipient by reading it — inferring a role
+            from prose is what assembled a recipient list from a transcript on
+            2026-08-20. A contact with no role is never written to unprompted.
+          */}
+          <DialogField label="Role on this account">
+            <select name="role" defaultValue="" className={dialogInputClass}>
+              <option value="">Not set — George will not write to them</option>
+              <option value="champion">Champion</option>
+              <option value="project_manager">Project manager</option>
+              <option value="technical_lead">Technical lead</option>
+              <option value="executive_sponsor">Executive sponsor</option>
+              <option value="economic_buyer">Economic buyer</option>
+              <option value="end_user">End user</option>
+              <option value="billing">Billing</option>
+              <option value="other">Other</option>
+            </select>
+          </DialogField>
           <DialogField label="Email">
             <input
               name="email"
@@ -331,6 +350,7 @@ type ContactEditValues = {
   id: string;
   full_name: string;
   title: string | null;
+  role: string | null;
   email: string | null;
   phone: string | null;
   timezone: string | null;
@@ -425,6 +445,24 @@ export function EditContactButton({ contact }: { contact: ContactEditValues }) {
               />
             </DialogField>
           </div>
+          {/* See the note on the add-contact form: role, not title. */}
+          <DialogField label="Role on this account">
+            <select
+              name="role"
+              defaultValue={contact.role ?? ""}
+              className={dialogInputClass}
+            >
+              <option value="">Not set — George will not write to them</option>
+              <option value="champion">Champion</option>
+              <option value="project_manager">Project manager</option>
+              <option value="technical_lead">Technical lead</option>
+              <option value="executive_sponsor">Executive sponsor</option>
+              <option value="economic_buyer">Economic buyer</option>
+              <option value="end_user">End user</option>
+              <option value="billing">Billing</option>
+              <option value="other">Other</option>
+            </select>
+          </DialogField>
           <DialogField label="Email">
             <input
               name="email"
