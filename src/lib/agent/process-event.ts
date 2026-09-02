@@ -19,6 +19,12 @@
  *   6. Update agent_events: status, session_id, error, processed_at.
  */
 import { randomUUID } from "node:crypto";
+import {
+  buildReplyFramingPrompt,
+  markReplied,
+  matchTouchpointForReply,
+} from "./onboarding-reply";
+import { resolveTenantProcess, type TenantProcess } from "./tenant-process";
 import { runGeorgeAutonomous } from "./run-autonomous";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -244,17 +250,63 @@ export async function processAgentEvent(
   // Resolved for the receiving org: this is what decides whether George may
   // reply without asking, so it must not be a deployment-wide answer.
   const identity = await resolveOrgIdentity(admin, event.org_id);
-  const framing = buildOutlookFramingPrompt(email, manager, identity);
-  const sessionTitle = `Email: ${email.subject ?? "(no subject)"}`.slice(0, 120);
+  // Is this a reply to an onboarding email George sent?
+  //
+  // Matched on thread, never on subject or sender: a subject survives being
+  // edited and forwarded, and "from this address" matches every message that
+  // contact will ever send. Most inbound mail is NOT a touchpoint reply, and
+  // treating it as one would attribute unrelated news to a plan step.
+  const touchpoint = await matchTouchpointForReply(
+    admin,
+    event.org_id,
+    email.conversation_id ?? null,
+  );
+
+  let onboardingProcess: TenantProcess | null = null;
+  if (touchpoint) {
+    // Recorded before George reads anything. The fact of a reply is not a
+    // judgement and must not wait on one: if the run fails or times out, the
+    // account still has to show this person came back, or the silence sweep
+    // chases somebody who already answered.
+    await markReplied(admin, touchpoint.id, new Date().toISOString());
+    onboardingProcess = await resolveTenantProcess(admin, event.org_id).catch(
+      () => null,
+    );
+  }
+
+  const customerNameForReply = touchpoint
+    ? ((
+        await admin
+          .from("customers")
+          .select("name")
+          .eq("id", touchpoint.customerId)
+          .maybeSingle()
+      ).data?.name as string | undefined) ?? "the customer"
+    : "the customer";
+
+  const framing =
+    touchpoint && onboardingProcess
+      ? buildReplyFramingPrompt({
+          process: onboardingProcess,
+          touchpointKey: touchpoint.touchpointKey,
+          customerName: customerNameForReply,
+          customerId: touchpoint.customerId,
+          from: email.from?.address ?? "(unknown)",
+          subject: email.subject ?? null,
+          body: renderInboundForChat(email),
+        })
+      : buildOutlookFramingPrompt(email, manager, identity);
+  const sessionTitle = touchpoint
+    ? `Reply: ${customerNameForReply} — ${touchpoint.touchpointKey}`.slice(0, 120)
+    : `Email: ${email.subject ?? "(no subject)"}`.slice(0, 120);
   const seedContent = renderInboundForChat(email);
 
   // Resolve sender → customer so the inbox/actions list can label the row.
   // Match contacts.email first (most specific), then customers.domain on the
   // sender's domain. No match → null and we keep going.
-  const customerId = await resolveSenderToCustomer(
-    event.org_id,
-    email.from?.address ?? null,
-  );
+  const customerId =
+    touchpoint?.customerId ??
+    (await resolveSenderToCustomer(event.org_id, email.from?.address ?? null));
 
   // 3) Create the agent_sessions row up front so a session_id exists even
   //    if the agent run errors. The chat history rail will then show the

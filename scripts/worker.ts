@@ -89,7 +89,9 @@ async function tick(): Promise<void> {
       res.objectives_scan.customers_processed > 0 ||
       res.reclaimed.jobs > 0 ||
       res.reclaimed.events > 0 ||
-      res.reclaimed.abandoned > 0;
+      res.reclaimed.abandoned > 0 ||
+      res.silence.marked > 0 ||
+      res.silence.escalated > 0;
 
     if (didSomething || process.env.SCHEDULER_VERBOSE?.toLowerCase() === "true") {
       console.log("[worker] tick done", {
@@ -98,6 +100,7 @@ async function tick(): Promise<void> {
         swept: res.event_sweep.length,
         objectives: res.objectives_scan.customers_processed,
         reclaimed: res.reclaimed,
+        silence: res.silence,
         ms: res.elapsed_ms,
       });
     }
