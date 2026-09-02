@@ -56,6 +56,34 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
     .maybeSingle();
   const draftsFolderId = (draftsFolder?.external_id as string | undefined) ?? null;
 
+  // Provenance for anything George sent in this thread: which decision
+  // authorised it, and which session composed it. Without this, answering
+  // "why did George send this" means reading audit_log by hand — and the
+  // question is only ever asked when somebody is already worried.
+  const { data: originRows } = await supabase
+    .from("onboarding_touchpoint")
+    .select("sent_message_id, escalation_id, session_id, touchpoint_key, customer_id")
+    .eq("org_id", user.orgId)
+    .not("sent_message_id", "is", null);
+  const originByMessage = new Map<
+    string,
+    { escalationId: string | null; sessionId: string | null; touchpointKey: string }
+  >();
+  for (const r of (originRows ?? []) as Array<{
+    sent_message_id: string | null;
+    escalation_id: string | null;
+    session_id: string | null;
+    touchpoint_key: string;
+  }>) {
+    if (r.sent_message_id) {
+      originByMessage.set(r.sent_message_id, {
+        escalationId: r.escalation_id,
+        sessionId: r.session_id,
+        touchpointKey: r.touchpoint_key,
+      });
+    }
+  }
+
   // Newest message on top, thread below. Sort by the effective timestamp
   // (received_at for inbound, sent_at for George's outbound) so sent replies
   // interleave correctly instead of sinking on a null received_at.
@@ -111,6 +139,7 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
             key={m.external_id}
             m={m}
             isDraft={draftsFolderId != null && m.folder_external_id === draftsFolderId}
+            origin={originByMessage.get(m.external_id) ?? null}
           />
         ))}
       </div>
@@ -118,7 +147,19 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
   );
 }
 
-function MessageCard({ m, isDraft }: { m: Message; isDraft: boolean }) {
+function MessageCard({
+  m,
+  isDraft,
+  origin,
+}: {
+  m: Message;
+  isDraft: boolean;
+  origin: {
+    escalationId: string | null;
+    sessionId: string | null;
+    touchpointKey: string;
+  } | null;
+}) {
   const when = m.received_at ?? m.sent_at;
   const sender = m.from_name ?? m.from_address ?? "(unknown)";
   const html = m.body_html;
@@ -146,6 +187,37 @@ function MessageCard({ m, isDraft }: { m: Message; isDraft: boolean }) {
           {when ? new Date(when).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : ""}
         </span>
       </header>
+      {/*
+        Why this went out, as two links rather than an investigation. A sent
+        email is the most consequential thing George produces, and "who
+        approved it" should not require reading an audit table.
+      */}
+      {origin && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-200 dark:border-gray-800 bg-brand-50/40 dark:bg-brand-500/[0.07] px-5 py-2.5 text-theme-xs text-gray-500 dark:text-gray-400">
+          <span>
+            Onboarding ·{" "}
+            <span className="text-gray-700 dark:text-gray-200">
+              {origin.touchpointKey.replace(/_/g, " ")}
+            </span>
+          </span>
+          {origin.escalationId && (
+            <Link
+              href={`/actions?item=decision:${origin.escalationId}`}
+              className="font-medium text-brand-500 dark:text-brand-400 hover:underline"
+            >
+              the decision that approved it
+            </Link>
+          )}
+          {origin.sessionId && (
+            <Link
+              href={`/chat/${origin.sessionId}`}
+              className="font-medium text-brand-500 dark:text-brand-400 hover:underline"
+            >
+              the session that composed it
+            </Link>
+          )}
+        </div>
+      )}
       {isDraft && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.03] px-5 py-2.5">
           <p className="text-theme-xs text-gray-500 dark:text-gray-400">

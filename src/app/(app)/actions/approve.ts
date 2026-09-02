@@ -102,6 +102,9 @@ export async function approveAndSendAction(
       status: "sent",
       sent_at: new Date().toISOString(),
       sent_message_id: result.messageId,
+      // Stored so an inbound reply can be matched to this touchpoint. An
+      // email names its thread, never the plan step it answers.
+      thread_id: result.threadId,
       updated_at: new Date().toISOString(),
     })
     .eq("org_id", user.orgId)

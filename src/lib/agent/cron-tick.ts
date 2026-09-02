@@ -23,6 +23,7 @@ import { isNylasEnabled } from "@/lib/nylas/client";
 import { usingNylas } from "./mail-selection";
 import { resolveGeorgeOrgId } from "./tenancy";
 import { reclaimStalled, type ReclaimResult } from "./reclaim";
+import { sweepSilence, type SilenceResult } from "./silence-sweep";
 import {
   activeConnectedAccountId,
   isTriggerActiveFor,
@@ -67,6 +68,8 @@ export type CronTickResult = {
   started_at: string;
   /** Work released from a dead process this tick. Surfaced, never silent. */
   reclaimed: ReclaimResult;
+  /** Onboarding emails nobody answered. */
+  silence: SilenceResult;
   elapsed_ms: number;
   ran: number;
   deferred: number;
@@ -113,6 +116,11 @@ export async function runCronTick(): Promise<CronTickResult> {
   // below check. Stamping startedAt afterwards would hide it and let a slow
   // reclaim push the tick past its budget unnoticed.
   const reclaimed = await reclaimStalled(admin);
+
+  // Silence is the one signal nothing else generates: every other check in
+  // this tick reacts to something that happened. Cheap — one indexed query
+  // returning nothing on most ticks — and it never throws.
+  const silence = await sweepSilence(admin);
 
   const results: CronTickResult["results"] = [];
   let deferred = 0;
@@ -273,6 +281,7 @@ export async function runCronTick(): Promise<CronTickResult> {
 
   return {
     reclaimed,
+    silence,
     started_at: new Date(startedAt).toISOString(),
     elapsed_ms: Date.now() - startedAt,
     ran: results.length,

@@ -63,7 +63,20 @@ export type GuardedSendInput = {
 };
 
 export type GuardedSendResult =
-  | { ok: true; messageId: string | null; recipients: string[] }
+  | {
+      ok: true;
+      messageId: string | null;
+      /**
+       * The conversation the sent message belongs to.
+       *
+       * Captured here because it is the only moment it is available, and it
+       * is what a reply is matched against later — an inbound message names
+       * its thread, not the touchpoint it answers. Without it, "did they
+       * reply" is guesswork over subject lines.
+       */
+      threadId: string | null;
+      recipients: string[];
+    }
   | { ok: false; reason: string; code: "not_configured" | "rate_limited" | "recipients_unparsed" | "domain_not_approved" | "provider_error" };
 
 async function audit(
@@ -167,13 +180,21 @@ export async function sendDraftGuarded(input: GuardedSendInput): Promise<Guarded
     return { ok: false, code: "provider_error", reason: res.error };
   }
 
+  const threadId = (res.data as NylasMessage).thread_id ?? null;
+
   await audit(input, "email.sent", {
     draft_id: input.draftId,
     message_id: res.data.id ?? null,
+    thread_id: threadId,
     to: addresses,
     external_approved: external,
     mode: input.mode,
   });
 
-  return { ok: true, messageId: res.data.id ?? null, recipients: addresses };
+  return {
+    ok: true,
+    messageId: res.data.id ?? null,
+    threadId,
+    recipients: addresses,
+  };
 }
