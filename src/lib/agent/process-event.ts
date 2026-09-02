@@ -363,7 +363,23 @@ export async function processAgentEvent(
     // George may send to recipients internal to THIS org — reply to an
     // internal thread, escalate to his manager — but the send tool refuses
     // any draft with an external recipient.
-    emailSendPolicy: "internal_only",
+    //
+    // EXCEPT on an onboarding reply, where the tool is removed entirely.
+    //
+    // "No auto-reply in F1" was, until now, a sentence in a prompt. That is the
+    // weakest possible form of it, and the exact shape this codebase rejects
+    // everywhere else: on 2026-08-20 every send was authorised and the restraint
+    // that failed was an instruction, not an absent capability.
+    //
+    // It also stopped being theoretical the moment gmail.com went on the domain
+    // allowlist for the reply test. Under "internal_only" the send tool is
+    // present and the allowlist now says that customer's domain is fine — so a
+    // model that read past one line of prompt could answer a customer directly,
+    // on the first inbound message the feature has ever handled.
+    //
+    // A person reads the reply first. That is the whole of F1's claim, and it
+    // should be true because George cannot send, not because he was asked not to.
+    emailSendPolicy: touchpoint ? "none" : "internal_only",
   });
 
   // Persist George's summary as an assistant message so the reviewer can
