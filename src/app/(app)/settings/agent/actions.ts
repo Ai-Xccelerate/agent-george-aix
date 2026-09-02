@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { AGENT_SLUG, TIMEZONE_OPTIONS } from "@/lib/agent/agent-settings";
 import { type ActionResult, requireAdmin } from "@/lib/actions";
+import { clearTenantProcessCache } from "@/lib/agent/tenant-process";
 
 const TIMEZONE_VALUES = TIMEZONE_OPTIONS.map((o) => o.value) as [string, ...string[]];
 
@@ -185,4 +186,76 @@ export async function removeAgentAvatarAction(formData: FormData) {
   }
 
   revalidatePath("/settings/agent");
+}
+
+/**
+ * Save the onboarding cadence — when George reaches out, and what counts as
+ * silence.
+ *
+ * Writes back into `tenant_process` rather than a settings table, because the
+ * process record is what George composes from; a cadence held anywhere else
+ * would be a second source of truth that the agent never reads.
+ *
+ * Only timings are touched. `purpose` and `ask` are read from the existing row
+ * and written back unchanged: this form edits WHEN George writes, and the words
+ * he writes from are a different decision on a different screen.
+ */
+export async function updateTouchpointCadenceAction(
+  _state: { ok: boolean; message: string } | null,
+  formData: FormData,
+): Promise<{ ok: boolean; message: string }> {
+  const gate = await requireAdmin();
+  if ("error" in gate) return { ok: false, message: gate.error };
+  const orgId = gate.user.orgId;
+
+  const admin = createSupabaseAdmin();
+  const { data: row, error } = await admin
+    .from("tenant_process")
+    .select("id, touchpoints, escalation")
+    .eq("org_id", orgId)
+    .eq("type", "onboarding")
+    .maybeSingle();
+  if (error || !row) {
+    return { ok: false, message: "No onboarding process to edit." };
+  }
+
+  const existing = Array.isArray(row.touchpoints)
+    ? (row.touchpoints as Array<Record<string, unknown>>)
+    : [];
+
+  const num = (name: string, fallback: number, min: number, max: number) => {
+    const raw = formData.get(name);
+    const n = typeof raw === "string" ? Number.parseInt(raw, 10) : NaN;
+    return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
+  };
+
+  const touchpoints = existing.map((t) => {
+    const key = String(t.key ?? "");
+    return {
+      ...t,
+      day_offset: num(`day:${key}`, Number(t.day_offset ?? 0), 0, 365),
+    };
+  });
+
+  // Sorted on write so every reader — prompt, scheduler, this form — sees the
+  // same order without each of them remembering to sort.
+  touchpoints.sort((a, b) => Number(a.day_offset) - Number(b.day_offset));
+
+  const escalation = {
+    ...(typeof row.escalation === "object" && row.escalation ? row.escalation : {}),
+    silence_days: num("silence_days", 5, 1, 90),
+    silence_escalate_after: num("silence_escalate_after", 2, 1, 10),
+  };
+
+  const upd = await admin
+    .from("tenant_process")
+    .update({ touchpoints, escalation, updated_at: new Date().toISOString() })
+    .eq("id", row.id);
+  if (upd.error) return { ok: false, message: upd.error.message };
+
+  // The resolver caches for 60s; without this the person who just saved would
+  // watch George keep using the old cadence and reasonably conclude it failed.
+  clearTenantProcessCache(orgId);
+  revalidatePath("/settings/agent");
+  return { ok: true, message: "Cadence saved." };
 }

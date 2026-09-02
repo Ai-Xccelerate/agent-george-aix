@@ -24,9 +24,11 @@ import {
 } from "@/lib/agent/tenant-process";
 import { DEFAULT_TIMEZONE } from "@/lib/agent/agent-settings";
 import { AgentForm, AvatarUploadForm, type OwnerOption } from "./_agent-form";
+import { TouchpointForm } from "./_touchpoint-form";
 import {
   removeAgentAvatarAction,
   updateAgentSettingsAction,
+  updateTouchpointCadenceAction,
   uploadAgentAvatarAction,
 } from "./actions";
 
@@ -232,6 +234,24 @@ export default async function AgentSettingsPage() {
               </div>
             </div>
           </dl>
+        )}
+
+        {!processMissing && (
+          <div className="mt-5 border-t border-gray-200 dark:border-gray-800 pt-5">
+            <h3 className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
+              Cadence
+            </h3>
+            <p className="mt-1 mb-3 text-theme-xs text-gray-400 dark:text-gray-500">
+              When George reaches out, counted in days from the start of onboarding, and
+              how long silence runs before it becomes a signal.
+            </p>
+            <TouchpointForm
+              action={updateTouchpointCadenceAction}
+              touchpoints={process.touchpoints}
+              silenceDays={process.escalation.silence_days}
+              silenceEscalateAfter={process.escalation.silence_escalate_after}
+            />
+          </div>
         )}
       </section>
 
