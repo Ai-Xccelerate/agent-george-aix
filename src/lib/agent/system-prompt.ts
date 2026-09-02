@@ -203,10 +203,6 @@ function buildSignatureBlock(
     .filter(Boolean)
     .join(" · ");
 
-  // Name the team only when we know what to call it.
-  const whoReplies = company
-    ? `someone from the ${company} team`
-    : "a person here";
 
   const html = [
     "<p>Thanks,<br>",
@@ -219,7 +215,16 @@ function buildSignatureBlock(
     // above is to drop this paragraph entirely. So "drafted" implied a person had
     // reviewed and sent it, which is precisely the impression the 16 recaps of
     // 2026-08-20 left with fourteen colleagues. Say what happened instead.
-    `Written and sent by an AI teammate, not a person. Reply and ${whoReplies} will pick it up.`,
+    // The previous line said "someone from the {company} team will pick it up",
+    // which described the opposite of how this works and contradicted the
+    // signature immediately above it: the signature gives George's own
+    // address, and George reads what comes back. Telling a customer their
+    // reply goes to a team is both untrue and a reason not to reply properly.
+    //
+    // The second clause is what keeps it honest: replies reach George, and a
+    // person still decides anything that needs deciding.
+    "Written and sent by an AI teammate, not a person. Reply to this email and it " +
+      `comes back to ${agent.name} — a person here picks up anything that needs a decision.`,
     "</p>",
   ]
     .filter(Boolean)
