@@ -1,0 +1,88 @@
+name: checks
+
+# The query audit is the reason this file exists.
+#
+# Three separate bugs shipped from one class: a PostgREST filter on a column
+# that does not exist. Postgres rejects the query, the SDK turns the error into
+# a null, and the branch takes its "not found" path forever without erroring —
+# so the sender allowlist never admitted a customer, inbound mail was never
+# attributed to a contact, and no meeting attendee was ever matched.
+#
+# The test suite could not catch any of them: the doubles accepted whatever
+# column the query asked for. A mock more permissive than the database does not
+# test the query, it agrees with it. Checking the queries against the schema is
+# the only thing that finds this shape.
+
+on:
+  pull_request:
+  push:
+    branches: [development, main]
+
+jobs:
+  query-columns:
+    name: queries match the schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Runs against db/schema-columns.json, not a live database: Railway's
+      # Postgres is not reachable from CI. That makes the snapshot a dependency
+      # with a staleness risk, which the next job is about.
+      - name: Audit PostgREST column references
+        run: python scripts/audit-query-columns.py
+
+  schema-snapshot-fresh:
+    name: schema snapshot matches the migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A snapshot nobody refreshes silently stops checking anything: new
+      # columns read as missing, and worse, a dropped column still reads as
+      # present. So a PR that adds a migration must also touch the snapshot.
+      #
+      # Deliberately dumb — it compares which files changed, not their contents.
+      # A real schema diff needs a database, which is what CI does not have.
+      - name: Require a snapshot update alongside a new migration
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE" ]; then echo "not a PR — skipping"; exit 0; fi
+          CHANGED=$(git diff --name-only "$BASE" HEAD)
+          if echo "$CHANGED" | grep -q '^db/alembic/versions/'; then
+            if ! echo "$CHANGED" | grep -q '^db/schema-columns.json$'; then
+              echo "This PR adds or edits a migration but does not update"
+              echo "db/schema-columns.json."
+              echo
+              echo "Regenerate it against the migrated database, or the column"
+              echo "audit will be checking yesterday's schema and will miss"
+              echo "exactly the bug it exists to catch."
+              exit 1
+            fi
+          fi
+          echo "OK"
+
+  unit:
+    name: tests, types, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run
+      - run: pnpm exec tsc --noEmit
+        # 23 pre-existing errors in permissions.test.ts predate this workflow.
+        # Left non-blocking rather than silently excluded, so the count is
+        # visible and someone has to decide about it.
+        continue-on-error: true
+      - run: pnpm build

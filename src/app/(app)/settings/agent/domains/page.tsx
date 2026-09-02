@@ -33,6 +33,7 @@ export default async function DomainAllowlistPage() {
   const pending = (pendingRes.data ?? []) as DomainRequest[];
   const decided = (decidedRes.data ?? []) as DomainRequest[];
   const approved = decided.filter((d) => d.status === "approved");
+  const revoked = decided.filter((d) => d.status === "rejected");
 
   return (
     <div className="space-y-6">
@@ -80,23 +81,25 @@ export default async function DomainAllowlistPage() {
         )}
       </section>
 
-      {decided.some((d) => d.status === "rejected") && (
-        <section className="space-y-2">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">Rejected</h2>
-          <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] divide-y divide-gray-100 dark:divide-gray-800">
-            {decided
-              .filter((d) => d.status === "rejected")
-              .map((d) => (
-                <div key={d.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                  <span className="min-w-0 truncate font-mono text-theme-sm text-gray-800 dark:text-white/90">
-                    {d.domain}
-                  </span>
-                  <span className="shrink-0 rounded-full bg-gray-50 dark:bg-white/[0.03] px-2 py-0.5 text-theme-xs font-medium text-gray-400 dark:text-gray-500">
-                    rejected
-                  </span>
-                </div>
-              ))}
-          </div>
+      {/*
+        Revoked domains were listed here as a grey pill and nothing else —
+        visible but inert. Combined with revoke writing `rejected` and no
+        transition back, undoing a revocation was impossible from the UI.
+
+        That makes the guard expensive to use: if revoking might be permanent,
+        the safe-feeling choice is to leave a domain approved, and an allowlist
+        nobody prunes only grows. Re-approval is the same privilege as approval
+        and audited the same way.
+      */}
+      {revoked.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">Revoked</h2>
+          <p className="text-theme-xs text-gray-400 dark:text-gray-500">
+            George cannot email these. Re-approve to put one back.
+          </p>
+          {revoked.map((d) => (
+            <DomainRow key={d.id} d={d} mode="reapprove" />
+          ))}
         </section>
       )}
     </div>

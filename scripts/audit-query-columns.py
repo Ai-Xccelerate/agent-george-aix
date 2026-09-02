@@ -26,7 +26,13 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCHEMA = json.load(io.open(sys.argv[1], encoding="utf-8"))
+DEFAULT_SCHEMA = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "db", "schema-columns.json",
+)
+_raw = json.load(io.open(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SCHEMA, encoding="utf-8"))
+# The committed snapshot nests under "tables"; a raw dump does not.
+SCHEMA = _raw.get("tables", _raw)
 
 # Chained calls whose first string argument is a column name.
 COL_CALLS = re.compile(
@@ -84,6 +90,13 @@ for dirpath, _dirs, files in os.walk(os.path.join(ROOT, "src")):
                 # A dotted name targets an embedded resource, not this table.
                 if "." in col:
                     continue
+                # `payload->x->>y` is a JSON path filter on a real jsonb column,
+                # not a column name. Check the root, ignore the path.
+                if "->" in col:
+                    root = col.split("->")[0].strip()
+                    if root in cols:
+                        continue
+                    col = root
                 checked += 1
                 if col not in cols:
                     findings.append((path.replace(ROOT + os.sep, ""), line_no, table, col, how))
@@ -91,9 +104,23 @@ for dirpath, _dirs, files in os.walk(os.path.join(ROOT, "src")):
 print(f"column references checked: {checked}")
 print(f"references to columns that do not exist: {len(findings)}\n")
 seen = set()
+FILTERS = {"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "not"}
+fatal = 0
 for path, line, table, col, how in findings:
     key = (path, table, col)
     if key in seen:
         continue
     seen.add(key)
-    print(f"  {path}:{line}  {table}.{col}   (via .{how})")
+    bad = how in FILTERS
+    if bad:
+        fatal += 1
+    print(f"  {'FILTER' if bad else 'select'}  {path}:{line}  {table}.{col}   (via .{how})")
+
+print()
+if fatal:
+    print(f"FAIL: {fatal} filter(s) on columns that do not exist.")
+    print("A filter on a missing column is rejected by Postgres, becomes a null in")
+    print("the SDK, and makes the branch take its 'not found' path forever without")
+    print("erroring. Three separate bugs of this shape shipped before it was caught.")
+    sys.exit(1)
+print("OK: no filters on missing columns. (select-only hits are PostgREST embeds.)")

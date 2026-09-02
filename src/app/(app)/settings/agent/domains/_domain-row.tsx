@@ -2,7 +2,12 @@
 
 import { useActionState } from "react";
 import { Check, X, Ban } from "lucide-react";
-import { decideDomainAction, revokeDomainAction, type ActionResult } from "./actions";
+import {
+  decideDomainAction,
+  reapproveDomainAction,
+  revokeDomainAction,
+  type ActionResult,
+} from "./actions";
 
 export type DomainRequest = {
   id: string;
@@ -14,7 +19,13 @@ export type DomainRequest = {
   created_at: string;
 };
 
-export function DomainRow({ d, mode }: { d: DomainRequest; mode: "decide" | "revoke" }) {
+export function DomainRow({
+  d,
+  mode,
+}: {
+  d: DomainRequest;
+  mode: "decide" | "revoke" | "reapprove";
+}) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(
     decideDomainAction,
     {},
@@ -92,6 +103,26 @@ export function DomainRow({ d, mode }: { d: DomainRequest; mode: "decide" | "rev
           >
             <Ban size={14} /> Revoke access
           </button>
+        </div>
+      )}
+
+      {/*
+        Revoking used to be a one-way door: the row went to `rejected` and
+        nothing moved it back, so the domain also disappeared from the page.
+        A guard nobody can reverse is a guard nobody uses.
+      */}
+      {mode === "reapprove" && (
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="submit"
+            formAction={reapproveDomainAction}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 text-sm font-medium text-gray-800 dark:text-white/90 hover:border-success-500 hover:text-success-600"
+          >
+            <Check size={14} /> Re-approve
+          </button>
+          <span className="text-theme-xs text-gray-400 dark:text-gray-500">
+            George cannot email this domain while it is revoked.
+          </span>
         </div>
       )}
     </form>
