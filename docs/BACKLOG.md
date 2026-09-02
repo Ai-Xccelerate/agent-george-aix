@@ -679,6 +679,25 @@ The masonry idiom (`columns-*`, `break-inside-avoid`) is gone: `/customers/[id]`
 
 ---
 
+---
+
+### 71. Per-org mailboxes
+**What:** George has one mailbox, `george@aiwkr.com`, shared by every organisation. Each org should have its own, so inbound is attributable by the address it arrived at and a shared credential is never fanned out.
+
+**Why it matters:** one mailbox forced two workarounds that are living with us now.
+
+`resolveGeorgeOrgId` refuses to sweep when more than one org has a connected mailbox — correctly, since a shared credential must not be fanned out. The effect on 2026-08-24 was that **all inbound stopped for nine days** and the only trace was a log line. Unblocking it today meant disconnecting Nylas from every org but one, which is a workaround, not a fix: the other orgs now have no mailbox at all.
+
+And the recipient address carries no information. `resolveInboundOrg` has to attribute from the thread and the sender instead, because every org receives at the same address. That works, and it is a weaker signal than the obvious one — with per-org mailboxes the recipient becomes the strongest signal rather than the unusable one.
+
+**Where:** Nylas grants (one per org rather than one shared), `integrations` rows per org, `resolveGeorgeOrgId` (which can then sweep every org rather than refusing), `resolveInboundOrg` (recipient moves to the front), and `NYLAS_GRANT_ID` / `GEORGE_EMAIL` which are currently deployment-wide env vars.
+
+**Why deferred:** provisioning real mailboxes and DNS per tenant is a piece of work, and the per-message attribution added on 2026-09-02 makes the current setup correct if inelegant. Do it when a second tenant genuinely needs to send, not before.
+
+**Status:** Logged 2026-09-02 (Vidhi) — "per-org mailboxes are the correct end state; log it, don't build it now."
+
+---
+
 ## How to use this file
 
 - Add new items when we defer something. Always say *why deferred* — that's the most decay-resistant detail.
