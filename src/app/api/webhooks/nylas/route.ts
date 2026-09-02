@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { processAgentEvent } from "@/lib/agent/process-event";
 import { isSenderAllowed } from "@/lib/agent/sender-allowlist";
+import { resolveInboundOrg } from "@/lib/agent/inbound-org";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -93,10 +94,47 @@ export async function POST(req: NextRequest) {
     // Not our mailbox. Acknowledge so Nylas stops retrying, but do nothing.
     return new Response("ok (unknown grant)", { status: 200 });
   }
-  const orgId = process.env.GEORGE_ORG_ID?.trim() || null;
+  // Resolved from the message, not from configuration.
+  //
+  // This was process.env.GEORGE_ORG_ID: one configured org for every
+  // inbound message, on a mailbox serving several. A reply to a touchpoint
+  // in any other tenant was filed under the wrong company, matched no
+  // thread, and did nothing — silently, because a message attributed to the
+  // wrong org looks exactly like a message about nothing.
+  const attribution = await resolveInboundOrg(admin, {
+    threadId: message.thread_id ?? null,
+    fromAddress,
+  });
+  const orgId = attribution.orgId;
   if (!orgId) {
-    console.error("[nylas webhook] GEORGE_ORG_ID unset — cannot attribute inbound mail to an org");
-    return new Response("ok (no org configured)", { status: 200 });
+    // Acknowledged so Nylas stops retrying, and audited so it is findable:
+    // an unattributable message must not become a message nobody knows
+    // arrived. Guessing a tenant is the one thing worse than dropping it.
+    console.error("[nylas webhook] cannot attribute inbound mail to an org", {
+      thread_id: message.thread_id ?? null,
+      from: fromAddress,
+      detail: attribution.detail,
+    });
+    await admin.from("audit_log").insert({
+      org_id: null,
+      actor: "nylas",
+      action: "email.unattributed",
+      payload: {
+        delivery_id: deliveryId,
+        message_id: message.id ?? null,
+        thread_id: message.thread_id ?? null,
+        from: fromAddress,
+        reason: attribution.detail,
+      },
+    });
+    return new Response("ok (unattributable)", { status: 200 });
+  }
+  if (attribution.guessed) {
+    console.warn("[nylas webhook] org attributed by fallback, not by evidence", {
+      org_id: orgId,
+      from: fromAddress,
+      detail: attribution.detail,
+    });
   }
 
   // Signal-only inbox: the same allowlist the Outlook path uses. Unknown senders
@@ -114,6 +152,8 @@ export async function POST(req: NextRequest) {
       from: fromAddress,
       subject: message.subject ?? null,
       reason: decision.reason,
+      org_source: attribution.source,
+      org_guessed: attribution.guessed,
     },
   });
   if (!decision.allowed) {

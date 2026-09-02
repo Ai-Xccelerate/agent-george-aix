@@ -70,6 +70,8 @@ export type CronTickResult = {
   reclaimed: ReclaimResult;
   /** Onboarding emails nobody answered. */
   silence: SilenceResult;
+  /** Sweeps that could not run at all. Empty is the healthy case. */
+  blocked: Array<{ label: string; why: string }>;
   elapsed_ms: number;
   ran: number;
   deferred: number;
@@ -120,6 +122,7 @@ export async function runCronTick(): Promise<CronTickResult> {
   // Silence is the one signal nothing else generates: every other check in
   // this tick reacts to something that happened. Cheap — one indexed query
   // returning nothing on most ticks — and it never throws.
+  blockedSweeps = [];
   const silence = await sweepSilence(admin);
 
   const results: CronTickResult["results"] = [];
@@ -282,6 +285,7 @@ export async function runCronTick(): Promise<CronTickResult> {
   return {
     reclaimed,
     silence,
+    blocked: blockedSweeps,
     started_at: new Date(startedAt).toISOString(),
     elapsed_ms: Date.now() - startedAt,
     ran: results.length,
@@ -343,6 +347,70 @@ async function runDueProactiveScans(
  * Returning an empty list is a deliberate outcome, not a failure: doing nothing
  * beats writing one org's records into another's tables.
  */
+/**
+ * What could not run this tick, and why. Read into CronTickResult so the worker
+ * logs it on every tick rather than only when something happened — "nothing
+ * happened" and "nothing CAN happen" must not look the same.
+ */
+let blockedSweeps: Array<{ label: string; why: string }> = [];
+
+/**
+ * Put a blocked sweep on the Needs-you queue, once.
+ *
+ * Deliberately a FIXED title, deduped on exactly that. George's own repeated
+ * escalations varied their titles ("96 h+", "5 prior escalations unresolved"),
+ * so each looked new and seven stacked up for one condition. A stable title is
+ * what makes "already raised" answerable.
+ *
+ * This is the interim shape: the honest version is a dedupe key on escalations,
+ * which is coming with the Actions account/system split.
+ */
+async function reportBlockedSweep(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  label: string,
+  why: string,
+): Promise<void> {
+  const title = `${label} is switched off — George is not receiving mail`;
+  try {
+    const { data: orgs } = await admin
+      .from("integrations")
+      .select("org_id")
+      .eq("provider", "nylas")
+      .eq("status", "connected");
+    const orgIds = [...new Set((orgs ?? []).map((o) => (o as { org_id: string }).org_id))];
+    if (!orgIds.length) return;
+
+    for (const orgId of orgIds) {
+      const { data: existing } = await admin
+        .from("escalations")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("status", "open")
+        .eq("title", title)
+        .limit(1);
+      if ((existing ?? []).length) continue;
+
+      await admin.from("escalations").insert({
+        org_id: orgId,
+        title,
+        detail:
+          `${label} has been skipped: ${why}. Nothing is being ingested, so replies from ` +
+          `customers are arriving in the mailbox and going nowhere. This does not ` +
+          `self-heal and it produces no error — the tick looks healthy while the ` +
+          `capability is off.`,
+        recommendation:
+          "One shared mailbox is connected to more than one organisation, so the sweep " +
+          "cannot tell whose mail it is. Either disconnect the mailbox from all but the " +
+          "owning organisation, or give each organisation its own mailbox.",
+        urgency: "high",
+        status: "open",
+      });
+    }
+  } catch (err) {
+    console.error("[cron tick] could not report blocked sweep", err);
+  }
+}
+
 async function sweepOrgIds(
   admin: ReturnType<typeof createSupabaseAdmin>,
   opts: { sharedCredential: boolean; label: string },
@@ -350,13 +418,25 @@ async function sweepOrgIds(
   if (opts.sharedCredential) {
     const { orgId, source } = await resolveGeorgeOrgId(admin);
     if (!orgId) {
+      const why =
+        source === "ambiguous"
+          ? "more than one connected mailbox, so a single owning org cannot be chosen"
+          : "no mailbox integration row and GEORGE_ORG_ID is unset";
       console.error(
-        `[cron tick] ${opts.label} skipped — ` +
-          (source === "ambiguous"
-            ? "more than one connected mailbox, so a single owning org cannot be chosen"
-            : "no mailbox integration row and GEORGE_ORG_ID is unset") +
-          ", and a shared credential must not be fanned out across organisations",
+        `[cron tick] ${opts.label} SKIPPED — ${why}. This is not a quiet tick: ` +
+          `${opts.label} is OFF and will stay off until this is resolved.`,
       );
+      // Counted and escalated, not just logged.
+      //
+      // This exact condition switched inbound mail off for nine days. The log
+      // line was correct and nobody read it, because a line that appears every
+      // minute in a healthy-looking tick is indistinguishable from noise — the
+      // same failure as the Scribe sync that silently mirrored nothing.
+      //
+      // A sweep that cannot run is a capability that is off. That belongs on
+      // the Needs-you queue, where somebody is already looking.
+      blockedSweeps.push({ label: opts.label, why });
+      await reportBlockedSweep(admin, opts.label, why);
       return [];
     }
     return [orgId];

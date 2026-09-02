@@ -91,7 +91,10 @@ async function tick(): Promise<void> {
       res.reclaimed.events > 0 ||
       res.reclaimed.abandoned > 0 ||
       res.silence.marked > 0 ||
-      res.silence.escalated > 0;
+      res.silence.escalated > 0 ||
+      // A blocked sweep is never a quiet tick. "Nothing happened" and
+      // "nothing CAN happen" looked identical for nine days.
+      res.blocked.length > 0;
 
     if (didSomething || process.env.SCHEDULER_VERBOSE?.toLowerCase() === "true") {
       console.log("[worker] tick done", {
@@ -101,6 +104,7 @@ async function tick(): Promise<void> {
         objectives: res.objectives_scan.customers_processed,
         reclaimed: res.reclaimed,
         silence: res.silence,
+        ...(res.blocked.length ? { BLOCKED: res.blocked } : {}),
         ms: res.elapsed_ms,
       });
     }
