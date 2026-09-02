@@ -260,9 +260,18 @@ const STATE_GUIDANCE: Record<OnboardingState, string> = {
     "plan, do not open with an apology, and do not ask them to 'confirm status' — ask for " +
     "the one thing that unblocks the slip.",
   gone_quiet:
-    "They are not replying. Make it easier to answer than to ignore: one short question, " +
-    "no recap, no new work. Consider whether a different named contact should be asked " +
-    "instead — and if the right person is not on the account record, raise a decision " +
+    "They are not replying, so this is a DIFFERENT EMAIL, not a shorter version of the one " +
+    "you would otherwise send. A second copy of an ignored message gets ignored twice.\n" +
+    "  - Change the subject line. Reusing the previous one makes this look like a resend, " +
+    "and a resend is the easiest thing in an inbox to skip.\n" +
+    "  - Acknowledge the quiet, once and lightly. One clause, no guilt, no counting the days " +
+    "at them.\n" +
+    "  - Make the ask far smaller than the one they did not answer. A yes/no, or a pick-one. " +
+    "If the original ask needed them to go and do something, this one should not.\n" +
+    "  - Give them an easy exit — say plainly that a delay is fine and ask what to expect " +
+    "instead. Someone who is stuck and embarrassed replies to that and to nothing else.\n" +
+    "  - If a different named contact on the account is better placed to answer, say you will " +
+    "ask them instead. If the right person is not on the account record, raise a decision " +
     "rather than guessing at one.",
   blocker_outstanding:
     "Work the blocker and nothing else. Say what is stuck, who you believe owns it, and " +

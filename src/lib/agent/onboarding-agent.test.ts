@@ -161,7 +161,7 @@ describe("state reaches the prompt as a decision, not as rows", () => {
     );
     const prompt = buildOnboardingAgent(input({ assessment: quiet })).prompt;
     expect(prompt).toContain("gone_quiet");
-    expect(prompt).toContain("easier to answer than to ignore");
+    expect(prompt).toContain("DIFFERENT EMAIL");
   });
 
   it("tells the agent the state outranks the touchpoint's own script", () => {
@@ -195,5 +195,61 @@ describe("the one-ask rule survives into the prompt", () => {
     const prompt = buildOnboardingAgent(input()).prompt;
     expect(prompt).toContain("One ask, with a date");
     expect(prompt).toContain("Three requests gets zero replies");
+  });
+});
+
+describe("reasoning shapes the email and never appears in it", () => {
+  it("states the rule generally, not as a list of banned fields", () => {
+    // The first version of this was a patch to one field (touchpoint.purpose)
+    // after a sample leaked it. The leak was the general case showing up in a
+    // particular place, so the rule is general.
+    const prompt = buildOnboardingAgent(input()).prompt;
+    expect(prompt).toContain("never appears in it");
+    expect(prompt).toContain("they never see the working");
+  });
+
+  it("names the specific things that leaked, so the rule is checkable", () => {
+    const prompt = buildOnboardingAgent(input()).prompt;
+    for (const leak of ["day number", "stated purpose", "state name", "how long they have been quiet"]) {
+      expect(prompt).toContain(leak);
+    }
+  });
+
+  it("carries the worked example of the leak that actually happened", () => {
+    expect(buildOnboardingAgent(input()).prompt).toContain("day-7 mark");
+  });
+});
+
+describe("gone quiet is a different email, not a shorter one", () => {
+  function quiet() {
+    return assessOnboarding(
+      facts({
+        touchpoints: [
+          { touchpoint_key: "welcome", status: "sent", sent_at: daysAgo(9), replied_at: null },
+        ],
+      }),
+    );
+  }
+
+  it("tells the agent to change the subject line", () => {
+    // A resend is the easiest thing in an inbox to skip.
+    const prompt = buildOnboardingAgent(input({ assessment: quiet() })).prompt;
+    expect(prompt).toContain("Change the subject line");
+  });
+
+  it("asks for a smaller ask and an easy exit", () => {
+    const prompt = buildOnboardingAgent(input({ assessment: quiet() })).prompt;
+    expect(prompt).toContain("far smaller");
+    expect(prompt).toContain("easy exit");
+    expect(prompt).toContain("delay is fine");
+  });
+
+  it("says acknowledge the silence lightly rather than count days at them", () => {
+    const prompt = buildOnboardingAgent(input({ assessment: quiet() })).prompt;
+    expect(prompt).toContain("no guilt");
+  });
+
+  it("does not give this guidance to an account that is answering", () => {
+    expect(buildOnboardingAgent(input()).prompt).not.toContain("Change the subject line");
   });
 });
