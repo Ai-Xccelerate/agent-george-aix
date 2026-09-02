@@ -66,6 +66,26 @@ export type RunAutonomousInput = {
    * THIS run may do directly. A sub-agent's grant is its own.
    */
   agents?: Record<string, AgentDefinition>;
+  /**
+   * Run AS this agent, rather than registering it for delegation.
+   *
+   * WHY THIS EXISTS ALONGSIDE `agents`
+   * The SDK invokes a registered subagent through the `Task` tool. `Task` is
+   * disabled across this codebase (AGENTS.md, tool allowlist), so an agents map
+   * on its own is registered and unreachable — the parent has no way to call it.
+   *
+   * Enabling `Task` on an autonomous path is a real decision: it hands the model
+   * a general delegation primitive on a path with no human in the loop. For a
+   * single-purpose run like onboarding there is nothing to decide between — one
+   * agent does the work — so the definition is used directly instead: its prompt
+   * layers onto George's own, and its tool list becomes this run's allowlist.
+   *
+   * The safety property is unchanged and arguably stronger. Under delegation the
+   * grant is enforced on the child; here it is enforced on the only thing
+   * running. Either way the tools this run can reach are exactly the ones the
+   * AgentDefinition names.
+   */
+  asAgent?: AgentDefinition;
 };
 
 export type RunAutonomousResult = {
@@ -84,11 +104,19 @@ export async function runGeorgeAutonomous(
   const timeBudgetMs = input.timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS;
   const emailSendPolicy = input.emailSendPolicy ?? "none";
 
-  const systemPrompt = await buildGeorgeSystemPrompt(admin, {
+  const basePrompt = await buildGeorgeSystemPrompt(admin, {
     orgId: input.orgId,
     autonomous: true,
     emailSendPolicy,
   });
+  // Layered, not replaced: the agent prompt is task framing, and it still
+  // needs the identity, organisation profile and signature block that decide
+  // which company George says he works for.
+  const systemPrompt = input.asAgent
+    ? `${basePrompt}
+
+${input.asAgent.prompt}`
+    : basePrompt;
 
   // Per-org on/off, resolved before the tools are assembled. An integration a
   // human has not switched on for THIS org contributes no tools at all.
@@ -117,13 +145,15 @@ export async function runGeorgeAutonomous(
   //   - send_email_draft: stripped under "none"; kept under "internal_only"
   //     (the tool itself refuses external recipients).
   //
-  // This governs what THIS run may call directly. A sub-agent passed in
-  // via `agents` carries its own grant and is not filtered here — that is
-  // the point of it: the onboarding agent holds send_email_draft while the
-  // run that delegates to it does not.
+  // This governs a run that is not running as a named agent. When `asAgent` is
+  // set, the agent's own list replaces this entirely — see below.
   const builtinAllow = ["WebFetch", "WebSearch"];
-  const allowedMcpTools =
-    emailSendPolicy === "internal_only"
+  // Running AS an agent: its named list is the allowlist, intersected with
+  // what is actually registered — a name the server does not expose is a
+  // typo, not a grant, and silently allowing it would hide the typo.
+  const allowedMcpTools = input.asAgent?.tools
+    ? toolNames.filter((n) => input.asAgent!.tools!.includes(n))
+    : emailSendPolicy === "internal_only"
       ? toolNames
       : toolNames.filter((n) => !n.endsWith("send_email_draft"));
 

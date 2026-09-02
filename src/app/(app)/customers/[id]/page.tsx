@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { checkOnboardingPreconditions } from "@/lib/agent/onboarding-preconditions";
+import { OnboardButton } from "./_onboard-button";
 import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
@@ -83,6 +85,8 @@ type Contact = {
   phone: string | null;
   is_primary: boolean;
   timezone: string | null;
+  /** Who they are to the account (migration 0004). Null on contacts that predate it. */
+  role: string | null;
 };
 
 type Contract = {
@@ -191,7 +195,7 @@ export default async function CustomerPage(
         .maybeSingle<Customer>(),
       supabase
         .from("contacts")
-        .select("id, full_name, email, title, phone, is_primary, timezone")
+        .select("id, full_name, email, title, phone, is_primary, timezone, role")
         .eq("customer_id", id)
         .order("is_primary", { ascending: false })
         .order("full_name"),
@@ -351,7 +355,13 @@ export default async function CustomerPage(
   }));
 
   const contacts = (contactsRes.data ?? []) as Contact[];
-  const primary = contacts.find((c) => c.is_primary) ?? contacts[0] ?? null;
+  const onboarding = await checkOnboardingPreconditions(supabase, user.orgId, id);
+  // `?? contacts[0]` used to end this line. Harmless for showing a name and
+  // exactly the wrong instinct next to a feature that picks who receives mail,
+  // so it is gone: no primary contact now reads as no primary contact.
+  // Choosing a RECIPIENT is a different question again and lives in
+  // onboarding-preconditions.ts, which requires an explicit role.
+  const primary = contacts.find((c) => c.is_primary) ?? null;
   const contracts = (contractsRes.data ?? []) as Contract[];
   const activeContract =
     contracts.find((c) => c.status === "active" || c.status === "signed") ??
@@ -396,6 +406,16 @@ export default async function CustomerPage(
         nextStep={nextDueStep}
         targetEnd={plan?.target_end_date ?? null}
         progress={plan ? progress : null}
+      />
+
+      <OnboardButton
+        customerId={id}
+        blockers={onboarding.ok ? [] : onboarding.failures}
+        recipient={
+          onboarding.ok
+            ? { email: onboarding.recipient.email, role: onboarding.recipient.role }
+            : null
+        }
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,400px)]">

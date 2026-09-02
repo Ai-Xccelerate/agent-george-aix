@@ -35,6 +35,13 @@ type Item = {
   to?: string[];
   bodyHtml?: string | null;
   suggestedActions?: SuggestedAction[];
+  /** Set when this decision approves a specific draft (migration 0005). */
+  draftId?: string | null;
+  subject?: string | null;
+  /** Why this recipient, from the account record — never inferred. */
+  recipientSource?: { email: string; role: string } | null;
+  /** Which planned contact this is, and what it is for. Internal, not in the email. */
+  touchpoint?: { key: string; purpose: string } | null;
 };
 
 export default async function ActionsPage({
@@ -47,11 +54,11 @@ export default async function ActionsPage({
   const admin = createSupabaseAdmin();
   const { item: selectedKey } = await searchParams;
 
-  const [escRes, draftRes, sentRes, ownerRes] = await Promise.all([
+  const [escRes, draftRes, sentRes, touchpointRes, ownerRes] = await Promise.all([
     admin
       .from("escalations")
       .select(
-        "id, title, detail, recommendation, suggested_actions, urgency, customer_id, session_id, created_at, customers(name)",
+        "id, title, detail, recommendation, suggested_actions, urgency, customer_id, session_id, created_at, draft_id, customers(name)",
       )
       .eq("org_id", user.orgId)
       .eq("status", "open")
@@ -70,6 +77,12 @@ export default async function ActionsPage({
       .eq("org_id", user.orgId)
       .eq("action", "email.sent")
       .limit(500),
+    admin
+      .from("onboarding_touchpoint")
+      .select("escalation_id, touchpoint_key, recipient_email, status")
+      .eq("org_id", user.orgId)
+      .in("status", ["awaiting_approval", "drafted"])
+      .limit(100),
     admin
       .from("agent_settings")
       .select("owner_user_id")
@@ -96,6 +109,34 @@ export default async function ActionsPage({
       .filter((x): x is string => !!x),
   );
 
+  // draft_id -> what was actually drafted, from the audit snapshot.
+  const draftById = new Map<
+    string,
+    { subject: string | null; body_html: string | null; to: string[] }
+  >();
+  for (const r of (draftRes.data ?? []) as RawDraft[]) {
+    const pid = r.payload?.draft_id;
+    if (!pid || draftById.has(pid)) continue;
+    const pl = r.payload as { subject?: string; body_html?: string; to?: string[] };
+    draftById.set(pid, {
+      subject: pl.subject ?? null,
+      body_html: pl.body_html ?? null,
+      to: Array.isArray(pl.to) ? pl.to : [],
+    });
+  }
+
+  const touchpointByEsc = new Map<
+    string,
+    { touchpoint_key: string; recipient_email: string | null }
+  >();
+  for (const t of (touchpointRes.data ?? []) as Array<{
+    escalation_id: string | null;
+    touchpoint_key: string;
+    recipient_email: string | null;
+  }>) {
+    if (t.escalation_id) touchpointByEsc.set(t.escalation_id, t);
+  }
+
   const decisions: Item[] = ((escRes.data ?? []) as RawEsc[]).map((e) => ({
     key: `decision:${e.id}`,
     kind: "decision",
@@ -110,12 +151,33 @@ export default async function ActionsPage({
     urgency: e.urgency,
     escalationId: e.id,
     suggestedActions: Array.isArray(e.suggested_actions) ? e.suggested_actions : [],
+    draftId: e.draft_id ?? null,
+    // The email itself, read from the draft-time audit snapshot rather than
+    // the mail provider: the snapshot is what was actually written, and it
+    // survives the draft being edited or deleted upstream.
+    subject: draftById.get(e.draft_id ?? "")?.subject ?? null,
+    bodyHtml: draftById.get(e.draft_id ?? "")?.body_html ?? null,
+    to: draftById.get(e.draft_id ?? "")?.to,
+    recipientSource: touchpointByEsc.get(e.id)
+      ? { email: touchpointByEsc.get(e.id)!.recipient_email ?? "", role: "account record" }
+      : null,
+    touchpoint: touchpointByEsc.get(e.id)
+      ? { key: touchpointByEsc.get(e.id)!.touchpoint_key, purpose: "" }
+      : null,
   }));
+
+  // A draft that a decision already carries is shown inside that decision, so
+  // it must not also appear as a standalone item. Two rows for one email means
+  // a reviewer can approve the decision and still see an unactioned draft, and
+  // has no way to tell they are the same thing.
+  const boundDraftIds = new Set(
+    ((escRes.data ?? []) as RawEsc[]).map((e) => e.draft_id).filter((x): x is string => !!x),
+  );
 
   const drafts: Item[] = ((draftRes.data ?? []) as RawDraft[])
     .filter((r) => {
       const id = r.payload?.draft_id;
-      return id ? !sentDraftIds.has(id) : false;
+      return id ? !sentDraftIds.has(id) && !boundDraftIds.has(id) : false;
     })
     .map((r) => ({
       key: `draft:${r.id}`,
@@ -272,6 +334,55 @@ function Detail({
 
       {item.kind === "decision" ? (
         <>
+          {/*
+            The email itself, first and rendered as the customer will see it.
+            A reviewer approving an email should be reading the email, not a
+            description of one — that difference is the whole point of binding
+            the decision to a draft id.
+          */}
+          {item.bodyHtml && (
+            <Field label="The email, as the customer will see it">
+              <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+                {item.subject && (
+                  <div className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.03] px-3 py-2">
+                    <div className="text-theme-xs text-gray-400 dark:text-gray-500">Subject</div>
+                    <div className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                      {item.subject}
+                    </div>
+                  </div>
+                )}
+                <SafeHtml
+                  html={item.bodyHtml}
+                  className="bg-white dark:bg-gray-900 p-4 text-theme-sm leading-relaxed text-gray-700 dark:text-gray-300"
+                />
+              </div>
+            </Field>
+          )}
+          {item.recipientSource && (
+            <Field label="Recipient">
+              <p className="text-theme-sm text-gray-700 dark:text-gray-200">
+                {item.to?.length ? item.to.join(", ") : item.recipientSource.email}
+              </p>
+              {/* Stated, not implied: the recipient came from the account
+                  record and not from anything George read. */}
+              <p className="mt-0.5 text-theme-xs text-gray-400 dark:text-gray-500">
+                Resolved from the {item.recipientSource.role} — not inferred from a job
+                title, a thread, or a transcript.
+              </p>
+            </Field>
+          )}
+          {item.touchpoint && (
+            <Field label="Why George wrote this">
+              <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+                Planned contact{" "}
+                <span className="font-medium text-gray-700 dark:text-gray-200">
+                  {item.touchpoint.key.replace(/_/g, " ")}
+                </span>{" "}
+                in this organisation&apos;s onboarding process, written against the
+                current state of the account.
+              </p>
+            </Field>
+          )}
           {item.detail && (
             <Field label="What George needs">
               <p className="whitespace-pre-wrap text-theme-sm leading-relaxed text-gray-500 dark:text-gray-400">
@@ -310,6 +421,14 @@ function Detail({
           {approver ?? "No manager set — assign one in Settings → AIX George."}
         </p>
       </Field>
+
+      {item.draftId && (
+        <p className="rounded-lg bg-gray-50 dark:bg-white/[0.03] p-3 text-theme-xs text-gray-500 dark:text-gray-400">
+          Sending is not enabled yet. This draft is bound to this decision, so when
+          approval is wired the text above is exactly what goes out — nothing is
+          re-composed at send time.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 dark:border-gray-800 pt-4">
         {item.kind === "decision" && item.escalationId && canApprove && (
@@ -435,6 +554,8 @@ type RawEsc = {
   customer_id: string | null;
   session_id: string | null;
   created_at: string;
+  /** The draft this decision approves, when it approves one (migration 0005). */
+  draft_id: string | null;
   customers: { name: string }[] | { name: string } | null;
 };
 type RawDraft = {
