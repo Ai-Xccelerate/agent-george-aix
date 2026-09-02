@@ -947,10 +947,16 @@ async function resolveSenderToCustomer(
   const admin = createSupabaseAdmin();
 
   // 1) Exact contact-email match — most specific signal.
+  //
+  // Scoped through the customer: contacts has no org_id. Filtering on it
+  // makes Postgres reject the query, the SDK turn the error into a null,
+  // and this return "no customer" for every sender — so inbound mail from a
+  // known contact was never attributed to their account. Same bug as the
+  // sender allowlist, found by auditing every query against the schema.
   const contactRes = await admin
     .from("contacts")
-    .select("customer_id")
-    .eq("org_id", orgId)
+    .select("customer_id, customers!inner(org_id)")
+    .eq("customers.org_id", orgId)
     .ilike("email", email)
     .limit(1)
     .maybeSingle();

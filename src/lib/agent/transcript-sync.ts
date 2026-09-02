@@ -260,10 +260,13 @@ async function resolveCustomerId(
   emails: string[],
 ): Promise<string | null> {
   if (emails.length === 0) return null;
+  // Scoped through the customer: contacts has no org_id, so filtering on it
+  // errors and yields null — meaning no meeting attendee has ever been
+  // matched to a customer. Same bug as the sender allowlist.
   const { data } = await admin
     .from("contacts")
-    .select("customer_id, email")
-    .eq("org_id", orgId)
+    .select("customer_id, email, customers!inner(org_id)")
+    .eq("customers.org_id", orgId)
     .in("email", emails)
     .limit(1);
   const row = (data ?? [])[0] as { customer_id?: string } | undefined;
