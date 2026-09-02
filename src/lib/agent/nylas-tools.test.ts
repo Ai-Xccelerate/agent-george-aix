@@ -140,7 +140,7 @@ describe("send_email_draft guard", () => {
     const res = await byName.send_email_draft.handler({ draft_id: "d1" }, {});
 
     expect(res.isError).toBe(true);
-    expect(res.content[0].text).toMatch(/isn't approved/i);
+    expect(res.content[0].text).toMatch(/not approved|isn't approved/i);
     // The send must not have happened at all, not merely been reported as failed.
     expect(sendDraft).not.toHaveBeenCalled();
     expect(audits.map((a) => a.action)).toContain("email.send_blocked");
@@ -188,7 +188,7 @@ describe("send_email_draft guard", () => {
     const res = await byName.send_email_draft.handler({ draft_id: "d1" }, {});
 
     expect(res.isError).toBe(true);
-    expect(res.content[0].text).toMatch(/couldn't confirm/i);
+    expect(res.content[0].text).toMatch(/could not confirm|couldn't confirm/i);
     expect(sendDraft).not.toHaveBeenCalled();
     expect(audits.find((a) => a.action === "email.send_blocked")?.payload.reason).toBe(
       "recipients_unparsed",

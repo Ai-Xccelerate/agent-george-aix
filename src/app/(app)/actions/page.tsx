@@ -8,6 +8,7 @@ import { SafeHtml } from "./_safe-html";
 import { type InitialMessage } from "../chat/_chat-client";
 import { GeorgePanel, type SuggestedAction } from "./_george-panel";
 import { ResizableChat } from "./_resizable-chat";
+import { ApproveAndSendButton } from "./_approve-button";
 
 export const dynamic = "force-dynamic";
 
@@ -422,11 +423,21 @@ function Detail({
         </p>
       </Field>
 
-      {item.draftId && (
+      {/*
+        Approve sends the bound draft, unchanged. It sits above the generic
+        decision controls because for an email decision it IS the decision —
+        "Mark resolved" beside it would let somebody close the item believing
+        they had sent something.
+      */}
+      {item.draftId && item.escalationId && canApprove && (
+        <ApproveAndSendButton
+          escalationId={item.escalationId}
+          recipients={item.to ?? []}
+        />
+      )}
+      {item.draftId && !canApprove && (
         <p className="rounded-lg bg-gray-50 dark:bg-white/[0.03] p-3 text-theme-xs text-gray-500 dark:text-gray-400">
-          Sending is not enabled yet. This draft is bound to this decision, so when
-          approval is wired the text above is exactly what goes out — nothing is
-          re-composed at send time.
+          Your role can read this but cannot approve a send.
         </p>
       )}
 
