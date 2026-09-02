@@ -193,3 +193,32 @@ describe("the prompt states which domains are internal", () => {
     vi.doUnmock("./identity");
   });
 });
+
+describe("the footer agrees with the signature", () => {
+  it("says replies come back to George, not to a team", async () => {
+    // It used to say "someone from the {company} team will pick it up", which
+    // contradicted the address printed two lines above it and described the
+    // opposite of how this works: George reads what comes back. Telling a
+    // customer their reply goes to a team is untrue and a reason not to reply
+    // properly.
+    const sig = await signature();
+    expect(sig).toContain("comes back to George");
+    expect(sig).not.toMatch(/someone from the .* team/);
+  });
+
+  it("still says a person decides, so the honesty is not lost with the team line", async () => {
+    const sig = await signature();
+    expect(sig).toContain("a person here picks up anything that needs a decision");
+  });
+
+  it("still discloses that it was written and sent by an AI teammate", async () => {
+    expect(await signature()).toContain("Written and sent by an AI teammate, not a person");
+  });
+
+  it("does not put the mechanism in the job-title slot", async () => {
+    // The disclosure does this work. "AI Customer Success Teammate" as a title
+    // says it twice, and says it in the place a role goes.
+    const sig = await signature();
+    expect(sig).not.toContain("AI Customer Success Teammate");
+  });
+});

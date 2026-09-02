@@ -72,7 +72,11 @@ describe("operatingModeLabel", () => {
 describe("AGENT_DEFAULTS", () => {
   it("has the expected default values", () => {
     expect(AGENT_DEFAULTS.name).toBe("George");
-    expect(AGENT_DEFAULTS.title).toBe("AI Customer Success Teammate");
+    // Was "AI Customer Success Teammate". A signature is where a job title
+    // goes, and announcing the mechanism there reads oddly to a customer — the
+    // disclosure footer does the honesty work, and does it better by saying
+    // what happened rather than labelling the sender.
+    expect(AGENT_DEFAULTS.title).toBe("Customer Success");
     expect(AGENT_DEFAULTS.bio).toBeNull();
     expect(AGENT_DEFAULTS.personality).toBe("concise_direct");
     expect(AGENT_DEFAULTS.operating_mode).toBe("assistant");

@@ -34,7 +34,12 @@ export type AgentSettings = {
 /** Matches the in-code prompt defaults so an unconfigured org reads identically. */
 export const AGENT_DEFAULTS: AgentSettings = {
   name: "George",
-  title: "AI Customer Success Teammate",
+  // "AI Customer Success Teammate" read oddly in a signature a customer sees —
+  // it announces the mechanism in the place a job title goes. The disclosure
+  // footer already does the honesty work, and does it better, by saying what
+  // happened rather than labelling the sender. This is the job, not the
+  // implementation.
+  title: "Customer Success",
   bio: null,
   personality: "concise_direct",
   operating_mode: "assistant",
