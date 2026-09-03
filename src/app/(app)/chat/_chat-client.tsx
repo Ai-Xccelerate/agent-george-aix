@@ -453,7 +453,16 @@ export function ChatClient({
 
   return (
     <div className="flex h-full w-full flex-col">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8">
+      {/*
+        `min-h-0` is load-bearing, not tidying. A flex child defaults to
+        `min-height: auto`, which means it refuses to shrink below its
+        content — so `flex-1 overflow-y-auto` grows to fit the whole
+        conversation instead of scrolling it, and the fixed-height panel on
+        the actions page clips the bottom off with no scrollbar to recover
+        it. That is the "chat panel is unusable" fault: the messages were
+        there, just unreachable.
+      */}
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
         <div className="mx-auto max-w-[760px]">
           {messages.length === 0 ? (
             <EmptyChat onPick={(p) => setInput(p)} embedded={embedded} />
@@ -474,7 +483,9 @@ export function ChatClient({
         </div>
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-6 py-4">
+      {/* `shrink-0`: the composer is the one thing that must never be the
+          part that gets squeezed when the panel is short. */}
+      <div className="shrink-0 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-6 py-4">
         <div className="mx-auto max-w-[760px]">
           {uploadError && (
             <div className="mb-2 flex items-start justify-between gap-3 rounded-md border border-error-500/40 bg-error-500/10 px-3 py-2 text-theme-xs text-error-500">

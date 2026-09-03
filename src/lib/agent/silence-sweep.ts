@@ -61,7 +61,14 @@ export async function sweepSilence(admin: SupabaseClient): Promise<SilenceResult
     // with a short window or fire early for the ones with a long one.
     const { data } = await admin
       .from("onboarding_touchpoint")
-      .select("id, org_id, customer_id, plan_id, touchpoint_key, sent_at, recipient_email")
+      .select(
+        "id, org_id, customer_id, plan_id, touchpoint_key, sent_at, recipient_email, " +
+          // Archived customers are off the book, and raising a decision about
+          // one is asking a person to act on an account somebody already
+          // removed. `!inner` so the touchpoint drops with the customer.
+          "customers!inner(archived_at)",
+      )
+      .is("customers.archived_at", null)
       .eq("status", "sent")
       .is("replied_at", null)
       .is("silence_escalated_at", null)
@@ -69,7 +76,7 @@ export async function sweepSilence(admin: SupabaseClient): Promise<SilenceResult
       .order("sent_at", { ascending: true })
       .limit(MAX_PER_TICK * 4);
 
-    const rows = (data ?? []) as Row[];
+    const rows = (data ?? []) as unknown as Row[];
     if (!rows.length) return result;
 
     const byOrg = new Map<string, Row[]>();
@@ -140,13 +147,18 @@ export async function sweepSilence(admin: SupabaseClient): Promise<SilenceResult
 
         // Once per plan, not once per touchpoint. Somebody who has ignored
         // three emails does not need three identical decisions about it.
+        //
+        // Keyed on the plan rather than matched on the title. The `ilike
+        // '%has gone quiet%'` this replaces worked only for as long as nobody
+        // edited the sentence — and the sentence is copy, so somebody would
+        // have. A dedupe key names the condition instead of describing it.
+        const dedupeKey = `onboarding_silence:${row.plan_id}`;
         const { data: existing } = await admin
           .from("escalations")
           .select("id")
           .eq("org_id", orgId)
-          .eq("customer_id", row.customer_id)
           .eq("status", "open")
-          .ilike("title", "%has gone quiet%")
+          .eq("dedupe_key", dedupeKey)
           .limit(1);
         if ((existing ?? []).length) continue;
 
@@ -174,6 +186,10 @@ export async function sweepSilence(admin: SupabaseClient): Promise<SilenceResult
             "quiet into ignored.",
           urgency: "normal",
           status: "open",
+          // A judgement about a relationship — whether to chase, change who is
+          // being written to, or stop. That is an account decision, not a fault.
+          kind: "account",
+          dedupe_key: dedupeKey,
         });
         result.escalated += 1;
       }

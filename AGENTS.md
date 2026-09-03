@@ -195,6 +195,15 @@ When asked "does George remember?", the honest answer today: within a session ye
 
 ## When you make changes
 
+- **A verification that cannot report failure is not a verification.** Before
+  trusting a check, make it fail on purpose once. Three separate checks here
+  passed permanently while proving nothing: a test double more permissive than
+  the database, which agreed with the query instead of testing it; a schema
+  snapshot nobody refreshed, which could not disagree with the code; and a CI
+  typecheck carrying `continue-on-error: true`, which reported a green tick
+  while exiting 2. Each read as coverage. None could ever have said no.
+  The same applies to a guard you cannot observe firing — see `email.send_blocked`,
+  which sat at zero for all time and was assumed to mean "nothing to refuse".
 - **Build green = green.** Run `pnpm build` before declaring done — it catches Suspense, RSC/client, and TS issues the dev server hides.
 - **New Alembic revision** for every schema change — `cd db && alembic revision --rev-id <next> -m "..."`, raw SQL, both `upgrade()` and `downgrade()`, rollback proven locally before you commit. Ship it in the same PR as the code that needs it. Never edit an applied revision; fix forward.
 - **Update `docs/BACKLOG.md`** when you defer something. Always say *why deferred*.

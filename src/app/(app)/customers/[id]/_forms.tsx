@@ -1,7 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
+  Archive,
+  ArchiveRestore,
   Download,
   FileText,
   Image as ImageIcon,
@@ -20,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   addContactAction,
+  archiveCustomerAction,
   createEndCustomerAction,
   getCustomerDocumentDownloadUrl,
   updateCustomerAction,
@@ -790,4 +794,103 @@ function relative(iso: string) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+
+/**
+ * Take a customer off the book, or put it back.
+ *
+ * Deliberately a dialog rather than a one-click button. Archiving is
+ * reversible, but it also silences George on the account — he stops chasing
+ * objectives and stops escalating silence — and that is not something to do by
+ * mis-clicking next to "Edit". The dialog names both consequences.
+ */
+export function ArchiveCustomerButton({
+  customerId,
+  customerName,
+  archived,
+}: {
+  customerId: string;
+  customerName: string;
+  archived: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startSubmit] = useTransition();
+  const router = useRouter();
+
+  function close() {
+    if (pending) return;
+    setOpen(false);
+    setError(null);
+  }
+
+  function submit() {
+    setError(null);
+    const fd = new FormData();
+    fd.set("id", customerId);
+    fd.set("archive", archived ? "false" : "true");
+    startSubmit(async () => {
+      const res = await archiveCustomerAction(fd);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setOpen(false);
+      // Back to the list on archive: staying on the detail page for an account
+      // that is no longer on the book leaves the user somewhere they cannot
+      // navigate back to.
+      if (res.archived) router.push("/customers");
+      else router.refresh();
+    });
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors duration-150 ease-out hover:bg-gray-50 hover:text-gray-800 active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white/90"
+      >
+        {archived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+        {archived ? "Restore" : "Archive"}
+      </button>
+
+      <Dialog
+        open={open}
+        onClose={close}
+        title={archived ? `Restore ${customerName}?` : `Archive ${customerName}?`}
+        description={
+          archived
+            ? "The account goes back on the list, and George starts picking it up again."
+            : "The account comes off the customer list and George stops working it — no chasing objectives, no raising decisions about silence. Nothing already recorded is deleted, and you can restore it later."
+        }
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={close}
+              disabled={pending}
+              className="h-10 px-4 inline-flex items-center justify-center rounded-lg bg-white text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 dark:bg-white/[0.03] dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/[0.06]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={pending}
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+            >
+              {pending ? <Loader2 size={14} className="animate-spin" /> : null}
+              {archived ? "Restore" : "Archive"}
+            </button>
+          </>
+        }
+      >
+        {error ? (
+          <p className="text-theme-sm text-error-500 dark:text-error-400">{error}</p>
+        ) : null}
+      </Dialog>
+    </>
+  );
 }

@@ -54,6 +54,18 @@ export type GeorgeToolCtx = {
    * tool refuses any draft whose recipients are not all internal to the org.
    */
   emailSendPolicy?: "chat" | "internal_only";
+  /**
+   * Whether this run may create work for a human.
+   *
+   * False on autonomous runs in assistant mode: `raise_decision` is withheld
+   * from the grant and `record_observation` takes its place. Withheld rather
+   * than instructed against — a tool the model cannot reach needs no
+   * discipline. See operating-mode.ts.
+   *
+   * Defaults true so a chat run, where a person is present and asking, keeps
+   * the full grant.
+   */
+  mayRaiseDecisions?: boolean;
   /** Optional override (tests). Defaults to the admin client. */
   db?: SupabaseClient;
 };
@@ -120,6 +132,9 @@ export function buildGeorgeMcpServer(
           "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, size",
         )
         .eq("org_id", orgId)
+        // An archived customer must not come back from a name lookup, or
+        // George resolves a name to a dead account and acts on it.
+        .is("archived_at", null)
         .ilike("name", `%${query}%`)
         .limit(limit ?? 5);
       if (error) return fail(error.message);
@@ -144,6 +159,7 @@ export function buildGeorgeMcpServer(
           "id, name, domain, lifecycle, customer_kind, parent_customer_id, industry, size, updated_at",
         )
         .eq("org_id", orgId)
+        .is("archived_at", null)
         .order("updated_at", { ascending: false })
         .limit(limit ?? 25);
       if (lifecycle) q = q.eq("lifecycle", lifecycle);
@@ -1720,8 +1736,53 @@ export function buildGeorgeMcpServer(
         ),
       urgency: z.enum(["low", "normal", "high"]).default("normal").optional(),
       customer_id: z.string().uuid().optional().describe("The customer this concerns, if any."),
+      kind: z
+        .enum(["account", "system"])
+        .default("account")
+        .optional()
+        .describe(
+          "'account' (default) = a judgement about a customer, for whoever owns the relationship. 'system' = something is broken and needs fixing, not deciding — a disconnected mailbox, a failing sync, an integration returning 401. If nobody could resolve this by choosing between options, it is 'system'.",
+        ),
+      dedupe_key: z
+        .string()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe(
+          "A stable name for the CONDITION you are reporting, not for this occurrence — e.g. 'nylas_auth_failed' or 'transcript_sync_blocked'. If an open decision already carries this key, yours is dropped and the existing one is returned instead of adding a duplicate. Always set it for anything that will recur while it stays unfixed; a 401 that reports itself twenty times is twenty rows and one problem.",
+        ),
     },
-    async ({ title, detail, recommendation, suggested_actions, urgency, customer_id }) => {
+    async ({ title, detail, recommendation, suggested_actions, urgency, customer_id, kind, dedupe_key }) => {
+      // A recurring condition finds the open row instead of adding another.
+      //
+      // The 401 that ran all week is the case this exists for: the mailbox was
+      // disconnected, every tick noticed, and each notice became its own
+      // "decision" — a queue full of identical rows asking a person to decide
+      // something that was not a decision.
+      //
+      // Only OPEN rows are matched. Once somebody resolves it, the condition
+      // recurring is genuinely new information and should be raised again.
+      if (dedupe_key) {
+        const { data: dupe } = await db
+          .from("escalations")
+          .select("id")
+          .eq("org_id", orgId)
+          .eq("dedupe_key", dedupe_key)
+          .eq("status", "open")
+          .limit(1);
+        const existing = (dupe ?? [])[0] as { id: string } | undefined;
+        if (existing) {
+          return ok({
+            escalation_id: existing.id,
+            status: "open",
+            deduped: true,
+            note:
+              `This condition is already on the queue as ${existing.id} and has not been ` +
+              "resolved yet. Nothing new was raised. Do not email the manager about it again.",
+          });
+        }
+      }
+
       const { data, error } = await db
         .from("escalations")
         .insert({
@@ -1734,10 +1795,25 @@ export function buildGeorgeMcpServer(
           suggested_actions: suggested_actions ?? [],
           urgency: urgency ?? "normal",
           status: "open",
+          kind: kind ?? "account",
+          dedupe_key: dedupe_key ?? null,
         })
         .select("id")
         .single();
-      if (error) return fail(error.message);
+      // The unique index on (org_id, dedupe_key) for open rows is the real
+      // guard — the read above races with a concurrent tick, and the database
+      // is the only place that can settle it. A rejected duplicate is the
+      // system working, not an error worth reporting up.
+      if (error) {
+        if (/duplicate key|unique constraint/i.test(error.message)) {
+          return ok({
+            status: "open",
+            deduped: true,
+            note: "Another run raised this same condition first. Nothing new was raised.",
+          });
+        }
+        return fail(error.message);
+      }
       return ok({
         escalation_id: data.id,
         status: "open",
@@ -1839,11 +1915,102 @@ export function buildGeorgeMcpServer(
     },
   );
 
+  // ---- record_observation ------------------------------------------
+  const recordObservation = tool(
+    "record_observation",
+    "Record something you noticed about an account. Use this for anything worth knowing that nobody has to act on: a risk, a commitment the customer made, a change in tone, a milestone that slipped, a new stakeholder appearing, something they said about their own priorities. This is how you build up an understanding of a customer over time. It does NOT ask anyone to do anything — a person reads the account and decides. Prefer this over raise_decision unless a human genuinely has to make a call today.",
+    {
+      customer_id: z.string().uuid().describe("The customer this is about."),
+      summary: z
+        .string()
+        .min(1)
+        .max(200)
+        .describe("One line somebody can scan in a list, e.g. 'Krishna is leaving in October and has not named a replacement'. Not a category — the actual thing."),
+      detail: z
+        .string()
+        .optional()
+        .describe("The evidence. Quote the customer where there is a quote to give — a quotation and an inference are different kinds of claim and the reader needs to tell them apart."),
+      source: z
+        .enum(["email", "transcript", "meeting", "reply", "scan", "chat", "other"])
+        .describe("Where you learned it. 'scan' means you worked it out from the account record rather than being told."),
+      category: z
+        .enum(["risk", "progress", "relationship", "commercial", "product", "other"])
+        .default("other")
+        .optional(),
+      observed_at: z
+        .string()
+        .optional()
+        .describe("When the thing happened, ISO date, if it was not now. A transcript synced today may describe last week's call — use the call's date, or the feed tells the story in the wrong order."),
+      source_ref: z
+        .string()
+        .optional()
+        .describe("Identifier for what you read: a thread id, a transcript id, a meeting title."),
+      dedupe_key: z
+        .string()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe("Stable name for the thing observed, e.g. 'champion_leaving:krishna'. You re-read the same threads on every sync; without this you re-record the same sentence every time. Set it whenever the observation is about a durable fact rather than a one-off event."),
+    },
+    async ({ customer_id, summary, detail, source, category, observed_at, source_ref, dedupe_key }) => {
+      // Scoped through the org, so a customer id from another tenant cannot be
+      // written against — the same check every other customer-scoped tool does.
+      const owner = await db
+        .from("customers")
+        .select("id")
+        .eq("id", customer_id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (!owner.data) return fail("No such customer in this organisation.");
+
+      const { data, error } = await db
+        .from("customer_observations")
+        .insert({
+          org_id: orgId,
+          customer_id,
+          summary,
+          detail: detail ?? null,
+          source,
+          category: category ?? "other",
+          observed_at: observed_at ?? new Date().toISOString(),
+          session_id: ctx.sessionId ?? null,
+          source_ref: source_ref ?? null,
+          dedupe_key: dedupe_key ?? null,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        // The unique index doing its job. Re-reading a thread and reaching the
+        // same conclusion is correct behaviour, not an error to report up.
+        if (/duplicate key|unique constraint/i.test(error.message)) {
+          return ok({
+            recorded: false,
+            deduped: true,
+            note: "Already recorded against this account under that key. Nothing added.",
+          });
+        }
+        return fail(error.message);
+      }
+      return ok({ observation_id: data.id, recorded: true });
+    },
+  );
+
+  // `raise_decision` is in the grant only when this run may create work for a
+  // human. On an autonomous run in assistant mode it is absent, and
+  // `record_observation` is what George has instead.
+  //
+  // Absent, not discouraged. An instruction not to use an available tool is the
+  // failure mode this codebase keeps finding; there is nothing to talk itself
+  // out of if the tool is not there.
+  const mayRaise = ctx.mayRaiseDecisions !== false;
+
   const supabaseTools = [
     findCustomer,
     listCustomers,
     getCustomer,
-    raiseDecision,
+    recordObservation,
+    ...(mayRaise ? [raiseDecision] : []),
     listOpenDecisions,
     requestDomainApproval,
     listDomainAllowlist,

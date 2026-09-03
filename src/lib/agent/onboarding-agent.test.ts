@@ -204,13 +204,17 @@ describe("reasoning shapes the email and never appears in it", () => {
     // after a sample leaked it. The leak was the general case showing up in a
     // particular place, so the rule is general.
     const prompt = buildOnboardingAgent(input()).prompt;
-    expect(prompt).toContain("never appears in it");
-    expect(prompt).toContain("they never see the working");
+    expect(prompt).toContain("never appears");
+    expect(prompt).toContain("not the working");
   });
 
   it("names the specific things that leaked, so the rule is checkable", () => {
     const prompt = buildOnboardingAgent(input()).prompt;
-    for (const leak of ["day number", "stated purpose", "state name", "how long they have been quiet"]) {
+    // "How long they have been quiet" was on this list and is deliberately off
+    // it now. A week of silence is a fact about the customer, not machinery —
+    // "haven't heard back from you in a week" is how a colleague says it, and
+    // banning it was part of what made the drafts generic.
+    for (const leak of ["day number", "stated purpose", "state name", "escalation rules"]) {
       expect(prompt).toContain(leak);
     }
   });
@@ -251,5 +255,59 @@ describe("gone quiet is a different email, not a shorter one", () => {
 
   it("does not give this guidance to an account that is answering", () => {
     expect(buildOnboardingAgent(input()).prompt).not.toContain("Change the subject line");
+  });
+});
+
+describe("the anti-leak rule hides vocabulary without stripping the facts", () => {
+  /**
+   * This pair of tests exists because the first version of the rule got it
+   * wrong in a way that was invisible: it listed day numbers and first-value
+   * definitions among the things not to mention, the model generalised that
+   * into mentioning nothing particular, and the drafts that came out were
+   * polite, well-formed and identical for every customer on the book.
+   *
+   * The rule and its counterweight have to travel together. A future tightening
+   * of the first half that drops the second half fails here.
+   */
+  const prompt = () => buildOnboardingAgent(input()).prompt;
+
+  it("still forbids the internal vocabulary", () => {
+    const p = prompt();
+    expect(p).toMatch(/never appears/i);
+    expect(p).toContain("touchpoint key");
+    expect(p).toContain("stage names");
+  });
+
+  it("requires at least one detail true only of this account", () => {
+    // The counterweight. Without this sentence the rule above produces an email
+    // that could be sent to anybody.
+    const p = prompt();
+    expect(p).toMatch(/true only of this account/i);
+    expect(p).toMatch(/a date, a milestone, a named blocker/i);
+  });
+
+  it("teaches the distinction by example rather than by listing bans", () => {
+    // "You are at the day-7 mark" and "you go live on 25 September" are the
+    // same fact. Only the first is machinery, and a list of bans cannot express
+    // that difference — a worked pair can.
+    const p = prompt();
+    expect(p).toContain("day-7 mark");
+    expect(p).toContain("25 September");
+    expect(p).toMatch(/said by a person/i);
+  });
+
+  it("does not forbid dates, milestones or blockers anywhere in the prompt", () => {
+    // The specific regression: a tightening that adds these to the forbidden
+    // list. Asserted as the absence of the phrasing that would do it.
+    const p = prompt().toLowerCase();
+    for (const banned of [
+      "do not mention dates",
+      "do not include dates",
+      "no dates",
+      "avoid specifics",
+      "do not name the blocker",
+    ]) {
+      expect(p).not.toContain(banned);
+    }
   });
 });

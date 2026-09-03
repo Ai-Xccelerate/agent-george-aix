@@ -116,7 +116,8 @@ export async function searchCustomersAction(
   let qb = admin
     .from("customers")
     .select("id, name, customer_kind, domain")
-    .eq("org_id", user.orgId);
+    .eq("org_id", user.orgId)
+    .is("archived_at", null);
 
   const trimmed = q.trim();
   if (trimmed.length > 0) {

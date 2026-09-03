@@ -357,13 +357,15 @@ let blockedSweeps: Array<{ label: string; why: string }> = [];
 /**
  * Put a blocked sweep on the Needs-you queue, once.
  *
- * Deliberately a FIXED title, deduped on exactly that. George's own repeated
- * escalations varied their titles ("96 h+", "5 prior escalations unresolved"),
- * so each looked new and seven stacked up for one condition. A stable title is
- * what makes "already raised" answerable.
+ * Deduped on a dedupe_key, which is the honest version of what this used to do
+ * with a fixed title string. George's own repeated escalations varied their
+ * titles ("96 h+", "5 prior escalations unresolved"), so each looked new and
+ * seven stacked up for one condition. Matching on copy only works until
+ * somebody edits the copy; matching on a key works because the key names the
+ * condition rather than describing it.
  *
- * This is the interim shape: the honest version is a dedupe key on escalations,
- * which is coming with the Actions account/system split.
+ * Raised as kind: "system" — the mailbox is disconnected, and the fix is to
+ * reconnect it. Nobody resolves this by choosing between options.
  */
 async function reportBlockedSweep(
   admin: ReturnType<typeof createSupabaseAdmin>,
@@ -371,6 +373,9 @@ async function reportBlockedSweep(
   why: string,
 ): Promise<void> {
   const title = `${label} is switched off — George is not receiving mail`;
+  // Derived from the label, not the title: the key must survive a wording
+  // change to the sentence a human reads.
+  const dedupeKey = `blocked_sweep:${label.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
   try {
     const { data: orgs } = await admin
       .from("integrations")
@@ -381,12 +386,15 @@ async function reportBlockedSweep(
     if (!orgIds.length) return;
 
     for (const orgId of orgIds) {
+      // Matched on dedupe_key, not on the title. A title is copy — the moment
+      // somebody improves the wording, the old rows stop matching and the
+      // queue fills up again with what looks like a new problem.
       const { data: existing } = await admin
         .from("escalations")
         .select("id")
         .eq("org_id", orgId)
         .eq("status", "open")
-        .eq("title", title)
+        .eq("dedupe_key", dedupeKey)
         .limit(1);
       if ((existing ?? []).length) continue;
 
@@ -404,6 +412,10 @@ async function reportBlockedSweep(
           "owning organisation, or give each organisation its own mailbox.",
         urgency: "high",
         status: "open",
+        // Nothing here is a judgement call. The mailbox is disconnected; the
+        // fix is to reconnect it, and no amount of deciding will do that.
+        kind: "system",
+        dedupe_key: dedupeKey,
       });
     }
   } catch (err) {

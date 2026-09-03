@@ -15,6 +15,7 @@ import {
   type TouchpointFact,
 } from "./onboarding-state";
 import { checkOnboardingPreconditions } from "./onboarding-preconditions";
+import { checkDraftSpecificity } from "./draft-specificity";
 import { resolveTenantProcess, type ProcessTouchpoint, type TenantProcess } from "./tenant-process";
 
 const RUN_BUDGET_MS = 180_000;
@@ -317,6 +318,30 @@ export async function startOnboarding(args: {
 
   const { draftId, escalationId } = await bindDraftToDecision(admin, args.orgId, sessionId);
 
+  // Did he write about THIS account, or about onboarding in general?
+  //
+  // Read from the provider rather than from anything George told us, for the
+  // same reason the send guard does: the draft is the artefact that reaches the
+  // customer, and a claim about it is not the same as the thing itself.
+  //
+  // A miss is surfaced on the decision the reviewer is already opening. It does
+  // not block — a generic email is a quality problem, and refusing to produce
+  // one leaves the reviewer with nothing to fix.
+  if (draftId && escalationId) {
+    await flagIfGeneric(admin, {
+      orgId: args.orgId,
+      draftId,
+      escalationId,
+      touchpointId,
+      facts,
+    }).catch((err) => {
+      // Never fail a run over the quality check. The draft is already written
+      // and already gated; losing the flag is worse than losing the draft only
+      // in the sense that nobody notices, which is why it is logged loudly.
+      console.error("[onboarding] specificity check failed", err);
+    });
+  }
+
   await admin
     .from("onboarding_touchpoint")
     .update({
@@ -328,6 +353,82 @@ export async function startOnboarding(args: {
     .eq("id", touchpointId);
 
   return { ok: true, touchpointId, sessionId, touchpointKey: touchpoint.key };
+}
+
+/**
+ * Flag a draft that could have been sent to anybody.
+ *
+ * The facts it looks for are the ones the composer was given: the contract and
+ * go-live dates, whatever is blocking them, and the first-value milestone. If
+ * none of those made it into the email, the composer generalised.
+ */
+async function flagIfGeneric(
+  admin: SupabaseClient,
+  args: {
+    orgId: string;
+    draftId: string;
+    escalationId: string;
+    touchpointId: string;
+    facts: OnboardingFacts;
+  },
+): Promise<void> {
+  const { nylasConfig, createNylasClient } = await import("@/lib/nylas/client");
+  const cfg = nylasConfig();
+  if (!cfg) return;
+
+  const draft = await createNylasClient(cfg).getDraft(args.draftId);
+  if (!draft.ok) return;
+
+  const body = String(
+    (draft.data as Record<string, unknown>)?.body ??
+      (draft.data as Record<string, unknown>)?.snippet ??
+      "",
+  );
+
+  const result = checkDraftSpecificity(body, {
+    dates: [
+      args.facts.contract?.signed_at,
+      args.facts.plan?.target_end_date,
+      ...args.facts.objectives.map((o) => o.due_date),
+    ],
+    terms: [
+      args.facts.firstValue?.label,
+      args.facts.firstValue?.definition,
+      ...args.facts.objectives.map((o) => o.title),
+    ],
+  });
+
+  await admin.from("audit_log").insert({
+    org_id: args.orgId,
+    actor: "system",
+    action: result.ok ? "onboarding.draft_specific" : "onboarding.draft_generic",
+    payload: {
+      draft_id: args.draftId,
+      touchpoint_id: args.touchpointId,
+      found: result.found,
+    },
+  });
+
+  if (result.ok) return;
+
+  // Say it on the decision, in the reviewer's words rather than the checker's.
+  const { data: esc } = await admin
+    .from("escalations")
+    .select("detail")
+    .eq("id", args.escalationId)
+    .maybeSingle();
+
+  await admin
+    .from("escalations")
+    .update({
+      detail:
+        String(esc?.detail ?? "").trim() +
+        "\n\nNothing in this draft is specific to this account — no date, no milestone, " +
+        "no named blocker. It would read the same to any customer. Worth adding one " +
+        "concrete thing before it goes.",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", args.escalationId);
 }
 
 /** Imported lazily so the SDK and its native binary stay out of the edge/build graph. */

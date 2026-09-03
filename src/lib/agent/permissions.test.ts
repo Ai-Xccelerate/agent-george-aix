@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { georgeCanUseTool } from "./permissions";
+import { georgeCanUseTool as guard } from "./permissions";
+
+/**
+ * The SDK's `CanUseTool` signature gained a third argument — an options bag
+ * carrying an abort signal and permission-prompt metadata. George's guard reads
+ * none of it: the decision is made on the tool name and, for WebFetch, the URL.
+ *
+ * Supplying the minimum the type requires keeps that true in the tests. A
+ * fuller fixture would imply the guard consults fields it does not read, and
+ * the next person would have to check.
+ */
+const georgeCanUseTool = (toolName: string, input: Record<string, unknown>) =>
+  guard(toolName, input, {
+    signal: new AbortController().signal,
+    toolUseID: "test",
+  });
 
 describe("georgeCanUseTool", () => {
   describe("non-WebFetch tools", () => {
