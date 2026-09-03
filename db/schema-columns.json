@@ -1,5 +1,5 @@
 {
- "_alembic_revision": "0007",
+ "_alembic_revision": "0008",
  "_generated_from": "staging information_schema, 2026-09-02",
  "tables": {
   "agent_events": [
@@ -208,6 +208,22 @@
    "reason",
    "signals",
    "measured_at"
+  ],
+  "customer_observations": [
+   "id",
+   "org_id",
+   "customer_id",
+   "summary",
+   "detail",
+   "source",
+   "category",
+   "observed_at",
+   "session_id",
+   "source_ref",
+   "dedupe_key",
+   "acknowledged_at",
+   "created_at",
+   "updated_at"
   ],
   "customers": [
    "id",

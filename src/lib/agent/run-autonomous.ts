@@ -25,6 +25,7 @@ import { isScribeConfigured } from "./scribe";
 import { isNylasEnabled } from "@/lib/nylas/client";
 import { buildAgentDbMcpServer, clerkOrgIdFor } from "./agentdb";
 import { georgeCanUseTool } from "./permissions";
+import { resolveOperatingMode, renderAutonomyBlock } from "./operating-mode";
 import { buildGeorgeSystemPrompt } from "./system-prompt";
 import type { AutonomousSendPolicy } from "./prompt";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
@@ -104,11 +105,19 @@ export async function runGeorgeAutonomous(
   const timeBudgetMs = input.timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS;
   const emailSendPolicy = input.emailSendPolicy ?? "none";
 
-  const basePrompt = await buildGeorgeSystemPrompt(admin, {
-    orgId: input.orgId,
-    autonomous: true,
-    emailSendPolicy,
-  });
+  // Resolved once and used twice: it decides the grant below, and George is
+  // told the same thing in words. The block and the gate are edited together —
+  // when they drift, the prompt is the one that lies.
+  const operatingMode = await resolveOperatingMode(admin, input.orgId);
+
+  const basePrompt =
+    (await buildGeorgeSystemPrompt(admin, {
+      orgId: input.orgId,
+      autonomous: true,
+      emailSendPolicy,
+    })) +
+    "\n\n" +
+    renderAutonomyBlock(operatingMode);
   // Layered, not replaced: the agent prompt is task framing, and it still
   // needs the identity, organisation profile and signature block that decide
   // which company George says he works for.
@@ -125,11 +134,17 @@ ${input.asAgent.prompt}`
     isActive(admin, input.orgId, "scribe", isScribeConfigured()),
   ]);
 
+  // Every run through this function is one nobody asked for. Whether it may
+  // create work for a human is the org's operating mode, decided here rather
+  // than left to the prompt — see operating-mode.ts.
+  const mayRaise = operatingMode === "operator";
+
   const { server: georgeServer, toolNames } = buildGeorgeMcpServer({
     orgId: input.orgId,
     userId: input.userId ?? null,
     sessionId: input.sessionId ?? null,
     emailSendPolicy: emailSendPolicy === "internal_only" ? "internal_only" : "chat",
+    mayRaiseDecisions: mayRaise,
     enabled: { nylas: nylasOn },
   });
   const scribe = scribeOn ? buildScribeMcpServer() : null;

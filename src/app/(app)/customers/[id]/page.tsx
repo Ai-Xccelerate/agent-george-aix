@@ -74,6 +74,16 @@ type Customer = {
   archived_at: string | null;
 };
 
+type Observation = {
+  id: string;
+  summary: string;
+  detail: string | null;
+  source: string;
+  category: string;
+  observed_at: string;
+  acknowledged_at: string | null;
+};
+
 type RelatedCustomer = {
   id: string;
   name: string;
@@ -208,6 +218,7 @@ export default async function CustomerPage(
     healthRes,
     agentSettings,
     onboarding,
+    observationsRes,
   ] = await Promise.all([
       supabase
         .from("customers")
@@ -246,6 +257,15 @@ export default async function CustomerPage(
         .limit(10),
       getAgentSettings(supabase, user.orgId),
       checkOnboardingPreconditions(supabase, user.orgId, id),
+      supabase
+        .from("customer_observations")
+        .select("id, summary, detail, source, category, observed_at, acknowledged_at")
+        .eq("customer_id", id)
+        .eq("org_id", user.orgId)
+        // observed_at, not created_at: a transcript synced today can describe
+        // last week's call, and ordering by write time tells it out of order.
+        .order("observed_at", { ascending: false })
+        .limit(25),
     ]);
 
   if (!customer) notFound();
@@ -331,6 +351,7 @@ export default async function CustomerPage(
     resolvePolicies(agentSettings.operating_policy).partner_motion === true;
   const cadence = cadenceRes.data ?? null;
   const objectives = (objectivesRes.data ?? []) as Objective[];
+  const observations = (observationsRes.data ?? []) as Observation[];
   const owner = ownerRes.data ?? null;
   const sessions = (sessionsRes.data ?? []) as Session[];
   const activity = (activityRes.data ?? []) as Activity[];
@@ -508,7 +529,11 @@ export default async function CustomerPage(
               </ul>
             </Section>
           )}
-          <ObjectivesSection objectives={objectives} customerId={customer.id} />
+          <UpdatesSection
+            observations={observations}
+            objectives={objectives}
+            customerId={customer.id}
+          />
 
           <Section
             title="Onboarding plan"
@@ -742,41 +767,118 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-// ── Objectives — what George is chasing for this account ─────────────────────
-function ObjectivesSection({
+// ── Updates — what George has noticed, and what he is chasing ────────────────
+/**
+ * Was "Objectives". Renamed and widened, because the account needs to answer
+ * "what is going on here" before it answers "what is outstanding".
+ *
+ * Observations come first and objectives second, deliberately. An objective is
+ * a commitment somebody made; an observation is something George noticed and
+ * nobody has to act on. On a book of accounts most of what is worth knowing is
+ * the second kind, and it had nowhere to live — so George's only way to tell
+ * anyone anything was to raise a decision, which is how the queue filled up.
+ */
+function UpdatesSection({
+  observations,
   objectives,
   customerId,
 }: {
+  observations: Observation[];
   objectives: Objective[];
   customerId: string;
 }) {
   const open = objectives.filter((o) => o.status !== "achieved");
   const done = objectives.filter((o) => o.status === "achieved");
+  const unread = observations.filter((o) => !o.acknowledged_at).length;
+  const empty = observations.length === 0 && objectives.length === 0;
+
   return (
     <Section
-      title="Objectives"
-      icon={<Target size={14} className="text-brand-500 dark:text-brand-400" />}
+      title="Updates"
+      icon={<Sparkles size={14} className="text-brand-500 dark:text-brand-400" />}
       right={
-        objectives.length > 0 ? (
+        unread > 0 ? (
+          <span className="rounded-full bg-brand-50 dark:bg-brand-500/15 px-2 py-0.5 text-theme-xs font-medium text-brand-500 dark:text-brand-400">
+            {unread} new
+          </span>
+        ) : objectives.length > 0 ? (
           <span className="text-theme-xs text-gray-400 dark:text-gray-500">
             {done.length}/{objectives.length} done
           </span>
         ) : null
       }
     >
-      {objectives.length === 0 ? (
+      {empty ? (
         <EmptyRow
-          text="Nothing being chased yet. George creates objectives from the kickoff and follows up until each is met."
+          text="Nothing yet. George adds what he picks up from email, meetings and transcripts as it comes in."
           cta={{ label: "Ask George", href: `/chat?customer=${customerId}` }}
         />
       ) : (
-        <ul className="space-y-2">
-          {[...open, ...done].map((o) => (
-            <ObjectiveRow key={o.id} objective={o} />
-          ))}
-        </ul>
+        <div className="space-y-4">
+          {observations.length > 0 && (
+            <ul className="space-y-2">
+              {observations.map((o) => (
+                <ObservationRow key={o.id} observation={o} />
+              ))}
+            </ul>
+          )}
+
+          {objectives.length > 0 && (
+            <div>
+              {observations.length > 0 && (
+                <div className="mb-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Being chased
+                </div>
+              )}
+              <ul className="space-y-2">
+                {[...open, ...done].map((o) => (
+                  <ObjectiveRow key={o.id} objective={o} />
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
     </Section>
+  );
+}
+
+/** Category drives the accent. Risk should not look like progress. */
+const OBSERVATION_TONE: Record<string, string> = {
+  risk: "text-warning-500 dark:text-warning-400",
+  progress: "text-success-500 dark:text-success-400",
+  commercial: "text-brand-500 dark:text-brand-400",
+  relationship: "text-gray-500 dark:text-gray-400",
+  product: "text-gray-500 dark:text-gray-400",
+  other: "text-gray-500 dark:text-gray-400",
+};
+
+function ObservationRow({ observation: o }: { observation: Observation }) {
+  return (
+    <li className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
+      <div className="flex items-start gap-2">
+        <span className={`mt-1 shrink-0 ${OBSERVATION_TONE[o.category] ?? OBSERVATION_TONE.other}`}>
+          <Circle size={7} fill="currentColor" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-theme-sm text-gray-800 dark:text-white/90">{o.summary}</p>
+          {o.detail && (
+            <p className="mt-1 text-theme-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              {o.detail}
+            </p>
+          )}
+          {/* Where it came from, because an inference and a quotation are
+              different kinds of claim and the reader has to tell them apart. */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-theme-xs text-gray-400 dark:text-gray-500">
+            <span className="capitalize">{o.category}</span>
+            <span aria-hidden>·</span>
+            <span>from {o.source}</span>
+            <span aria-hidden>·</span>
+            <span>{new Date(o.observed_at).toLocaleDateString()}</span>
+          </div>
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -1130,7 +1232,18 @@ function StepIcon({ status }: { status: string }) {
 function ContactCard({ contact }: { contact: Contact }) {
   return (
     <div className="group relative rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
-      <div className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100">
+      {/*
+        Visible at rest, not only on hover.
+
+        This was `opacity-0 group-hover:opacity-100`, and it is the only way to
+        edit a contact — so on a touchscreen, or for anyone who did not happen
+        to hover, there was no way to change a contact at all. It also had no
+        focus state, so tabbing to it left it invisible while still clickable.
+
+        An affordance you cannot see is not an affordance. Muted at rest keeps
+        the card calm; hover and keyboard focus both bring it up.
+      */}
+      <div className="absolute right-2 top-2 opacity-45 transition group-hover:opacity-100 focus-within:opacity-100">
         <EditContactButton
           contact={{
             id: contact.id,
