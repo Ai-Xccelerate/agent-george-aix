@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import {
-  BoltIcon,
   CalenderIcon,
   ChevronDownIcon,
   DocsIcon,
@@ -35,14 +34,21 @@ type NavItem = {
  * UI element galleries) is deliberately not carried over — only the surfaces
  * George actually serves.
  */
-// No Chat entry. The standalone chat page was retired when George moved into
-// the floating bubble that is on every screen — /chat now forwards to AI
-// actions. A nav item pointing at a redirect is worse than no nav item: it
-// promises a destination, and lands the user somewhere they did not ask for.
-// (Deep links to a specific conversation still work at /chat/[id].)
+// Two entries the template-era nav had and this one deliberately does not.
+//
+// No Chat entry: the standalone chat page was retired when George moved into
+// the floating bubble that is on every screen. (Deep links to a specific
+// conversation still work at /chat/[id].)
+//
+// No AI Actions entry: the cross-book queue is switched off
+// (AI_ACTIONS_QUEUE_ENABLED) — George records what he notices on the customer
+// record instead, and /actions 404s while the flag is false.
+//
+// Same reason in both cases. A nav item pointing at a redirect or a dead route
+// is worse than no nav item: it promises a destination and lands the user
+// somewhere they did not ask for.
 const navItems: NavItem[] = [
   { icon: <GridIcon />, name: "Dashboard", path: "/dashboard" },
-  { icon: <BoltIcon />, name: "AI Actions", path: "/actions" },
   { icon: <GroupIcon />, name: "Customers", path: "/customers" },
 ];
 

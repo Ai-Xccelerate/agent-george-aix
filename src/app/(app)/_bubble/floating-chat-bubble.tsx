@@ -60,8 +60,6 @@ function shouldHideBubble(pathname: string | null): boolean {
   if (!pathname) return true;
   if (pathname.startsWith("/chat")) return true;
   if (pathname.startsWith("/settings")) return true;
-  // /actions has an inline chat column per-item; surface conflict.
-  if (pathname.startsWith("/actions")) return true;
   return false;
 }
 

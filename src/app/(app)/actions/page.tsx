@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Bell, Mail, Inbox, Sparkles, Wrench } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
@@ -9,6 +9,7 @@ import { type InitialMessage } from "../chat/_chat-client";
 import { GeorgePanel, type SuggestedAction } from "./_george-panel";
 import { ResizableChat } from "./_resizable-chat";
 import { ApproveAndSendButton } from "./_approve-button";
+import { AI_ACTIONS_QUEUE_ENABLED } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,15 @@ export default async function ActionsPage({
 }: {
   searchParams: Promise<{ item?: string }>;
 }) {
+  // Switched off, not deleted — see AI_ACTIONS_QUEUE_ENABLED for the reasoning
+  // and for what replaced it. notFound() rather than a redirect: the route does
+  // not exist while the flag is off, and bouncing someone to a surface they did
+  // not ask for is the behaviour the retired /chat index was criticised for.
+  //
+  // The whole page below stays compiled and typechecked so flipping the flag is
+  // all there is to turning it back on.
+  if (!AI_ACTIONS_QUEUE_ENABLED) notFound();
+
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
   const admin = createSupabaseAdmin();

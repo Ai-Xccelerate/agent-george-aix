@@ -98,11 +98,8 @@ export function OnboardButton({
 
       {state === "started" && (
         <p className="mt-3 rounded-lg bg-success-50 dark:bg-success-500/10 p-3 text-theme-xs text-gray-600 dark:text-gray-300">
-          George is writing. It takes a minute or two — the draft will appear in{" "}
-          <Link href="/actions" className="font-medium underline underline-offset-2">
-            AI actions
-          </Link>{" "}
-          for review.
+          George is writing. It takes a minute or two — the draft appears on this
+          account, under Needs a decision, for review.
         </p>
       )}
 

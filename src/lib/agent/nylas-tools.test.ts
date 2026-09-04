@@ -8,6 +8,19 @@
  * from the provider rather than trusting what the model said at draft time.
  *
  * These run with the Nylas client mocked, so no mailbox and no key are needed.
+ *
+ * WHY THE FEATURE FLAG IS FORCED ON HERE
+ * `send_email_draft` is not registered in this build (EMAIL_SENDING_EXPOSED is
+ * false — George drafts, a human sends). That is a decision about EXPOSURE, and
+ * this file tests BEHAVIOUR. Letting the flag reach these tests would turn all
+ * thirteen of them green by making the tool absent, which is precisely the
+ * "check that cannot report failure" AGENTS.md warns about — the guard would
+ * stop being exercised at the moment it stopped being reachable, and would rot
+ * unnoticed until somebody switched sending back on.
+ *
+ * So: the guard is tested here with sending forced on, and whether it is
+ * exposed at all is tested in send-not-exposed.test.ts. Neither file can pass
+ * for the other's reason.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -31,6 +44,11 @@ vi.mock("@/lib/nylas/client", async (importOriginal) => {
     createNylasClient: () => ({ getDraft, sendDraft, createDraft, getMessage }),
   };
 });
+
+vi.mock("@/lib/features", () => ({
+  EMAIL_SENDING_EXPOSED: true,
+  AI_ACTIONS_QUEUE_ENABLED: false,
+}));
 
 const { buildNylasEmailTools } = await import("./nylas-tools");
 

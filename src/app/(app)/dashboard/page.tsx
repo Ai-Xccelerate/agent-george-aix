@@ -24,6 +24,24 @@ const STAGES: Array<{ key: string; label: string }> = [
 
 const DRAFT_ACTIONS = ["email.drafted", "email.reply_drafted"];
 
+/**
+ * Where a decision opens now that the cross-book queue is off.
+ *
+ * The account first: a decision is a judgement about a customer, and the
+ * account is where the rest of what George knows about them already is. The
+ * originating conversation is the fallback for the handful of escalations that
+ * have no customer attached — a broken mailbox, a failing sync.
+ *
+ * Falls through to /customers rather than to a dead route, so a decision with
+ * neither still lands somewhere real. There is deliberately no branch back to
+ * /actions; it 404s while the flag is false.
+ */
+function decisionHref(d: { customer_id: string | null; session_id: string | null }): string {
+  if (d.customer_id) return `/customers/${d.customer_id}`;
+  if (d.session_id) return `/chat/${d.session_id}`;
+  return "/customers";
+}
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
@@ -136,6 +154,7 @@ export default async function DashboardPage() {
     (recentDraftsRes.data ?? []) as Array<{
       id: string;
       action: string;
+      customer_id: string | null;
       payload: { to?: string[]; subject?: string; draft_id?: string } | null;
     }>
   )
@@ -155,6 +174,9 @@ export default async function DashboardPage() {
     id: string;
     title: string;
     urgency: string;
+    // Both are already in the select; they were missing from the cast, so the
+    // row's own customer was unreachable here and every link went to the queue.
+    customer_id: string | null;
     session_id: string | null;
     customers: { name: string }[] | null;
   }>;
@@ -303,20 +325,26 @@ export default async function DashboardPage() {
         className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3"
       >
         <div className="lg:col-span-2">
+          {/* Was "AI actions for you", with every row opening the cross-book
+              queue at /actions. That queue is switched off
+              (AI_ACTIONS_QUEUE_ENABLED) and the route 404s, so each row now
+              opens the ACCOUNT it belongs to — which is where the decision is
+              made and where the rest of the context already lives. The
+              "Open actions →" shortcut is gone with the destination. */}
           <Card
-            title="AI actions for you"
+            title="Needs a decision"
             badge={needsYouCount || undefined}
             right={
               <Link
-                href="/actions"
+                href="/customers"
                 className="text-theme-xs font-medium text-brand-500 hover:text-brand-600 dark:hover:text-brand-400"
               >
-                Open actions →
+                All customers →
               </Link>
             }
           >
             {needsYouCount === 0 ? (
-              <Empty text="Nothing waiting. George surfaces drafts to approve, escalations, and at-risk partners here." />
+              <Empty text="Nothing waiting. What George notices goes on the customer record — open an account to read it." />
             ) : (
               <div className="space-y-4">
                 {decisions.length > 0 && (
@@ -329,7 +357,7 @@ export default async function DashboardPage() {
                         key={d.id}
                         className="flex items-center justify-between gap-3 px-3 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03]"
                       >
-                        <Link href={`/actions?item=decision:${d.id}`} className="min-w-0 flex-1">
+                        <Link href={decisionHref(d)} className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             {d.urgency === "high" && (
                               <Badge tone="error" withDot={false}>
@@ -347,7 +375,7 @@ export default async function DashboardPage() {
                           )}
                         </Link>
                         <Link
-                          href={`/actions?item=decision:${d.id}`}
+                          href={decisionHref(d)}
                           className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-theme-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300 dark:hover:bg-white/[0.06]"
                         >
                           Open <ArrowRight size={12} />
@@ -361,7 +389,7 @@ export default async function DashboardPage() {
                     {recentDrafts.map((d) => (
                       <NeedRow
                         key={d.id}
-                        href={`/actions?item=draft:${d.id}`}
+                        href={d.customer_id ? `/customers/${d.customer_id}` : `/mailbox`}
                         title={
                           d.payload?.subject ||
                           (d.action === "email.reply_drafted" ? "Reply draft" : "(no subject)")

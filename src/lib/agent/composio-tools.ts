@@ -11,6 +11,7 @@
  * doesn't auto-send.
  */
 import { z } from "zod";
+import { EMAIL_SENDING_EXPOSED } from "@/lib/features";
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callAction } from "@/lib/composio/client";
@@ -534,10 +535,21 @@ export function buildComposioTools(ctx: Ctx) {
   // Meeting transcripts are handled by Scribe (a remote MCP server wired into
   // the agent runtime), not Composio — see src/lib/agent/scribe.ts.
 
+  // send_email_draft is registered ONLY when sending is exposed.
+  //
+  // Absent, not present-and-refusing. The tool, its guards
+  // (`sendDraftGuarded` — allowlist plus volume ceiling) and their tests are
+  // all still here and still run; George simply has no way to reach them. That
+  // ordering is deliberate: the guards are the expensive part and they rot if
+  // they stop being exercised, while a capability that exists alongside prose
+  // saying "do not use it" is not a control — see the 20 August incident in
+  // integration-toggle.ts, where exactly that shape sent 16 emails.
+  //
+  // Flipping EMAIL_SENDING_EXPOSED puts it back with the guards unchanged.
   return [
     draftEmail,
     draftReply,
-    sendDraft,
+    ...(EMAIL_SENDING_EXPOSED ? [sendDraft] : []),
     listRecentEmails,
     getEmail,
     searchEmails,
