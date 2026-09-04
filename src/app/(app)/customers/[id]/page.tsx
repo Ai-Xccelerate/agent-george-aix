@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { resolveTenantProcess } from "@/lib/agent/tenant-process";
 import { checkOnboardingPreconditions } from "@/lib/agent/onboarding-preconditions";
 import { getAgentSettings } from "@/lib/agent/agent-settings";
 import { resolvePolicies } from "@/lib/agent/operating-model";
@@ -528,7 +529,28 @@ export default async function CustomerPage(
   const approverRow = approverRes.data as
     | { full_name: string | null; email: string | null }
     | null;
-  const approver = approverRow?.full_name ?? approverRow?.email ?? null;
+
+  /**
+   * Who sees a decision first.
+   *
+   * Two fields claimed to answer this and neither did. `agent_settings.
+   * owner_user_id` is what this page read, and it is NULL for every org — so
+   * the line that tells a reader who is meant to act on a decision has never
+   * once rendered. `tenant_process.escalation.notify` is the field actually
+   * designed for it, and it was parsed by tenant-process.ts and read by
+   * nothing: a setting that looked like a control and decided nothing, the
+   * same shape `operating_mode` was in before it was wired to the tool grant.
+   *
+   * `notify` wins, because it is the one the touchpoints screen edits and the
+   * one a tenant can set. owner_user_id stays as a fallback so an org that has
+   * assigned a named owner still sees them rather than an address.
+   */
+  const process = await resolveTenantProcess(supabase, user.orgId).catch(() => null);
+  const approver =
+    approverRow?.full_name ??
+    approverRow?.email ??
+    process?.escalation.notify ??
+    null;
 
   const docsRaw = (docsRes.data ?? []) as Array<{
     id: string;
