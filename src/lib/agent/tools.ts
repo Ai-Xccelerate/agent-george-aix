@@ -1996,6 +1996,142 @@ export function buildGeorgeMcpServer(
     },
   );
 
+  // ---- write_account_narrative -------------------------------------
+  /**
+   * The story of the account, REWRITTEN. Not another observation.
+   *
+   * WHY A SEPARATE TOOL AND NOT A LONGER record_observation
+   * Because the operation is different, and the difference is the point.
+   * record_observation appends one fact and dedupes so the same fact is not
+   * recorded twice. This replaces a body of prose. Thirteen observations sit
+   * side by side without contradicting each other; two narratives cannot —
+   * the newer one is simply what is true now, and the older one has to go.
+   *
+   * Mondello demonstrates why the append tool cannot do this job. It has
+   * thirteen observations covering perhaps six distinct facts: "Monday send at
+   * risk" was recorded four times in four wordings, twice by a scan with no
+   * dedupe_key. Each write was individually correct. Read together they are a
+   * page nobody finishes. The narrative is where that collapses into the six
+   * things, and it can only collapse if writing it discards the last one.
+   *
+   * SOURCES ARE REQUIRED BY THE SCHEMA, NOT BY A PROMPT
+   * `sources` is NOT NULL on the table. A narrative is the highest-inference
+   * thing on the account — George's synthesis rather than George's quotation —
+   * so it is the claim most in need of a trail, and prose asking nicely for one
+   * is the control this codebase has already watched fail. An empty array is
+   * accepted and renders as an explicit warning; the column cannot be absent.
+   */
+  const writeAccountNarrative = tool(
+    "write_account_narrative",
+    "Rewrite the story of an account: what is going on here right now, in prose a person can read in fifteen seconds. This REPLACES the previous narrative rather than adding to it — say what is true now, not what changed since last time. Use it after you have read enough to have a view (a batch of transcripts, a thread, a scan), not after every single thing you notice; individual facts go to record_observation. Cite what you read in `sources` — a narrative is your synthesis, so it is the claim a person is least able to check on their own. If the account has thin evidence, say so in the body and keep it short: two emails and no meetings should read as two emails and no meetings, not as a confident summary.",
+    {
+      customer_id: z.string().uuid().describe("The customer this is about."),
+      body: z
+        .string()
+        .min(1)
+        .max(1200)
+        .describe(
+          "The story, in prose. Two to five sentences for a live account. Lead with where things actually stand, not with a restatement of the account name. No bullet lists — this is the paragraph somebody reads before they read anything else.",
+        ),
+      sources: z
+        .array(
+          z.object({
+            kind: z.enum(["email", "transcript", "meeting", "observation", "session"]),
+            id: z.string().min(1).describe("The row id this came from."),
+            label: z
+              .string()
+              .min(1)
+              .max(160)
+              .describe("What to show a human, e.g. 'Standup, 3 Sep' — not the raw id."),
+          }),
+        )
+        .describe(
+          "What you read to write this. Pass [] only when you genuinely wrote from nothing; the account will display that as an uncited claim, which is the honest outcome rather than a hidden one.",
+        ),
+      evidence: z
+        .object({
+          emails: z.number().int().min(0).optional(),
+          meetings: z.number().int().min(0).optional(),
+          transcripts: z.number().int().min(0).optional(),
+          observations: z.number().int().min(0).optional(),
+          days_covered: z.number().int().min(0).optional(),
+        })
+        .optional()
+        .describe(
+          "How much there was to go on. The page shows this next to the narrative so a reader can weigh it. Leave a count out if you did not look at that kind of thing at all.",
+        ),
+    },
+    async ({ customer_id, body, sources, evidence }) => {
+      // Org-scoped, like every other customer-scoped tool: an id from another
+      // tenant must not be writable.
+      const owner = await db
+        .from("customers")
+        .select("id")
+        .eq("id", customer_id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (!owner.data) return fail("No such customer in this organisation.");
+
+      // Read before write, for `superseded_count`. The unique index on
+      // customer_id means there is at most one row, so this is a point lookup
+      // and the count is the only thing carried forward from the version being
+      // replaced.
+      const existing = await db
+        .from("customer_narrative")
+        .select("id, superseded_count")
+        .eq("customer_id", customer_id)
+        .maybeSingle();
+
+      const now = new Date().toISOString();
+      const row = {
+        org_id: orgId,
+        customer_id,
+        body,
+        sources,
+        evidence: evidence ?? {},
+        session_id: ctx.sessionId ?? null,
+        written_at: now,
+        updated_at: now,
+      };
+
+      if (existing.data) {
+        const prior = (existing.data as { superseded_count: number }).superseded_count ?? 0;
+        const { error } = await db
+          .from("customer_narrative")
+          .update({ ...row, superseded_count: prior + 1 })
+          .eq("id", (existing.data as { id: string }).id);
+        if (error) return fail(error.message);
+        return ok({
+          written: true,
+          replaced: true,
+          rewrites: prior + 1,
+          cited: sources.length,
+          note:
+            sources.length === 0
+              ? "Saved with no sources. The account will show this as an uncited claim."
+              : undefined,
+        });
+      }
+
+      const { data, error } = await db
+        .from("customer_narrative")
+        .insert(row)
+        .select("id")
+        .single();
+      if (error) return fail(error.message);
+      return ok({
+        narrative_id: data.id,
+        written: true,
+        replaced: false,
+        cited: sources.length,
+        note:
+          sources.length === 0
+            ? "Saved with no sources. The account will show this as an uncited claim."
+            : undefined,
+      });
+    },
+  );
+
   // `raise_decision` is in the grant only when this run may create work for a
   // human. On an autonomous run in assistant mode it is absent, and
   // `record_observation` is what George has instead.
@@ -2010,6 +2146,7 @@ export function buildGeorgeMcpServer(
     listCustomers,
     getCustomer,
     recordObservation,
+    writeAccountNarrative,
     ...(mayRaise ? [raiseDecision] : []),
     listOpenDecisions,
     requestDomainApproval,

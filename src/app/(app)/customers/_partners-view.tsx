@@ -170,7 +170,7 @@ function BoardCard({ row: c }: { row: PartnerRow }) {
       )}
       {c.openObjectives > 0 && (
         <div className="mt-2 inline-flex items-center gap-1 text-theme-xs text-gray-400 dark:text-gray-500">
-          <Target size={11} /> {c.openObjectives} open
+          <Target size={11} /> {c.openObjectives} outstanding
         </div>
       )}
     </Link>

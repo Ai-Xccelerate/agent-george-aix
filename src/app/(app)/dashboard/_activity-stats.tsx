@@ -70,7 +70,7 @@ export function ActivityStats({ drafts, sent, meetings, objectives, now }: Props
         />
         <StatCard
           icon={<TaskIcon />}
-          label="Objectives met"
+          label="Commitments met"
           value={within(objectives).toLocaleString()}
           deltaLabel={periodLabel}
         />

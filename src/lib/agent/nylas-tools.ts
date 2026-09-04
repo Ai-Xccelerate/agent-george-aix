@@ -39,6 +39,7 @@ import {
 import { wrapGeorgeEmailHtml, injectReplyHtml } from "@/lib/agent/email-branding";
 import { isInternalTo, resolveOrgIdentity } from "@/lib/agent/identity";
 import { sendDraftGuarded } from "@/lib/agent/send-guarded";
+import { EMAIL_SENDING_EXPOSED } from "@/lib/features";
 
 type Ctx = {
   orgId: string;
@@ -545,10 +546,21 @@ export function buildNylasEmailTools(ctx: Ctx) {
     },
   );
 
+  // send_email_draft is registered ONLY when sending is exposed.
+  //
+  // Absent, not present-and-refusing. The tool, its guards
+  // (`sendDraftGuarded` — allowlist plus volume ceiling) and their tests are
+  // all still here and still run; George simply has no way to reach them. That
+  // ordering is deliberate: the guards are the expensive part and they rot if
+  // they stop being exercised, while a capability that exists alongside prose
+  // saying "do not use it" is not a control — see the 20 August incident in
+  // integration-toggle.ts, where exactly that shape sent 16 emails.
+  //
+  // Flipping EMAIL_SENDING_EXPOSED puts it back with the guards unchanged.
   return [
     draftEmail,
     draftReply,
-    sendDraft,
+    ...(EMAIL_SENDING_EXPOSED ? [sendDraft] : []),
     listRecentEmails,
     getEmail,
     searchEmails,

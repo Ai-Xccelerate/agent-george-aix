@@ -9,6 +9,7 @@ import {
   Globe2,
   Puzzle,
   ScrollText,
+  Send,
   ShieldCheck,
   User,
   Users,
@@ -31,6 +32,10 @@ const SECTIONS: Section[] = [
     items: [
       { href: "/settings/agent", label: "Identity", icon: Bot, adminOnly: true },
       { href: "/settings/agent/policy", label: "Operating model", icon: ScrollText, adminOnly: true },
+      // The single place George's unprompted contacts are defined. Sits next to
+      // Operating model and Email domains on purpose — the three of them are
+      // the gates on outbound mail, and they should read as a group.
+      { href: "/settings/agent/touchpoints", label: "Unprompted email", icon: Send, adminOnly: true },
       { href: "/settings/agent/domains", label: "Email domains", icon: Globe2, approverOnly: true },
       { href: "/settings/integrations", label: "Integrations", icon: Puzzle, adminOnly: true },
       { href: "/settings/knowledge", label: "Knowledge", icon: BookOpen, adminOnly: true },

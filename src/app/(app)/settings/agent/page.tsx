@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  ArrowRight,
   CalendarClock,
   Database,
   ListChecks,
@@ -24,11 +26,9 @@ import {
 } from "@/lib/agent/tenant-process";
 import { DEFAULT_TIMEZONE } from "@/lib/agent/agent-settings";
 import { AgentForm, AvatarUploadForm, type OwnerOption } from "./_agent-form";
-import { TouchpointForm } from "./_touchpoint-form";
 import {
   removeAgentAvatarAction,
   updateAgentSettingsAction,
-  updateTouchpointCadenceAction,
   uploadAgentAvatarAction,
 } from "./actions";
 
@@ -236,21 +236,33 @@ export default async function AgentSettingsPage() {
           </dl>
         )}
 
+        {/* The cadence editor used to be inlined here as four number inputs
+            under a "Cadence" subheading. It could retime a contact but not add,
+            remove or reword one, and this page — George's name, title and
+            avatar — is not where a reader looks for the decision about when he
+            may email a customer unprompted. Both problems are fixed by it
+            having its own screen; this is now a link to it, so there is exactly
+            one destination. */}
         {!processMissing && (
           <div className="mt-5 border-t border-gray-200 dark:border-gray-800 pt-5">
             <h3 className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
-              Cadence
+              Unprompted email
             </h3>
             <p className="mt-1 mb-3 text-theme-xs text-gray-400 dark:text-gray-500">
-              When George reaches out, counted in days from the start of onboarding, and
-              how long silence runs before it becomes a signal.
+              {process.touchpoints.length} planned contact
+              {process.touchpoints.length === 1 ? "" : "s"}, on day
+              {process.touchpoints.length === 1 ? "" : "s"}{" "}
+              {process.touchpoints.map((t) => t.day_offset).join(", ")} of onboarding.
+              Silence counts after {process.escalation.silence_days} days without a
+              reply.
             </p>
-            <TouchpointForm
-              action={updateTouchpointCadenceAction}
-              touchpoints={process.touchpoints}
-              silenceDays={process.escalation.silence_days}
-              silenceEscalateAfter={process.escalation.silence_escalate_after}
-            />
+            <Link
+              href="/settings/agent/touchpoints"
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-3 py-2 text-theme-sm font-medium text-gray-800 dark:text-white/90 transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.06]"
+            >
+              Edit the schedule
+              <ArrowRight size={14} />
+            </Link>
           </div>
         )}
       </section>

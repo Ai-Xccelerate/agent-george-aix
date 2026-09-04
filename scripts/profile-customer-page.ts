@@ -42,36 +42,64 @@ async function main() {
   // Warm the connection so the first stage is not charged for TLS setup.
   await db.from("orgs").select("id").limit(1);
 
-  await stage("batch 1 (customer + contacts)", 2, 1, () =>
+  // ── Wave 1. Everything that needs only (orgId, customerId). ───────────
+  // Depth 3, not 1: checkOnboardingPreconditions is itself a three-deep chain,
+  // so the batch cannot finish sooner than its slowest member.
+  await stage("wave 1 (9 reads, incl. preconditions)", 9, 3, () =>
     Promise.all([
       db.from("customers").select("*").eq("id", customerId).maybeSingle(),
       db.from("contacts").select("*").eq("customer_id", customerId),
-    ]),
-  );
-
-  await stage("batch 2 (plan + steps + health)", 3, 1, () =>
-    Promise.all([
+      db.from("contracts").select("*").eq("customer_id", customerId),
       db.from("onboarding_plans").select("*").eq("customer_id", customerId).limit(1),
-      db.from("onboarding_steps").select("*").eq("customer_id", customerId),
       db.from("customer_health").select("*").eq("customer_id", customerId).limit(10),
+      getAgentSettings(db, orgId),
+      checkOnboardingPreconditions(db, orgId, customerId),
+      db.from("customer_observations").select("*").eq("customer_id", customerId).limit(25),
+      // migration 0009 — the account narrative.
+      db.from("customer_narrative").select("*").eq("customer_id", customerId).maybeSingle(),
     ]),
   );
 
-  await stage("getAgentSettings", 1, 1, () => getAgentSettings(db, orgId));
-
-  // PostgREST builders are thenable but not Promises, so each is awaited inside
-  // the callback rather than returned from it.
-  await stage("escalations", 1, 1, async () => {
-    await db.from("escalations").select("*").eq("customer_id", customerId).limit(20);
-  });
-
-  await stage("org members (approver names)", 1, 1, async () => {
-    await db.from("org_members").select("user_id, role").eq("org_id", orgId);
-  });
-
-  await stage("checkOnboardingPreconditions", 5, 3, () =>
-    checkOnboardingPreconditions(db, orgId, customerId),
+  // ── Wave 2. Needs the customer row from wave 1. ────────────────────────
+  await stage("wave 2 (10 reads, incl. evidence counts)", 10, 1, () =>
+    Promise.all([
+      db.from("customers").select("*").eq("parent_customer_id", customerId),
+      db.from("cadences").select("*").eq("customer_id", customerId).limit(1),
+      db.from("documents").select("*").eq("customer_id", customerId).limit(100),
+      db.from("objectives").select("*").eq("customer_id", customerId),
+      db.from("org_members").select("*").eq("org_id", orgId).limit(1),
+      db.from("agent_sessions").select("*").eq("customer_id", customerId).limit(8),
+      db.from("audit_log").select("*").eq("customer_id", customerId).limit(8),
+      db
+        .from("meeting_transcripts")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", customerId),
+      db
+        .from("email_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", customerId),
+      db.from("onboarding_steps").select("*").eq("customer_id", customerId),
+    ]),
   );
+
+  // ── Wave 3. Source resolution + escalations + the named approver. ──────
+  // These were three sequential awaits when first written, which put depth back
+  // to 8. Batched, they cost one latency between them.
+  await stage("wave 3 (sources + decisions + approver)", 3, 1, () =>
+    Promise.all([
+      db.from("meeting_transcripts").select("id, title, started_at").limit(25),
+      db.from("escalations").select("*").eq("customer_id", customerId).limit(10),
+      db.from("agent_settings").select("owner_user_id").eq("org_id", orgId).limit(1),
+    ]),
+  );
+
+  // ── In front of all of it: getCurrentUser. ─────────────────────────────
+  // On a cache hit this is the ONE query it still makes — the role lookup, kept
+  // live because it gates permissions. The five round-trips and two Clerk API
+  // calls it replaced are what made every page slow, not this page's own reads.
+  await stage("getCurrentUser warm path", 1, 1, async () => {
+    await db.from("org_members").select("role").eq("org_id", orgId).limit(1);
+  });
 
   const total = stages.reduce((a, s) => a + s.ms, 0);
   const depth = stages.reduce((a, s) => a + s.depth, 0);

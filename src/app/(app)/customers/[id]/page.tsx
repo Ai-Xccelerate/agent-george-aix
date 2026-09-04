@@ -50,6 +50,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/** A source_ref is only linkable when it is actually a row id. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ── Account-hub layout ──────────────────────────────────────────────────────
 // George is an employee, not an app: this page is the account's home. The Onyx
 // team comes here to see where a partner's onboarding stands and what George is
@@ -82,6 +85,51 @@ type Observation = {
   category: string;
   observed_at: string;
   acknowledged_at: string | null;
+  /** The row George read. A uuid for a transcript; free text otherwise. */
+  source_ref: string | null;
+  session_id: string | null;
+};
+
+/** One thing George read to write the narrative (migration 0009). */
+type NarrativeSource = {
+  kind: "email" | "transcript" | "meeting" | "observation" | "session";
+  id: string;
+  label: string;
+};
+
+/** How much there was to go on when the narrative was written. */
+type NarrativeEvidence = {
+  emails?: number;
+  meetings?: number;
+  transcripts?: number;
+  observations?: number;
+  days_covered?: number;
+};
+
+type Narrative = {
+  id: string;
+  body: string;
+  sources: NarrativeSource[] | null;
+  evidence: NarrativeEvidence | null;
+  written_at: string;
+  superseded_count: number;
+  session_id: string | null;
+};
+
+/**
+ * What is actually on file for this account, counted rather than asserted.
+ *
+ * The page uses it to keep a thin account looking thin. Two emails and no
+ * meetings has to read as two emails and no meetings — a confident paragraph
+ * over nothing is worse than an empty panel, because the reader cannot see
+ * that it is over nothing.
+ */
+type OnFile = {
+  transcripts: number;
+  emails: number;
+  observations: number;
+  sessions: number;
+  healthChecks: number;
 };
 
 type RelatedCustomer = {
@@ -219,6 +267,7 @@ export default async function CustomerPage(
     agentSettings,
     onboarding,
     observationsRes,
+    narrativeRes,
   ] = await Promise.all([
       supabase
         .from("customers")
@@ -259,13 +308,22 @@ export default async function CustomerPage(
       checkOnboardingPreconditions(supabase, user.orgId, id),
       supabase
         .from("customer_observations")
-        .select("id, summary, detail, source, category, observed_at, acknowledged_at")
+        .select(
+          "id, summary, detail, source, category, observed_at, acknowledged_at, source_ref, session_id",
+        )
         .eq("customer_id", id)
         .eq("org_id", user.orgId)
         // observed_at, not created_at: a transcript synced today can describe
         // last week's call, and ordering by write time tells it out of order.
         .order("observed_at", { ascending: false })
         .limit(25),
+      // The story of the account (migration 0009). One row, or none.
+      supabase
+        .from("customer_narrative")
+        .select("id, body, sources, evidence, written_at, superseded_count, session_id")
+        .eq("customer_id", id)
+        .eq("org_id", user.orgId)
+        .maybeSingle<Narrative>(),
     ]);
 
   if (!customer) notFound();
@@ -279,6 +337,8 @@ export default async function CustomerPage(
     ownerRes,
     sessionsRes,
     activityRes,
+    transcriptCountRes,
+    emailCountRes,
   ] = await Promise.all([
     customer.parent_customer_id
       ? supabase
@@ -338,6 +398,19 @@ export default async function CustomerPage(
       .eq("customer_id", customer.id)
       .order("created_at", { ascending: false })
       .limit(8),
+    // What is on file, as counts. `head: true` so this is a count and not a
+    // second copy of rows the page already has — it exists to let a thin
+    // account look thin, not to render anything.
+    supabase
+      .from("meeting_transcripts")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", customer.id)
+      .eq("org_id", user.orgId),
+    supabase
+      .from("email_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", customer.id)
+      .eq("org_id", user.orgId),
   ]);
 
   const parent = parentRes.data ?? null;
@@ -352,26 +425,110 @@ export default async function CustomerPage(
   const cadence = cadenceRes.data ?? null;
   const objectives = (objectivesRes.data ?? []) as Objective[];
   const observations = (observationsRes.data ?? []) as Observation[];
+  const narrative = narrativeRes.data ?? null;
   const owner = ownerRes.data ?? null;
   const sessions = (sessionsRes.data ?? []) as Session[];
   const activity = (activityRes.data ?? []) as Activity[];
 
-  // Open decisions George raised about this partner — surfaced here so
-  // customer-specific actions live on the partner, not buried in /actions.
-  const { data: escRows } = await supabase
-    .from("escalations")
-    .select("id, title, urgency, session_id, created_at")
-    .eq("customer_id", customer.id)
-    .eq("status", "open")
-    .order("created_at", { ascending: false })
-    .limit(10);
-  const openDecisions = (escRows ?? []) as Array<{
+  const onFile: OnFile = {
+    transcripts: transcriptCountRes.count ?? 0,
+    emails: emailCountRes.count ?? 0,
+    observations: observations.length,
+    sessions: sessions.length,
+    healthChecks: (healthRes.data ?? []).length,
+  };
+
+  /**
+   * Third and last wave. Everything here needs a value from batch 1 and nothing
+   * from batch 2, so all three go together.
+   *
+   * They were three separate sequential awaits when first written — source
+   * resolution, then escalations, then the approver lookup — which put the
+   * page's round-trip depth back up to 8 from the 6 the batching above got it
+   * to. Undoing a latency fix while working on a latency ticket is an easy
+   * mistake to make and an invisible one to leave: every query here is a
+   * fraction of a millisecond of server work, so nothing about it looks slow
+   * locally, and the cost is one network round-trip each in front of the render.
+   *
+   * Depth is the number that decides how this page feels, not query count.
+   * Three queries issued together cost one latency; issued in sequence, three.
+   */
+  const refIds = Array.from(
+    new Set(
+      [
+        ...observations.map((o) => o.source_ref),
+        ...((narrative?.sources ?? []).map((s) => s.id) as Array<string | null>),
+      ].filter((v): v is string => Boolean(v) && UUID_RE.test(v!)),
+    ),
+  );
+
+  const [titlesRes, escRes, approverRes] = await Promise.all([
+    // Turn the raw ids George recorded into things a person can click.
+    // `customer_observations.source_ref` and `customer_narrative.sources[].id`
+    // both hold a bare row id; on this account they are meeting_transcripts
+    // uuids, so they resolve to a real title and a real link — which is the
+    // whole requirement, since a claim a human cannot trace is a claim they
+    // cannot act on. Anything that does not resolve stays plain text rather
+    // than becoming a link to nowhere: a dead link asserts a traceability it
+    // does not have, which is worse than admitting the reference is loose.
+    refIds.length > 0
+      ? supabase
+          .from("meeting_transcripts")
+          .select("id, title, started_at")
+          .in("id", refIds)
+          .eq("org_id", user.orgId)
+      : Promise.resolve({ data: [] as Array<{ id: string; title: string | null; started_at: string | null }> }),
+    // Open decisions George raised about this account. They surface here, on
+    // the account, rather than in a cross-book queue — that queue is off.
+    supabase
+      .from("escalations")
+      .select("id, title, urgency, session_id, created_at")
+      .eq("customer_id", customer.id)
+      .eq("status", "open")
+      .order("created_at", { ascending: false })
+      .limit(10),
+    // Who a decision goes to, by name. agent_settings.owner_user_id is George's
+    // manager for the org — deliberately NOT the account owner in the stat
+    // strip, which answers "whose relationship is this" rather than "who is
+    // accountable for what George does". Those are often different people and
+    // were being conflated. Named rather than left implicit, because an
+    // escalation addressed to nobody in particular is how a queue forms.
+    agentSettings.owner_user_id
+      ? supabase
+          .from("org_members")
+          .select("full_name, email")
+          .eq("org_id", user.orgId)
+          .eq("user_id", agentSettings.owner_user_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null as { full_name: string | null; email: string | null } | null }),
+  ]);
+
+  const sourceTitles = new Map<string, string>();
+  for (const t of (titlesRes.data ?? []) as Array<{
+    id: string;
+    title: string | null;
+    started_at: string | null;
+  }>) {
+    sourceTitles.set(
+      t.id,
+      [t.title ?? "Transcript", t.started_at ? fmt(t.started_at) : null]
+        .filter(Boolean)
+        .join(" · "),
+    );
+  }
+
+  const openDecisions = (escRes.data ?? []) as Array<{
     id: string;
     title: string;
     urgency: string;
     session_id: string | null;
     created_at: string;
   }>;
+
+  const approverRow = approverRes.data as
+    | { full_name: string | null; email: string | null }
+    | null;
+  const approver = approverRow?.full_name ?? approverRow?.email ?? null;
 
   const docsRaw = (docsRes.data ?? []) as Array<{
     id: string;
@@ -438,6 +595,7 @@ export default async function CustomerPage(
   const openObjectives = objectives.filter(
     (o) => o.status !== "achieved" && o.status !== "cancelled",
   );
+
   const isPartner = customer.customer_kind === "partner";
 
   return (
@@ -483,57 +641,30 @@ export default async function CustomerPage(
               are never narrower than 320px, and the track count drops to one
               when the cell cannot hold two. Rows are no longer height-balanced
               — a fair trade for text that can be read. ─────────────────── */}
+        {/* ── The four questions, in the order they get asked ────────────────
+              A person opening an account asks: what is the story, what
+              changed, how are they doing and why, what is outstanding. The
+              page used to answer the second and fourth and skip the first
+              entirely, which left the reader assembling the story from a list
+              of thirteen observations every time they visited.
+
+              All four are READ-ONLY. Nothing in this column starts anything —
+              decisions moved to the right rail. A surface that both tells you
+              what George noticed and offers to act on it turns reading into
+              triage, and triage is the queue this was meant to replace. ──── */}
         <div className="grid items-start gap-6 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
-          {openDecisions.length > 0 && (
-            <Section
-              title="Needs you"
-              icon={<Bell size={14} className="text-brand-500 dark:text-brand-400" />}
-              right={
-                <span className="text-theme-xs text-gray-400 dark:text-gray-500">
-                  {openDecisions.length}
-                </span>
-              }
-            >
-              <ul className="space-y-1.5">
-                {openDecisions.map((d) => (
-                  <li
-                    key={d.id}
-                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                  >
-                    <Link
-                      href={d.session_id ? `/chat/${d.session_id}` : "/actions"}
-                      className="min-w-0 flex-1"
-                    >
-                      <div className="flex items-center gap-2">
-                        {d.urgency === "high" && (
-                          <span className="shrink-0 rounded-full bg-error-500/15 px-1.5 py-0.5 text-theme-xs font-medium uppercase tracking-wide text-error-500">
-                            high
-                          </span>
-                        )}
-                        <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                          {d.title}
-                        </span>
-                      </div>
-                    </Link>
-                    <form action={resolveEscalationAction} className="shrink-0">
-                      <input type="hidden" name="id" value={d.id} />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-2 py-1 text-theme-xs font-medium text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                      >
-                        Resolve
-                      </button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          )}
-          <UpdatesSection
-            observations={observations}
-            objectives={objectives}
-            customerId={customer.id}
+          <NarrativeSection
+            narrative={narrative}
+            onFile={onFile}
+            sourceTitles={sourceTitles}
+            customerName={customer.name}
           />
+
+          <ObservationsSection observations={observations} sourceTitles={sourceTitles} />
+
+          <HealthSection history={healthHistory} onFile={onFile} />
+
+          <OutstandingSection objectives={objectives} />
 
           <Section
             title="Onboarding plan"
@@ -611,6 +742,54 @@ export default async function CustomerPage(
 
         {/* ── Right: George, scoped to this account ──────────────────────── */}
         <aside className="space-y-6 lg:sticky lg:top-5 lg:self-start">
+          {/* Decisions live here, not in the reading column, and not in a
+              cross-book queue. The queue is switched off: George records what
+              he notices on the account, and the few things that genuinely need
+              a person answer to a named person rather than to a list. */}
+          {openDecisions.length > 0 && (
+            <Section
+              title="Needs a decision"
+              icon={<Bell size={14} className="text-brand-500 dark:text-brand-400" />}
+              right={
+                <span className="text-theme-xs text-gray-400 dark:text-gray-500">
+                  {openDecisions.length}
+                </span>
+              }
+            >
+              {approver && (
+                <p className="mb-2 text-theme-xs text-gray-400 dark:text-gray-500">
+                  Goes to {approver} first.
+                </p>
+              )}
+              <ul className="space-y-1.5">
+                {openDecisions.map((d) => (
+                  <li
+                    key={d.id}
+                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                  >
+                    {d.session_id ? (
+                      <Link href={`/chat/${d.session_id}`} className="min-w-0 flex-1">
+                        <DecisionTitle title={d.title} urgency={d.urgency} />
+                      </Link>
+                    ) : (
+                      <div className="min-w-0 flex-1">
+                        <DecisionTitle title={d.title} urgency={d.urgency} />
+                      </div>
+                    )}
+                    <form action={resolveEscalationAction} className="shrink-0">
+                      <input type="hidden" name="id" value={d.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-2 py-1 text-theme-xs font-medium text-gray-800 dark:text-white/90 hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                      >
+                        Resolve
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
           <AccountConversations
             customerId={customer.id}
             customerName={customer.name}
@@ -619,9 +798,10 @@ export default async function CustomerPage(
           <ActivitySection activity={activity} />
           {openObjectives.length === 0 && objectives.length === 0 && (
             <p className="px-1 text-theme-xs leading-relaxed text-gray-400 dark:text-gray-500">
-              George works this account on his own — drafting outreach, chasing
-              what onboarding needs, and reporting to {owner?.full_name ?? "the owner"}.
-              You step in to review and decide.
+              George works this account on his own — reading email, meetings and
+              transcripts, and recording what he notices here for{" "}
+              {approver ?? owner?.full_name ?? "the account owner"} to read. He does not
+              raise work; you decide whether any of it needs doing.
             </p>
           )}
         </aside>
@@ -767,72 +947,233 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-// ── Updates — what George has noticed, and what he is chasing ────────────────
+// ── 1. What's the story on this account right now? ───────────────────────────
 /**
- * Was "Objectives". Renamed and widened, because the account needs to answer
- * "what is going on here" before it answers "what is outstanding".
+ * The narrative. Was missing entirely, and it is the question people actually
+ * open an account to answer.
  *
- * Observations come first and objectives second, deliberately. An objective is
- * a commitment somebody made; an observation is something George noticed and
- * nobody has to act on. On a book of accounts most of what is worth knowing is
- * the second kind, and it had nowhere to live — so George's only way to tell
- * anyone anything was to raise a decision, which is how the queue filled up.
+ * Three rules the panel enforces rather than hopes for:
+ *
+ * REWRITTEN, NOT APPENDED. One row per customer (unique index in 0009), so
+ * there is nothing here to grow. The rewrite count is shown because an account
+ * whose story has been redrawn eleven times is a different kind of account from
+ * one written once, and that is the only thing worth keeping from the versions
+ * that are gone.
+ *
+ * SOURCES OR IT SAYS SO. Every citation renders as a chip, linked where the id
+ * resolves. A narrative with none renders an explicit line saying it cites
+ * nothing — not silence. Silence reads as "no sources needed".
+ *
+ * THIN LOOKS THIN. The evidence line is what stops a confident paragraph over
+ * two emails from looking like a confident paragraph over forty. When there is
+ * no narrative at all, the empty state says what IS on file, so the reader can
+ * see whether the gap is George's or the account's.
  */
-function UpdatesSection({
-  observations,
-  objectives,
-  customerId,
+function NarrativeSection({
+  narrative,
+  onFile,
+  sourceTitles,
+  customerName,
 }: {
-  observations: Observation[];
-  objectives: Objective[];
-  customerId: string;
+  narrative: Narrative | null;
+  onFile: OnFile;
+  sourceTitles: Map<string, string>;
+  customerName: string;
 }) {
-  const open = objectives.filter((o) => o.status !== "achieved");
-  const done = objectives.filter((o) => o.status === "achieved");
-  const unread = observations.filter((o) => !o.acknowledged_at).length;
-  const empty = observations.length === 0 && objectives.length === 0;
+  const sources = narrative?.sources ?? [];
+  const nothingOnFile =
+    onFile.transcripts === 0 &&
+    onFile.emails === 0 &&
+    onFile.observations === 0 &&
+    onFile.sessions === 0;
 
   return (
     <Section
-      title="Updates"
+      title="Where this account stands"
       icon={<Sparkles size={14} className="text-brand-500 dark:text-brand-400" />}
+      right={
+        narrative ? (
+          <span className="text-theme-xs text-gray-400 dark:text-gray-500">
+            {timeAgo(narrative.written_at)}
+          </span>
+        ) : null
+      }
+    >
+      {!narrative ? (
+        <div className="rounded-md border border-dashed border-gray-200 dark:border-gray-800 p-3">
+          <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+            George has not written the story of this account yet.
+          </p>
+          <p className="mt-1.5 text-theme-xs leading-relaxed text-gray-400 dark:text-gray-500">
+            {nothingOnFile
+              ? `Nothing on file for ${customerName} — no email, no meetings, no transcripts. There is nothing to summarise, which is itself the honest answer.`
+              : `On file: ${describeOnFile(onFile)}. He writes this once he has read enough to have a view.`}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="whitespace-pre-wrap text-theme-sm leading-relaxed text-gray-800 dark:text-white/90">
+            {narrative.body}
+          </p>
+
+          {/* How much this was built on. Deliberately adjacent to the prose:
+              read apart from the evidence, every narrative reads equally
+              confident. */}
+          <p className="text-theme-xs text-gray-400 dark:text-gray-500">
+            {narrative.evidence && Object.keys(narrative.evidence).length > 0
+              ? `Written from ${describeEvidence(narrative.evidence)}.`
+              : `On file now: ${describeOnFile(onFile)}.`}
+            {narrative.superseded_count > 0 && (
+              <> Rewritten {narrative.superseded_count}×.</>
+            )}
+          </p>
+
+          {sources.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {sources.map((s, i) => (
+                <SourceChip
+                  key={`${s.kind}:${s.id}:${i}`}
+                  kind={s.kind}
+                  id={s.id}
+                  label={s.label}
+                  resolved={sourceTitles.get(s.id) ?? null}
+                />
+              ))}
+            </div>
+          ) : (
+            /* Not a missing feature — a stated one. An uncited synthesis is the
+               least checkable claim on the page and must not pass silently. */
+            <p className="flex items-start gap-1.5 text-theme-xs text-warning-600 dark:text-warning-400">
+              <Flag size={11} className="mt-0.5 shrink-0" />
+              This cites no source, so none of it can be traced back to something
+              a person can read.
+            </p>
+          )}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ── 2. What changed recently? ────────────────────────────────────────────────
+/**
+ * The observation feed, ordered by when the thing happened rather than when the
+ * row was written — a transcript synced today can describe last week's call.
+ *
+ * Read-only. There is no acknowledge control and no resolve button: the "new"
+ * count is there to show what has arrived since you last looked, not to be
+ * cleared. Give this surface a button and it becomes the queue again.
+ */
+function ObservationsSection({
+  observations,
+  sourceTitles,
+}: {
+  observations: Observation[];
+  sourceTitles: Map<string, string>;
+}) {
+  const unread = observations.filter((o) => !o.acknowledged_at).length;
+
+  return (
+    <Section
+      title="What changed recently"
+      icon={<Clock size={14} className="text-brand-500 dark:text-brand-400" />}
       right={
         unread > 0 ? (
           <span className="rounded-full bg-brand-50 dark:bg-brand-500/15 px-2 py-0.5 text-theme-xs font-medium text-brand-500 dark:text-brand-400">
             {unread} new
           </span>
-        ) : objectives.length > 0 ? (
+        ) : null
+      }
+    >
+      {observations.length === 0 ? (
+        <EmptyRow text="Nothing recorded yet. George adds what he picks up from email, meetings and transcripts as it comes in." />
+      ) : (
+        <ul className="space-y-2">
+          {observations.map((o) => (
+            <ObservationRow key={o.id} observation={o} sourceTitles={sourceTitles} />
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+// ── 3. How are they doing, and why? ──────────────────────────────────────────
+/**
+ * Band, score, and — new here — the REASON.
+ *
+ * `customer_health.reason` was being selected by this page and then never
+ * rendered. So the account showed a red badge with no account of why it was
+ * red, which is the least useful possible version of a health signal: it asks
+ * for a reaction and withholds the grounds for one.
+ *
+ * The previous two checks are shown underneath, because "red" and "red, down
+ * from green last week" are different situations and the badge cannot tell them
+ * apart on its own.
+ */
+function HealthSection({ history, onFile }: { history: Health[]; onFile: OnFile }) {
+  const latest = history[0] ?? null;
+  const earlier = history.slice(1, 3);
+
+  return (
+    <Section
+      title="How they're doing"
+      icon={<Star size={14} className="text-brand-500 dark:text-brand-400" />}
+      right={
+        latest ? (
           <span className="text-theme-xs text-gray-400 dark:text-gray-500">
-            {done.length}/{objectives.length} done
+            {timeAgo(latest.measured_at)}
           </span>
         ) : null
       }
     >
-      {empty ? (
-        <EmptyRow
-          text="Nothing yet. George adds what he picks up from email, meetings and transcripts as it comes in."
-          cta={{ label: "Ask George", href: `/chat?customer=${customerId}` }}
-        />
+      {!latest ? (
+        <div className="rounded-md border border-dashed border-gray-200 dark:border-gray-800 p-3">
+          <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+            No health check on record.
+          </p>
+          <p className="mt-1.5 text-theme-xs leading-relaxed text-gray-400 dark:text-gray-500">
+            {onFile.transcripts === 0 && onFile.emails === 0
+              ? "There is no contact history to judge from yet."
+              : "George has not scored this account. The stage badge is not a health signal — it says where onboarding is, not how it is going."}
+          </p>
+        </div>
       ) : (
-        <div className="space-y-4">
-          {observations.length > 0 && (
-            <ul className="space-y-2">
-              {observations.map((o) => (
-                <ObservationRow key={o.id} observation={o} />
-              ))}
-            </ul>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <HealthBadge band={latest.band} />
+            {latest.score != null && (
+              <span className="text-theme-sm font-semibold tabular-nums text-gray-800 dark:text-white/90">
+                {latest.score}
+              </span>
+            )}
+          </div>
+
+          {latest.reason ? (
+            <p className="text-theme-sm leading-relaxed text-gray-500 dark:text-gray-400">
+              {latest.reason}
+            </p>
+          ) : (
+            <p className="text-theme-xs text-gray-400 dark:text-gray-500">
+              No reason was recorded with this score, so the band cannot be traced
+              to anything.
+            </p>
           )}
 
-          {objectives.length > 0 && (
-            <div>
-              {observations.length > 0 && (
-                <div className="mb-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                  Being chased
-                </div>
-              )}
-              <ul className="space-y-2">
-                {[...open, ...done].map((o) => (
-                  <ObjectiveRow key={o.id} objective={o} />
+          {earlier.length > 0 && (
+            <div className="border-t border-gray-200 dark:border-gray-800 pt-2">
+              <div className="mb-1.5 text-theme-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Before
+              </div>
+              <ul className="space-y-1">
+                {earlier.map((h) => (
+                  <li
+                    key={h.id}
+                    className="flex items-center gap-2 text-theme-xs text-gray-400 dark:text-gray-500"
+                  >
+                    <HealthBadge band={h.band} />
+                    <span>{fmt(h.measured_at)}</span>
+                  </li>
                 ))}
               </ul>
             </div>
@@ -843,7 +1184,163 @@ function UpdatesSection({
   );
 }
 
-/** Category drives the accent. Risk should not look like progress. */
+// ── 4. What's outstanding, on either side? ───────────────────────────────────
+/**
+ * Split by who owes it, because "on either side" is the question and a single
+ * merged list cannot answer it without the reader checking each row's label.
+ *
+ * Objectives are shown as observed state, not as a worklist George is driving.
+ * The follow-up counters stay — they are facts about what George has already
+ * done — but nothing here starts, stops or reassigns anything.
+ */
+function OutstandingSection({ objectives }: { objectives: Objective[] }) {
+  const live = objectives.filter((o) => o.status !== "achieved" && o.status !== "cancelled");
+  const ours = live.filter((o) => o.responsible_side === "onyx");
+  const theirs = live.filter((o) => o.responsible_side === "customer");
+  const done = objectives.filter((o) => o.status === "achieved");
+
+  return (
+    <Section
+      title="What's outstanding"
+      icon={<Target size={14} className="text-brand-500 dark:text-brand-400" />}
+      right={
+        objectives.length > 0 ? (
+          <span className="text-theme-xs text-gray-400 dark:text-gray-500">
+            {done.length}/{objectives.length} done
+          </span>
+        ) : null
+      }
+    >
+      {live.length === 0 ? (
+        <EmptyRow
+          text={
+            objectives.length === 0
+              ? "Nothing outstanding on either side."
+              : "Nothing outstanding — everything on record is done."
+          }
+        />
+      ) : (
+        <div className="space-y-4">
+          {ours.length > 0 && (
+            <SideGroup label="We owe them" objectives={ours} />
+          )}
+          {theirs.length > 0 && (
+            <SideGroup label="They owe us" objectives={theirs} />
+          )}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function SideGroup({ label, objectives }: { label: string; objectives: Objective[] }) {
+  return (
+    <div>
+      <div className="mb-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+        {label} ({objectives.length})
+      </div>
+      <ul className="space-y-2">
+        {objectives.map((o) => (
+          <ObjectiveRow key={o.id} objective={o} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * One citation. A link when the id resolves to a row we can open, plain text
+ * when it does not — a link to nowhere claims a traceability it lacks.
+ */
+function SourceChip({
+  kind,
+  id,
+  label,
+  resolved,
+}: {
+  kind: NarrativeSource["kind"];
+  id: string;
+  label: string;
+  resolved: string | null;
+}) {
+  const text = resolved ?? label;
+  const href =
+    kind === "transcript" && resolved
+      ? `/transcripts/${id}`
+      : kind === "email"
+        ? `/mailbox/${id}`
+        : kind === "session"
+          ? `/chat/${id}`
+          : null;
+
+  const body = (
+    <>
+      <FileText size={10} className="shrink-0" />
+      <span className="truncate">{text}</span>
+    </>
+  );
+
+  const base =
+    "inline-flex max-w-[240px] items-center gap-1 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] px-1.5 py-0.5 text-theme-xs text-gray-500 dark:text-gray-400";
+
+  return href ? (
+    <Link href={href} className={`${base} hover:text-brand-500 dark:hover:text-brand-400`}>
+      {body}
+    </Link>
+  ) : (
+    <span className={base} title={id}>
+      {body}
+    </span>
+  );
+}
+
+function DecisionTitle({ title, urgency }: { title: string; urgency: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      {urgency === "high" && (
+        <span className="shrink-0 rounded-full bg-error-500/15 px-1.5 py-0.5 text-theme-xs font-medium uppercase tracking-wide text-error-500">
+          high
+        </span>
+      )}
+      <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
+        {title}
+      </span>
+    </div>
+  );
+}
+
+/** "10 transcripts, 12 emails and 13 observations" — or "nothing". */
+function describeOnFile(f: OnFile): string {
+  const parts = [
+    f.transcripts ? `${f.transcripts} transcript${f.transcripts === 1 ? "" : "s"}` : null,
+    f.emails ? `${f.emails} email${f.emails === 1 ? "" : "s"}` : null,
+    f.observations
+      ? `${f.observations} observation${f.observations === 1 ? "" : "s"}`
+      : null,
+    f.sessions ? `${f.sessions} conversation${f.sessions === 1 ? "" : "s"}` : null,
+  ].filter((v): v is string => Boolean(v));
+  return joinList(parts) || "nothing";
+}
+
+function describeEvidence(e: NarrativeEvidence): string {
+  const parts = [
+    e.transcripts ? `${e.transcripts} transcript${e.transcripts === 1 ? "" : "s"}` : null,
+    e.meetings ? `${e.meetings} meeting${e.meetings === 1 ? "" : "s"}` : null,
+    e.emails ? `${e.emails} email${e.emails === 1 ? "" : "s"}` : null,
+    e.observations
+      ? `${e.observations} observation${e.observations === 1 ? "" : "s"}`
+      : null,
+  ].filter((v): v is string => Boolean(v));
+  const base = joinList(parts) || "no cited evidence";
+  return e.days_covered ? `${base}, covering ${e.days_covered} days` : base;
+}
+
+function joinList(parts: string[]): string {
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
 const OBSERVATION_TONE: Record<string, string> = {
   risk: "text-warning-500 dark:text-warning-400",
   progress: "text-success-500 dark:text-success-400",
@@ -853,7 +1350,21 @@ const OBSERVATION_TONE: Record<string, string> = {
   other: "text-gray-500 dark:text-gray-400",
 };
 
-function ObservationRow({ observation: o }: { observation: Observation }) {
+function ObservationRow({
+  observation: o,
+  sourceTitles,
+}: {
+  observation: Observation;
+  sourceTitles: Map<string, string>;
+}) {
+  // The thing George read, when we can name it. `source_ref` holds a bare row
+  // id; resolved means it is a transcript we can open.
+  const resolved = o.source_ref ? sourceTitles.get(o.source_ref) ?? null : null;
+  // A scan is George reasoning over the account record — there is no document
+  // behind it, and saying "from scan" without saying that invites the reader to
+  // go looking for one.
+  const isInference = o.source === "scan";
+
   return (
     <li className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
       <div className="flex items-start gap-2">
@@ -868,11 +1379,35 @@ function ObservationRow({ observation: o }: { observation: Observation }) {
             </p>
           )}
           {/* Where it came from, because an inference and a quotation are
-              different kinds of claim and the reader has to tell them apart. */}
+              different kinds of claim and the reader has to tell them apart —
+              and because a claim nobody can trace is a claim nobody can act on.
+              Named and linked where the id resolves; named as an inference
+              where there is nothing to link to. */}
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-theme-xs text-gray-400 dark:text-gray-500">
             <span className="capitalize">{o.category}</span>
             <span aria-hidden>·</span>
-            <span>from {o.source}</span>
+            {resolved && o.source_ref ? (
+              <Link
+                href={`/transcripts/${o.source_ref}`}
+                className="inline-flex max-w-[220px] items-center gap-1 truncate hover:text-brand-500 dark:hover:text-brand-400"
+              >
+                <FileText size={10} className="shrink-0" />
+                <span className="truncate">{resolved}</span>
+              </Link>
+            ) : isInference ? (
+              <span title="George worked this out from the account record — there is no document behind it.">
+                George&apos;s inference
+              </span>
+            ) : o.session_id ? (
+              <Link
+                href={`/chat/${o.session_id}`}
+                className="hover:text-brand-500 dark:hover:text-brand-400"
+              >
+                from {o.source}
+              </Link>
+            ) : (
+              <span>from {o.source}</span>
+            )}
             <span aria-hidden>·</span>
             <span>{new Date(o.observed_at).toLocaleDateString()}</span>
           </div>

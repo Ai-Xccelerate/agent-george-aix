@@ -159,7 +159,9 @@ export async function checkOnboardingPreconditions(
       reason:
         "There is already a drafted email waiting for review on this account. Approve or " +
         "decline that one before George writes another.",
-      fix: { label: "Go to AI actions", href: "/actions" },
+      // The waiting draft is shown on the account itself, under "Needs a
+      // decision" — the queue this used to point at is switched off.
+      fix: { label: "Review it on this account", href: `/customers/${customerId}` },
     });
   }
 

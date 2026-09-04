@@ -81,7 +81,6 @@ export default function CommandPalette() {
     return [
       ...nav(<GridIcon />, "Workspace", [
         { label: "Go to Dashboard", path: "/dashboard", keywords: "home overview health" },
-        { label: "Go to AI Actions", path: "/actions", keywords: "drafts approvals queue" },
         { label: "Go to Customers", path: "/customers", keywords: "accounts partners" },
       ]),
       ...nav(<TaskIcon />, "Channels", [
