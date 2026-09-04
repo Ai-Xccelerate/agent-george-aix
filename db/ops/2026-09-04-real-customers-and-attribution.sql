@@ -71,6 +71,14 @@ with per_meeting as (
   join customers c
     on c.domain is not null
    and c.archived_at is null
+   -- A free-mail domain identifies a person, never a company, so it can never
+   -- be evidence that a meeting belongs to an account. Acme Tech had its domain
+   -- recorded as gmail.com and collected 25 meetings that were not its own
+   -- before this exclusion existed. The join was right; the data it trusted
+   -- was not.
+   and lower(c.domain) not in ('gmail.com','googlemail.com','outlook.com',
+                               'hotmail.com','yahoo.com','icloud.com',
+                               'proton.me','protonmail.com','aol.com')
    and lower(split_part(att->>'email','@',2)) = lower(c.domain)
   where m.customer_id is null
     and jsonb_typeof(m.attendees) = 'array'

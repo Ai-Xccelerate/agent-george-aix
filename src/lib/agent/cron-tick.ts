@@ -24,6 +24,7 @@ import { usingNylas } from "./mail-selection";
 import { resolveGeorgeOrgId } from "./tenancy";
 import { reclaimStalled, type ReclaimResult } from "./reclaim";
 import { sweepSilence, type SilenceResult } from "./silence-sweep";
+import { sweepNarratives, type NarrativeResult } from "./narrative-sweep";
 import {
   activeConnectedAccountId,
   isTriggerActiveFor,
@@ -70,6 +71,8 @@ export type CronTickResult = {
   reclaimed: ReclaimResult;
   /** Onboarding emails nobody answered. */
   silence: SilenceResult;
+  /** Account narratives rewritten. Surfaced so a tick that quietly writes none is visible. */
+  narratives: NarrativeResult;
   /** Sweeps that could not run at all. Empty is the healthy case. */
   blocked: Array<{ label: string; why: string }>;
   elapsed_ms: number;
@@ -228,6 +231,22 @@ export async function runCronTick(): Promise<CronTickResult> {
     }
   }
 
+  // Say where each account stands.
+  //
+  // Last of the expensive work deliberately: it is the only step that can be
+  // skipped for a whole tick with no consequence beyond a paragraph being a few
+  // minutes older, so it gets whatever budget the useful work leaves behind.
+  //
+  // It exists because `write_account_narrative` was built, registered, reachable
+  // and never once called — customer_narrative had zero rows and the headline
+  // section of every account page rendered empty. A tool nothing invokes is a
+  // tool that does not exist, and it fails quietly enough that the page looks
+  // finished.
+  let narratives: NarrativeResult = { candidates: 0, written: 0 };
+  narratives = await sweepNarratives(admin, {
+    budgetMsRemaining: TICK_BUDGET_MS - (Date.now() - startedAt),
+  });
+
   // Mailbox + calendar mirror — throttled catch-up sync per org.
   let mailboxSync: MailboxSyncResult[] = [];
   if (TICK_BUDGET_MS - (Date.now() - startedAt) > 20_000) {
@@ -285,6 +304,7 @@ export async function runCronTick(): Promise<CronTickResult> {
   return {
     reclaimed,
     silence,
+    narratives,
     blocked: blockedSweeps,
     started_at: new Date(startedAt).toISOString(),
     elapsed_ms: Date.now() - startedAt,
