@@ -87,8 +87,13 @@ export async function sweepNarratives(
         .from("agent_sessions")
         .insert({
           org_id: row.org_id,
+          // `channel: "cron"` and `user_id: null` are what the other sweeps use
+          // and what marks a run as one nobody asked for. There is no `source`
+          // column on this table — an earlier version of this insert invented
+          // one, and every narrative run failed on it.
+          user_id: null,
+          channel: "cron",
           title: `Account narrative — ${row.name}`,
-          source: "narrative_sweep",
           customer_id: row.customer_id,
         })
         .select("id")
