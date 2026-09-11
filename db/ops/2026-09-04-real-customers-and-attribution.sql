@@ -71,6 +71,11 @@ with per_meeting as (
   join customers c
     on c.domain is not null
    and c.archived_at is null
+   -- SAME ORG. This was missing and attached 29 transcripts across tenants:
+   -- the Fireflies sync lands meetings under `aix`, the customers were created
+   -- under `AIX Staging`, and domain alone matched them happily. Between two
+   -- real customers' orgs that is a tenancy breach, not an inconvenience.
+   and c.org_id = m.org_id
    -- A free-mail domain identifies a person, never a company, so it can never
    -- be evidence that a meeting belongs to an account. Acme Tech had its domain
    -- recorded as gmail.com and collected 25 meetings that were not its own
@@ -100,6 +105,7 @@ set customer_id = c.id, updated_at = now()
 from customers c
 where e.customer_id is null
   and c.domain is not null and c.archived_at is null
+  and c.org_id = e.org_id
   and (lower(split_part(e.from_address,'@',2)) = lower(c.domain)
        or e.to_recipients::text ilike '%@' || c.domain || '%');
 

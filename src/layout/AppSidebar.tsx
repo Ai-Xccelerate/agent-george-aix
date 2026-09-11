@@ -11,6 +11,7 @@ import {
   GroupIcon,
   InfoIcon,
   MailIcon,
+  PieChartIcon,
   PlugInIcon,
   TimeIcon,
 } from "@/icons";
@@ -50,6 +51,10 @@ type NavItem = {
 const navItems: NavItem[] = [
   { icon: <GridIcon />, name: "Dashboard", path: "/dashboard" },
   { icon: <GroupIcon />, name: "Customers", path: "/customers" },
+  // The cross-book view of the same understanding. /customers answers "how is
+  // this account?"; this answers "which account should I look at first?", which
+  // was previously only answerable by opening all of them.
+  { icon: <PieChartIcon />, name: "Engagement", path: "/engagement" },
 ];
 
 /** The surfaces George operates across. */
